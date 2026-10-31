@@ -1,0 +1,32 @@
+{
+  "todo": [
+    {
+      "title": "Go camping",
+      "complete": false,
+      "isCompleted": false,
+      "favorite": false,
+      "isFavorite": false,
+      "deadline": "2026-10-14T21:49:09.049Z",
+      "id": "vYNeT_V8S2Y"
+    },
+    {
+      "title": "Cook dinner",
+      "complete": false,
+      "isCompleted": false,
+      "favorite": false,
+      "isFavorite": false,
+      "deadline": "2026-10-14T21:49:09.049Z",
+      "id": "wyJZUiFRCVA"
+    },
+    {
+      "title": "Go jogging",
+      "complete": false,
+      "isCompleted": false,
+      "favorite": false,
+      "isFavorite": false,
+      "deadline": "2026-10-14T21:49:09.049Z",
+      "id": "06csmuhNRpc"
+    }
+  ],
+  "$schema": "./node_modules/json-server/schema.json"
+}
