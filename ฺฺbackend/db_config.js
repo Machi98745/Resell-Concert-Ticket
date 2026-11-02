@@ -3,7 +3,7 @@ const mysql = require("mysql2");
 const pool = mysql.createPool({
   host: 'localhost',
   user: 'root',
-  password: '', // หากตั้งรหัสผ่านใน XAMPP/MySQL ให้ใส่ตรงนี้
+  password: '', // ใส่รหัสผ่าน XAMPP ถ้ามี
   database: 'concert_ticket_db',
   waitForConnections: true,
   connectionLimit: 10,
