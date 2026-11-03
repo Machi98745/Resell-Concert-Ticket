@@ -10,6 +10,9 @@ app.use(express.json());
 const concertRoutes = require('./routes/concertRoutes');
 app.use('/api', concertRoutes);
 
+const resellRoutes = require('./routes/resellRoutes');
+app.use('/api/resell', resellRoutes);
+
 app.get('/', (req, res) => {
   res.send('Tixxa Resell Concert Backend Running');
 });
