@@ -12,7 +12,7 @@ app.use(cors());
 app.use(express.json());
 
 // ==========================================
-// AUTH MIDDLEWARE (งานของ 6731501012)
+// AUTH MIDDLEWARE
 // ==========================================
 
 // 1. ตรวจสอบ JWT Token ใน Header (Authorization: Bearer <token>)
@@ -44,7 +44,7 @@ const authorizeRoles = (...allowedRoles) => {
 };
 
 // ==========================================
-// 1. AUTH MODULE (งานของ 6731501012)
+// 1. AUTH MODULE
 // ==========================================
 
 // Register
@@ -52,7 +52,7 @@ app.post('/api/auth/register', async (req, res) => {
   const { username, email, password, full_name, phone, role } = req.body;
 
   if (!username || !email || !password || !full_name) {
-    return res.status(400).send('กรุณากรอกข้อมูลให้ครบถ้วน');
+    return res.status(400).send('Please provide all the required information.');
   }
 
 
@@ -63,10 +63,10 @@ app.post('/api/auth/register', async (req, res) => {
 
     db.query(sql, [username, email, password_hash, full_name, phone, userRole], (err, result) => {
       if (err) {
-        if (err.code === 'ER_DUP_ENTRY') return res.status(400).send('Username หรือ Email ถูกใช้งานแล้ว');
+        if (err.code === 'ER_DUP_ENTRY') return res.status(400).send('Username or Email is already in use');
         return res.status(500).send('Database error');
       }
-      res.status(201).json({ message: 'สมัครสมาชิกสำเร็จ', userId: result.insertId });
+      res.status(201).json({ message: 'Registration successful', userId: result.insertId });
     });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
@@ -79,19 +79,19 @@ app.post('/api/auth/register', async (req, res) => {
 // Login
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
-  if (!username || !password) return res.status(400).send('กรุณากรอก Username และ Password');
+  if (!username || !password) return res.status(400).send('Please provide both username and password');
 
   const sql = "SELECT * FROM users WHERE username = ?";
   db.query(sql, [username], async (err, result) => {
-    if (err || result.length !== 1) return res.status(401).send('Wrong username or password');
+    if (err || result.length !== 1) return res.status(401).send('Invalid username or password');
 
     const user = result[0];
     try {
       const isMatch = await argon2.verify(user.password_hash, password);
-      if (!isMatch) return res.status(401).send('Wrong username or password');
+      if (!isMatch) return res.status(401).send('Invalid username or password');
 
       const token = jwt.sign({ user_id: user.user_id, username: user.username, role: user.role }, JWT_KEY, { expiresIn: '1d' });
-      res.json({ message: 'เข้าสู่ระบบสำเร็จ', token, user: { user_id: user.user_id, username: user.username, role: user.role } });
+      res.json({ message: 'Login successful', token, user: { user_id: user.user_id, username: user.username, role: user.role } });
     } catch (err) {
       res.status(500).send('Password verification error');
     }
