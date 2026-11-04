@@ -124,3 +124,7 @@ app.get('/api/concerts', (req, res) => {
 app.get('/api/auth/me', verifyToken, (req, res) => {
   res.json({ message: 'Token is valid', user: req.user });
 });
+
+app.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
+});
