@@ -4,6 +4,9 @@ const argon2 = require('@node-rs/argon2');
 const jwt = require('jsonwebtoken');
 const db = require('./db_config');
 
+// นำเข้า Routes ระบบคอนเสิร์ต
+const concertRoutes = require('./routes/concertRoutes');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_KEY = process.env.JWT_SECRET || 'thisisthesecretforjwt_concert_app';
@@ -22,7 +25,6 @@ app.post('/api/auth/register', async (req, res) => {
   if (!username || !email || !password || !full_name) {
     return res.status(400).send('Please provide all the required information.');
   }
-
 
   try {
     const password_hash = await argon2.hash(password);
@@ -64,38 +66,9 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // ==========================================
-// 2. CONCERT MODULE (ระบบคอนเสิร์ต)
+// 2. CONCERT MODULE (ดึงผ่าน Route อย่างเดียว)
 // ==========================================
-
-// ดึงคอนเสิร์ตทั้งหมด
-app.get('/api/concerts', (req, res) => {
-  const { search } = req.query;
-  let sql = "SELECT * FROM concerts";
-  let params = [];
-
-  if (search && search.trim() !== '') {
-    sql += " WHERE name LIKE ? OR venue LIKE ?";
-    const keyword = `%${search.trim()}%`;
-    params = [keyword, keyword];
-  }
-
-  db.query(sql, params, (err, results) => {
-    if (err) return res.status(500).json({ message: 'Database Error', error: err.message });
-    res.status(200).json(results);
-  });
-});
-
-// ดึงรายละเอียดคอนเสิร์ตตาม ID
-app.get('/api/concerts/:id', (req, res) => {
-  const { id } = req.params;
-  const sql = "SELECT * FROM concerts WHERE concert_id = ?";
-
-  db.query(sql, [id], (err, results) => {
-    if (err) return res.status(500).json({ message: 'Database Error', error: err.message });
-    if (results.length === 0) return res.status(404).json({ message: 'Concert not found' });
-    res.status(200).json(results[0]);
-  });
-});
+app.use('/api', concertRoutes);
 
 // ==========================================
 // START SERVER
