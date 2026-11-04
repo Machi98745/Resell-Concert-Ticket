@@ -4,8 +4,9 @@ const argon2 = require('@node-rs/argon2');
 const jwt = require('jsonwebtoken');
 const db = require('./db_config');
 
-// นำเข้า Routes ระบบคอนเสิร์ต
+// นำเข้า Routes
 const concertRoutes = require('./routes/concertRoutes');
+const resellRoutes = require('./routes/resellRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,22 +16,37 @@ app.use(cors());
 app.use(express.json());
 
 // ==========================================
-// 1. AUTH MODULE (ระบบสมาชิก)
+// AUTH MIDDLEWARE (ตรวจสอบ JWT Token & Role)
 // ==========================================
+const verifyToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
 
-// Register
+  if (!token) {
+    return res.status(401).json({ message: 'Access denied. No token provided.' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_KEY);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.status(403).json({ message: 'Invalid or expired token.' });
+  }
+};
+
+// ==========================================
+// 1. AUTH MODULE
+// ==========================================
 app.post('/api/auth/register', async (req, res) => {
   const { username, email, password, full_name, phone, role } = req.body;
-
   if (!username || !email || !password || !full_name) {
     return res.status(400).send('Please provide all the required information.');
   }
-
   try {
     const password_hash = await argon2.hash(password);
     const userRole = role || 'customer';
     const sql = `INSERT INTO users (username, email, password_hash, full_name, phone, role) VALUES (?, ?, ?, ?, ?, ?)`;
-
     db.query(sql, [username, email, password_hash, full_name, phone, userRole], (err, result) => {
       if (err) {
         if (err.code === 'ER_DUP_ENTRY') return res.status(400).send('Username or Email is already in use');
@@ -43,7 +59,6 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// Login
 app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).send('Please provide both Username and Password');
@@ -51,12 +66,10 @@ app.post('/api/auth/login', (req, res) => {
   const sql = "SELECT * FROM users WHERE username = ?";
   db.query(sql, [username], async (err, result) => {
     if (err || result.length !== 1) return res.status(401).send('Invalid username or password');
-
     const user = result[0];
     try {
       const isMatch = await argon2.verify(user.password_hash, password);
       if (!isMatch) return res.status(401).send('Invalid username or password');
-
       const token = jwt.sign({ user_id: user.user_id, username: user.username, role: user.role }, JWT_KEY, { expiresIn: '1d' });
       res.json({ message: 'Login successful', token, user: { user_id: user.user_id, username: user.username, role: user.role } });
     } catch (err) {
@@ -66,9 +79,10 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // ==========================================
-// 2. CONCERT MODULE (ดึงผ่าน Route อย่างเดียว)
+// 2. CONCERT & RESELL MODULES
 // ==========================================
 app.use('/api', concertRoutes);
+app.use('/api/resell', resellRoutes);
 
 // ==========================================
 // START SERVER
