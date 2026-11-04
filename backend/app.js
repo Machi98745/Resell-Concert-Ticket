@@ -52,16 +52,22 @@ app.post('/api/auth/register', async (req, res) => {
   const { username, email, password, full_name, phone, role } = req.body;
 
   if (!username || !email || !password || !full_name) {
-    return res.status(400).json({ message: 'Please provide all the required information.' });
+    return res.status(400).send('กรุณากรอกข้อมูลให้ครบถ้วน');
   }
+
 
   try {
     const password_hash = await argon2.hash(password);
     const userRole = role || 'customer';
     const sql = `INSERT INTO users (username, email, password_hash, full_name, phone, role) VALUES (?, ?, ?, ?, ?, ?)`;
 
-    const [result] = await db.query(sql, [username, email, password_hash, full_name, phone || null, userRole]);
-    res.status(201).json({ message: 'Registration successful', userId: result.insertId });
+    db.query(sql, [username, email, password_hash, full_name, phone, userRole], (err, result) => {
+      if (err) {
+        if (err.code === 'ER_DUP_ENTRY') return res.status(400).send('Username หรือ Email ถูกใช้งานแล้ว');
+        return res.status(500).send('Database error');
+      }
+      res.status(201).json({ message: 'สมัครสมาชิกสำเร็จ', userId: result.insertId });
+    });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(400).json({ message: 'Username or Email is already in use' });
@@ -73,38 +79,45 @@ app.post('/api/auth/register', async (req, res) => {
 // Login
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ message: 'Please provide both Username and Password' });
-  }
+  if (!username || !password) return res.status(400).send('กรุณากรอก Username และ Password');
 
-  try {
-    const sql = 'SELECT * FROM users WHERE username = ?';
-    const [result] = await db.query(sql, [username]);
-
-    if (result.length !== 1) {
-      return res.status(401).json({ message: 'Invalid username or password' });
-    }
+  const sql = "SELECT * FROM users WHERE username = ?";
+  db.query(sql, [username], async (err, result) => {
+    if (err || result.length !== 1) return res.status(401).send('Wrong username or password');
 
     const user = result[0];
-    const isMatch = await argon2.verify(user.password_hash, password);
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid username or password' });
+    try {
+      const isMatch = await argon2.verify(user.password_hash, password);
+      if (!isMatch) return res.status(401).send('Wrong username or password');
+
+      const token = jwt.sign({ user_id: user.user_id, username: user.username, role: user.role }, JWT_KEY, { expiresIn: '1d' });
+      res.json({ message: 'เข้าสู่ระบบสำเร็จ', token, user: { user_id: user.user_id, username: user.username, role: user.role } });
+    } catch (err) {
+      res.status(500).send('Password verification error');
     }
+  });
+});
 
-    const token = jwt.sign(
-      { user_id: user.user_id, username: user.username, role: user.role },
-      JWT_KEY,
-      { expiresIn: '1d' }
-    );
+// ==========================================
+// 2. CONCERT MODULE (ระบบคอนเสิร์ต)
+// ==========================================
 
-    res.json({
-      message: 'Login successful',
-      token,
-      user: { user_id: user.user_id, username: user.username, role: user.role }
-    });
-  } catch (err) {
-    res.status(500).json({ message: 'Password verification or database error', error: err.message });
+// ดึงคอนเสิร์ตทั้งหมด
+app.get('/api/concerts', (req, res) => {
+  const { search } = req.query;
+  let sql = "SELECT * FROM concerts";
+  let params = [];
+
+  if (search && search.trim() !== '') {
+    sql += " WHERE name LIKE ? OR venue LIKE ?";
+    const keyword = `%${search.trim()}%`;
+    params = [keyword, keyword];
   }
+
+  db.query(sql, params, (err, results) => {
+    if (err) return res.status(500).json({ message: 'Database Error', error: err.message });
+    res.status(200).json(results);
+  });
 });
 
 // API สำหรับทดสอบ Auth Middleware & Role (ช่วยให้ Tester ทดสอบ Token ได้ทันที)
