@@ -18,6 +18,13 @@ exports.getAllConcerts = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: 'Database Error', error: err.message });
   }
+
+  db.query(sql, params, (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Database Error', error: err.message });
+    }
+    res.status(200).json(results);
+  });
 };
 
 // 2. ดึงรายละเอียดคอนเสิร์ตตาม ID (GET /api/concerts/:id)
