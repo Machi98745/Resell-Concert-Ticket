@@ -271,6 +271,95 @@ app.post('/api/user/add-ticket', async (req, res) => {
 });
 
 // ==========================================
+// 5. PAYMENT MODULE (Timeout 15 นาที + ที่อยู่จัดส่ง / นัดรับบัตร)
+// ==========================================
+
+// 5.1 สร้างรายการรอชำระเงิน (เลือกจัดส่ง/นัดรับ + ตั้งเวลา 15 นาที)
+app.post('/api/payments/checkout', verifyToken, async (req, res) => {
+  const buyer_id = req.user.user_id;
+  const { listing_id, payment_method, delivery_method, shipping_info } = req.body;
+
+  if (!listing_id || !payment_method || !delivery_method || !shipping_info) {
+    return res.status(400).json({
+      message: 'กรุณาระบุข้อมูลให้ครบ: listing_id, payment_method, delivery_method (delivery/meetup), และ shipping_info (ที่อยู่หรือจุดนัดรับ)'
+    });
+  }
+
+  try {
+    const [listings] = await db.query(
+      "SELECT * FROM resell_listings WHERE listing_id = ? AND status = 'available'",
+      [listing_id]
+    );
+    if (listings.length === 0) {
+      return res.status(404).json({ message: 'Ticket is no longer available' });
+    }
+
+    const listing = listings[0];
+
+    const sql = `
+      INSERT INTO payments (listing_id, buyer_id, amount, payment_method, delivery_method, shipping_info, status, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'pending', DATE_ADD(NOW(), INTERVAL 15 MINUTE))
+    `;
+    const [result] = await db.query(sql, [
+      listing_id,
+      buyer_id,
+      listing.resell_price,
+      payment_method,
+      delivery_method, // 'delivery' หรือ 'meetup'
+      shipping_info    // ที่อยู่จัดส่ง หรือ จุดนัดรับ
+    ]);
+
+    res.status(201).json({
+      message: 'สร้างรายการสั่งซื้อสำเร็จ กรุณาชำระเงินภายใน 15 นาที',
+      payment_id: result.insertId,
+      delivery_method,
+      shipping_info,
+      timeout_minutes: 15
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Database Error', error: err.message });
+  }
+});
+
+// 5.2 ยืนยันการชำระเงิน (เช็กว่าเกิน 15 นาทีหรือยัง)
+app.post('/api/payments/:id/confirm', verifyToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [payments] = await db.query(
+      'SELECT *, (NOW() > expires_at) AS is_expired FROM payments WHERE payment_id = ?',
+      [id]
+    );
+
+    if (payments.length === 0) {
+      return res.status(404).json({ message: 'Payment record not found' });
+    }
+
+    const payment = payments[0];
+
+    if (payment.is_expired || payment.status === 'expired') {
+      await db.query("UPDATE payments SET status = 'expired' WHERE payment_id = ?", [id]);
+      return res.status(400).json({
+        message: 'Payment timeout: หมดเวลาชำระเงิน (เกิน 15 นาที) กรุณาทำรายการใหม่'
+      });
+    }
+
+    await db.query("UPDATE payments SET status = 'completed', paid_at = NOW() WHERE payment_id = ?", [id]);
+    await db.query("UPDATE resell_listings SET status = 'sold' WHERE listing_id = ?", [payment.listing_id]);
+
+    res.status(200).json({
+      message: 'Payment completed successfully!',
+      payment_id: Number(id),
+      delivery_method: payment.delivery_method,
+      shipping_info: payment.shipping_info,
+      status: 'completed'
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Database Error', error: err.message });
+  }
+});
+
+// ==========================================
 // START SERVER
 // ==========================================
 app.listen(PORT, () => {
