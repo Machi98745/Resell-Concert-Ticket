@@ -256,6 +256,20 @@ app.get('/api/concerts/:id', async (req, res) => {
 app.use('/api/resell', resellRoutes);
 app.get('/api/user/my-tickets', verifyToken, resellController.getMyTickets);
 
+// API สำหรับเสก/เพิ่มตั๋วเข้าตัว User (ไว้ใช้ตอนเทสระบบ)
+app.post('/api/user/add-ticket', async (req, res) => {
+  const { user_id, concert_id, ticket_code, zone_name, seat_number, original_price } = req.body;
+  try {
+    const [result] = await db.query(
+      'INSERT INTO tickets (user_id, concert_id, ticket_code, zone_name, seat_number, original_price) VALUES (?, ?, ?, ?, ?, ?)',
+      [user_id || 1, concert_id || 1, ticket_code || `TKT-${Date.now()}`, zone_name || 'VIP A1', seat_number || 'A1-99', original_price || 4500]
+    );
+    res.status(201).json({ message: 'Ticket added successfully', ticket_id: result.insertId });
+  } catch (err) {
+    res.status(500).json({ message: 'Database Error', error: err.message });
+  }
+});
+
 // ==========================================
 // START SERVER
 // ==========================================
