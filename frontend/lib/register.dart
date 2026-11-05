@@ -16,6 +16,8 @@ class _RegisterState extends State<Register> {
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
+  String? _errorMessage;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -202,6 +204,44 @@ class _RegisterState extends State<Register> {
                               ),
                             ),
                           ),
+
+                          // error message
+                          if (_errorMessage != null) ...[
+                            const SizedBox(height: 14),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                                horizontal: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.redAccent.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.redAccent),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.error_outline,
+                                    color: Colors.redAccent,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _errorMessage!,
+                                      style: const TextStyle(
+                                        color: Colors.redAccent,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+
                           const SizedBox(height: 24),
 
                           // ปุ่ม Register
@@ -216,7 +256,70 @@ class _RegisterState extends State<Register> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              onPressed: () {},
+                              onPressed: () {
+                                String username = _usernameController.text
+                                    .trim();
+                                String fullname = _fullnameController.text
+                                    .trim();
+                                String email = _emailController.text.trim();
+                                String phone = _phoneController.text.trim();
+                                String password = _passwordController.text
+                                    .trim();
+                                String confirmPassword =
+                                    _confirmPasswordController.text.trim();
+
+                                if (username.isEmpty ||
+                                    fullname.isEmpty ||
+                                    email.isEmpty ||
+                                    phone.isEmpty ||
+                                    password.isEmpty ||
+                                    confirmPassword.isEmpty) {
+                                  setState(() {
+                                    _errorMessage =
+                                        'Please fill in all fields';
+                                  });
+                                  return;
+                                }
+
+                                // เปลี่ยนด้านหลังได้ ตอนนี้มันใสส่ตัวอักษรหลังจาก . ได้แค่ 2-4 ตัว
+                                if (!RegExp(
+                                  r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                                ).hasMatch(email)) {
+                                  setState(() {
+                                    _errorMessage = 'Invalid email format';
+                                  });
+                                  return;
+                                }
+
+                                if (!RegExp(r'^\d{10}$').hasMatch(phone)) {
+                                  setState(() {
+                                    _errorMessage =
+                                        'Phone number must be 10 digits';
+                                  });
+                                  return;
+                                }
+
+                                if (password != confirmPassword) {
+                                  setState(() {
+                                    _errorMessage = 'Passwords do not match';
+                                  });
+                                  return;
+                                }
+
+                                setState(() {
+                                  _errorMessage = null;
+                                });
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Registration successful'),
+                                    backgroundColor: Colors.pinkAccent,
+                                  ),
+                                );
+
+                                Navigator.pop(context);
+
+                              },
                               child: const Text(
                                 'Register',
                                 style: TextStyle(
@@ -259,10 +362,10 @@ class _RegisterState extends State<Register> {
                         TextSpan(
                           text: "Already have an account? ",
                           style: const TextStyle(color: Colors.white70),
-                          children: [
+                          children: const [
                             TextSpan(
                               text: 'Login here',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
                               ),

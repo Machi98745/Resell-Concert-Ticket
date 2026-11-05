@@ -232,14 +232,7 @@ class DetailPage extends StatelessWidget {
                                     foregroundColor: Colors.white,
                                   ),
                                   onPressed: () {
-                                    ScaffoldMessenger.of(context)
-                                        .showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Purchase feature coming soon!',
-                                        ),
-                                      ),
-                                    );
+                                    // หน้าจ่ายเงิน
                                   },
                                   child: const Text('Buy Ticket'),
                                 ),
