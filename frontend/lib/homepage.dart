@@ -1,10 +1,10 @@
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'detail.dart';
 import 'cart.dart';
 import 'cart_service.dart';
+import 'screens/sell_page.dart';
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -18,8 +18,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final TextEditingController searchController =
-      TextEditingController();
+  final TextEditingController searchController = TextEditingController();
 
   final PageController bannerController = PageController();
 
@@ -42,8 +41,7 @@ class _HomePageState extends State<HomePage> {
         'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=1200',
         'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=1200',
       ],
-      'description':
-          'Experience an unforgettable night with BLACKPINK.',
+      'description': 'Experience an unforgettable night with BLACKPINK.',
       'tickets': [
         {
           'seller': 'PinkSeller',
@@ -137,25 +135,22 @@ class _HomePageState extends State<HomePage> {
   }
 
   void startBannerAutoSlide() {
-    bannerTimer = Timer.periodic(
-      const Duration(seconds: 3),
-      (timer) {
-        if (!mounted || !bannerController.hasClients) return;
+    bannerTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (!mounted || !bannerController.hasClients) return;
 
-        final images = concerts[0]['images'] as List;
-        int nextPage = currentBannerIndex + 1;
+      final images = concerts[0]['images'] as List;
+      int nextPage = currentBannerIndex + 1;
 
-        if (nextPage >= images.length) {
-          nextPage = 0;
-        }
+      if (nextPage >= images.length) {
+        nextPage = 0;
+      }
 
-        bannerController.animateToPage(
-          nextPage,
-          duration: const Duration(milliseconds: 600),
-          curve: Curves.easeInOut,
-        );
-      },
-    );
+      bannerController.animateToPage(
+        nextPage,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOut,
+      );
+    });
   }
 
   @override
@@ -175,8 +170,7 @@ class _HomePageState extends State<HomePage> {
           concert['artist'].toString().toLowerCase().contains(searchText);
 
       final matchesCategory =
-          selectedCategory == 'All' ||
-          concert['category'] == selectedCategory;
+          selectedCategory == 'All' || concert['category'] == selectedCategory;
 
       return matchesSearch && matchesCategory;
     }).toList();
@@ -185,9 +179,7 @@ class _HomePageState extends State<HomePage> {
   void openDetail(Map<String, dynamic> concert) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => DetailPage(concert: concert),
-      ),
+      MaterialPageRoute(builder: (context) => DetailPage(concert: concert)),
     ).then((_) {
       if (mounted) setState(() {});
     });
@@ -196,9 +188,7 @@ class _HomePageState extends State<HomePage> {
   void openCart() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const CartPage(),
-      ),
+      MaterialPageRoute(builder: (context) => const CartPage()),
     ).then((_) {
       if (mounted) setState(() {});
     });
@@ -241,10 +231,7 @@ class _HomePageState extends State<HomePage> {
   // HEADER
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 35,
-        vertical: 18,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 35, vertical: 18),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -308,11 +295,7 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
           const SizedBox(width: 8),
-          const Icon(
-            Icons.account_circle_outlined,
-            color: darkPink,
-            size: 27,
-          ),
+          const Icon(Icons.account_circle_outlined, color: darkPink, size: 27),
         ],
       ),
     );
@@ -431,10 +414,7 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(height: 12),
                       const Text(
                         'Get your tickets and enjoy the show!',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
+                        style: TextStyle(color: Colors.white, fontSize: 14),
                       ),
                       const SizedBox(height: 20),
                       ElevatedButton(
@@ -464,28 +444,22 @@ class _HomePageState extends State<HomePage> {
                 right: 0,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    images.length,
-                    (index) {
-                      final isSelected =
-                          currentBannerIndex == index;
+                  children: List.generate(images.length, (index) {
+                    final isSelected = currentBannerIndex == index;
 
-                      return AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                        ),
-                        width: isSelected ? 25 : 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? pink
-                              : Colors.white.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      );
-                    },
-                  ),
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      width: isSelected ? 25 : 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? pink
+                            : Colors.white.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    );
+                  }),
                 ),
               ),
             ],
@@ -506,15 +480,10 @@ class _HomePageState extends State<HomePage> {
         },
         decoration: InputDecoration(
           hintText: 'Search concerts, artists...',
-          prefixIcon: const Icon(
-            Icons.search,
-            color: pink,
-          ),
+          prefixIcon: const Icon(Icons.search, color: pink),
           filled: true,
           fillColor: lightPink,
-          contentPadding: const EdgeInsets.symmetric(
-            vertical: 16,
-          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 16),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(15),
             borderSide: BorderSide.none,
@@ -576,10 +545,7 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 6),
           const Text(
             'Find your favorite concert tickets',
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 14,
-            ),
+            style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
           const SizedBox(height: 22),
 
@@ -605,8 +571,7 @@ class _HomePageState extends State<HomePage> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: items.length,
-                  gridDelegate:
-                      SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: columns,
                     crossAxisSpacing: 20,
                     mainAxisSpacing: 20,
@@ -631,9 +596,7 @@ class _HomePageState extends State<HomePage> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.grey.shade200,
-          ),
+          border: Border.all(color: Colors.grey.shade200),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.04),
@@ -659,11 +622,7 @@ class _HomePageState extends State<HomePage> {
                     return Container(
                       color: lightPink,
                       child: const Center(
-                        child: Icon(
-                          Icons.music_note,
-                          size: 45,
-                          color: pink,
-                        ),
+                        child: Icon(Icons.music_note, size: 45, color: pink),
                       ),
                     );
                   },
@@ -727,9 +686,7 @@ class _HomePageState extends State<HomePage> {
                           backgroundColor: pink,
                           foregroundColor: Colors.white,
                           elevation: 0,
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 10,
-                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -762,11 +719,7 @@ class _HomePageState extends State<HomePage> {
       ),
       child: Column(
         children: [
-          const Icon(
-            Icons.confirmation_number_outlined,
-            color: pink,
-            size: 45,
-          ),
+          const Icon(Icons.confirmation_number_outlined, color: pink, size: 45),
           const SizedBox(height: 15),
           const Text(
             'Have a ticket to sell?',
@@ -780,27 +733,24 @@ class _HomePageState extends State<HomePage> {
           const Text(
             'Sell your concert tickets easily with Ticket Pink.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 14,
-            ),
+            style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
           const SizedBox(height: 20),
           ElevatedButton(
             onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SellPage()),
+              );
+
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Selling feature coming soon!'),
-                ),
+                const SnackBar(content: Text('Selling feature coming soon!')),
               );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: pink,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 30,
-                vertical: 14,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 14),
             ),
             child: const Text('Start Selling'),
           ),
@@ -828,18 +778,12 @@ class _HomePageState extends State<HomePage> {
           SizedBox(height: 10),
           Text(
             'Your favorite place for concert tickets.',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: Colors.white70, fontSize: 13),
           ),
           SizedBox(height: 15),
           Text(
             '© 2026 Ticket Pink. All rights reserved.',
-            style: TextStyle(
-              color: Colors.white54,
-              fontSize: 11,
-            ),
+            style: TextStyle(color: Colors.white54, fontSize: 11),
           ),
         ],
       ),

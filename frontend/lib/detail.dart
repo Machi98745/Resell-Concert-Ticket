@@ -1,6 +1,6 @@
-
 import 'package:flutter/material.dart';
 import 'cart_service.dart';
+import 'cart.dart';
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -9,10 +9,7 @@ const Color darkPink = Color(0xFF54283D);
 class DetailPage extends StatefulWidget {
   final Map<String, dynamic> concert;
 
-  const DetailPage({
-    super.key,
-    required this.concert,
-  });
+  const DetailPage({super.key, required this.concert});
 
   @override
   State<DetailPage> createState() => _DetailPageState();
@@ -27,35 +24,27 @@ class _DetailPageState extends State<DetailPage> {
 
   List get tickets => concert['tickets'] ?? [];
 
-  String get eventName =>
-      concert['name']?.toString() ?? 'Concert Event';
+  String get eventName => concert['name']?.toString() ?? 'Concert Event';
 
-  String get artist =>
-      concert['artist']?.toString() ?? '';
+  String get artist => concert['artist']?.toString() ?? '';
 
-  String get eventDate =>
-      concert['date']?.toString() ?? 'Date to be announced';
+  String get eventDate => concert['date']?.toString() ?? 'Date to be announced';
 
   String get eventLocation =>
       concert['location']?.toString() ?? 'Location to be announced';
 
-  String get eventImage =>
-      concert['image']?.toString() ?? '';
+  String get eventImage => concert['image']?.toString() ?? '';
 
   String get eventDescription =>
       concert['description']?.toString() ??
       'Enjoy an unforgettable concert experience.';
 
-  String get ticketStatus =>
-      concert['status']?.toString() ?? 'ON SALE NOW';
+  String get ticketStatus => concert['status']?.toString() ?? 'ON SALE NOW';
 
   String formatPrice(dynamic price) {
     final value = (price as num?)?.toStringAsFixed(0) ?? '0';
 
-    return '฿${value.replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (match) => ',',
-    )}';
+    return '฿${value.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => ',')}';
   }
 
   // SCROLL TO TICKETS
@@ -76,7 +65,14 @@ class _DetailPageState extends State<DetailPage> {
   void addToCart(Map<String, dynamic> ticket) {
     CartService.addToCart(concert, ticket);
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    // 1. เก็บ NavigatorState ไว้ล่วงหน้า ก่อนที่ context ใน SnackBar จะถูกลบ
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final messenger = ScaffoldMessenger.of(context);
+
+    // ลบ SnackBar เก่าออกทันที
+    messenger.removeCurrentSnackBar();
+
+    messenger.showSnackBar(
       SnackBar(
         backgroundColor: darkPink,
         behavior: SnackBarBehavior.floating,
@@ -85,7 +81,13 @@ class _DetailPageState extends State<DetailPage> {
           label: 'VIEW CART',
           textColor: Colors.white,
           onPressed: () {
-            Navigator.pushNamed(context, '/cart');
+            // 2. ปิด SnackBar ทันที
+            messenger.removeCurrentSnackBar();
+
+            // 3. เรียกใช้นิเกเตอร์ที่เก็บไว้เปิดหน้า CartPage
+            navigator.push(
+              MaterialPageRoute(builder: (context) => const CartPage()),
+            );
           },
         ),
       ),
@@ -109,9 +111,7 @@ class _DetailPageState extends State<DetailPage> {
               },
             ),
           ),
-          SliverToBoxAdapter(
-            child: _buildMainContent(),
-          ),
+          SliverToBoxAdapter(child: _buildMainContent()),
         ],
       ),
     );
@@ -138,10 +138,7 @@ class _DetailPageState extends State<DetailPage> {
           ),
         ),
 
-        Container(
-          height: 310,
-          color: darkPink.withOpacity(0.86),
-        ),
+        Container(height: 310, color: darkPink.withOpacity(0.86)),
 
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 15, 16, 25),
@@ -267,10 +264,7 @@ class _DetailPageState extends State<DetailPage> {
           ),
         ),
 
-        Container(
-          height: 480,
-          color: darkPink.withOpacity(0.84),
-        ),
+        Container(height: 480, color: darkPink.withOpacity(0.84)),
 
         Padding(
           padding: const EdgeInsets.fromLTRB(35, 20, 35, 30),
@@ -380,10 +374,7 @@ class _DetailPageState extends State<DetailPage> {
       children: [
         IconButton(
           onPressed: () => Navigator.pop(context),
-          icon: const Icon(
-            Icons.arrow_back,
-            color: Colors.white,
-          ),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
         ),
 
         const Text(
@@ -399,18 +390,12 @@ class _DetailPageState extends State<DetailPage> {
 
         IconButton(
           onPressed: () {},
-          icon: const Icon(
-            Icons.share_outlined,
-            color: Colors.white,
-          ),
+          icon: const Icon(Icons.share_outlined, color: Colors.white),
         ),
 
         IconButton(
           onPressed: () {},
-          icon: const Icon(
-            Icons.favorite_border,
-            color: Colors.white,
-          ),
+          icon: const Icon(Icons.favorite_border, color: Colors.white),
         ),
       ],
     );
@@ -421,40 +406,17 @@ class _DetailPageState extends State<DetailPage> {
       crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 8,
       children: [
-        Text(
-          'Home',
-          style: TextStyle(
-            color: Colors.white70,
-            fontSize: 13,
-          ),
-        ),
+        Text('Home', style: TextStyle(color: Colors.white70, fontSize: 13)),
 
-        Icon(
-          Icons.chevron_right,
-          color: Colors.white54,
-          size: 16,
-        ),
+        Icon(Icons.chevron_right, color: Colors.white54, size: 16),
 
-        Text(
-          'Concerts',
-          style: TextStyle(
-            color: Colors.white70,
-            fontSize: 13,
-          ),
-        ),
+        Text('Concerts', style: TextStyle(color: Colors.white70, fontSize: 13)),
 
-        Icon(
-          Icons.chevron_right,
-          color: Colors.white54,
-          size: 16,
-        ),
+        Icon(Icons.chevron_right, color: Colors.white54, size: 16),
 
         Text(
           'Event Details',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-          ),
+          style: TextStyle(color: Colors.white, fontSize: 13),
         ),
       ],
     );
@@ -479,13 +441,7 @@ class _DetailPageState extends State<DetailPage> {
   Widget _imagePlaceholder() {
     return Container(
       color: lightPink,
-      child: const Center(
-        child: Icon(
-          Icons.music_note,
-          size: 55,
-          color: pink,
-        ),
-      ),
+      child: const Center(child: Icon(Icons.music_note, size: 55, color: pink)),
     );
   }
 
@@ -495,10 +451,7 @@ class _DetailPageState extends State<DetailPage> {
 
   Widget _buildStatusBadge() {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.green.withOpacity(0.15),
         border: Border.all(color: Colors.greenAccent),
@@ -524,17 +477,9 @@ class _DetailPageState extends State<DetailPage> {
       spacing: 25,
       runSpacing: 22,
       children: [
-        _desktopInfo(
-          Icons.calendar_month,
-          'Show Date',
-          eventDate,
-        ),
+        _desktopInfo(Icons.calendar_month, 'Show Date', eventDate),
 
-        _desktopInfo(
-          Icons.location_on_outlined,
-          'Venue',
-          eventLocation,
-        ),
+        _desktopInfo(Icons.location_on_outlined, 'Venue', eventLocation),
 
         _desktopInfo(
           Icons.confirmation_number_outlined,
@@ -554,26 +499,16 @@ class _DetailPageState extends State<DetailPage> {
   String _ticketPriceText() {
     if (tickets.isEmpty) return 'Price unavailable';
 
-    return tickets
-        .map((t) => formatPrice(t['price']))
-        .join(' / ');
+    return tickets.map((t) => formatPrice(t['price'])).join(' / ');
   }
 
-  Widget _desktopInfo(
-    IconData icon,
-    String title,
-    String value,
-  ) {
+  Widget _desktopInfo(IconData icon, String title, String value) {
     return SizedBox(
       width: 260,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            color: Colors.white70,
-            size: 23,
-          ),
+          Icon(icon, color: Colors.white70, size: 23),
 
           const SizedBox(width: 12),
 
@@ -583,20 +518,14 @@ class _DetailPageState extends State<DetailPage> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
 
                 const SizedBox(height: 5),
 
                 Text(
                   value,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
                 ),
               ],
             ),
@@ -729,21 +658,11 @@ class _DetailPageState extends State<DetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            color: pink,
-            size: 22,
-          ),
+          Icon(icon, color: pink, size: 22),
 
           const SizedBox(height: 8),
 
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 11,
-            ),
-          ),
+          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 11)),
 
           const SizedBox(height: 4),
 
@@ -781,10 +700,7 @@ class _DetailPageState extends State<DetailPage> {
 
         const Text(
           'Choose your preferred seating zone.',
-          style: TextStyle(
-            color: Colors.grey,
-            fontSize: 13,
-          ),
+          style: TextStyle(color: Colors.grey, fontSize: 13),
         ),
 
         const SizedBox(height: 20),
@@ -795,29 +711,21 @@ class _DetailPageState extends State<DetailPage> {
           decoration: BoxDecoration(
             color: const Color(0xFFFAFAFA),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.grey.shade200,
-            ),
+            border: Border.all(color: Colors.grey.shade200),
           ),
           child: Column(
             children: [
               // STAGE
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
                   color: darkPink,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Column(
                   children: [
-                    Icon(
-                      Icons.music_note,
-                      color: Colors.white,
-                      size: 22,
-                    ),
+                    Icon(Icons.music_note, color: Colors.white, size: 22),
 
                     SizedBox(height: 4),
 
@@ -838,17 +746,11 @@ class _DetailPageState extends State<DetailPage> {
               // ZONE A
               Row(
                 children: [
-                  Expanded(
-                    child: _seatZone('A1', Colors.pink),
-                  ),
+                  Expanded(child: _seatZone('A1', Colors.pink)),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: _seatZone('A2', Colors.red),
-                  ),
+                  Expanded(child: _seatZone('A2', Colors.red)),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: _seatZone('A3', Colors.pink),
-                  ),
+                  Expanded(child: _seatZone('A3', Colors.pink)),
                 ],
               ),
 
@@ -857,17 +759,11 @@ class _DetailPageState extends State<DetailPage> {
               // ZONE B
               Row(
                 children: [
-                  Expanded(
-                    child: _seatZone('B1', Colors.orange),
-                  ),
+                  Expanded(child: _seatZone('B1', Colors.orange)),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: _seatZone('B2', Colors.orange),
-                  ),
+                  Expanded(child: _seatZone('B2', Colors.orange)),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: _seatZone('B3', Colors.orange),
-                  ),
+                  Expanded(child: _seatZone('B3', Colors.orange)),
                 ],
               ),
 
@@ -876,17 +772,11 @@ class _DetailPageState extends State<DetailPage> {
               // ZONE C
               Row(
                 children: [
-                  Expanded(
-                    child: _seatZone('C1', Colors.lightGreen),
-                  ),
+                  Expanded(child: _seatZone('C1', Colors.lightGreen)),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: _seatZone('C2', Colors.green),
-                  ),
+                  Expanded(child: _seatZone('C2', Colors.green)),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: _seatZone('C3', Colors.lightGreen),
-                  ),
+                  Expanded(child: _seatZone('C3', Colors.lightGreen)),
                 ],
               ),
 
@@ -907,17 +797,11 @@ class _DetailPageState extends State<DetailPage> {
               // ZONE D
               Row(
                 children: [
-                  Expanded(
-                    child: _seatZone('D1', Colors.blue),
-                  ),
+                  Expanded(child: _seatZone('D1', Colors.blue)),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: _seatZone('D2', Colors.blue),
-                  ),
+                  Expanded(child: _seatZone('D2', Colors.blue)),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: _seatZone('D3', Colors.blue),
-                  ),
+                  Expanded(child: _seatZone('D3', Colors.blue)),
                 ],
               ),
 
@@ -933,22 +817,10 @@ class _DetailPageState extends State<DetailPage> {
                 runSpacing: 10,
                 alignment: WrapAlignment.center,
                 children: [
-                  _SeatLegend(
-                    color: Colors.red,
-                    label: 'VIP',
-                  ),
-                  _SeatLegend(
-                    color: Colors.orange,
-                    label: 'Premium',
-                  ),
-                  _SeatLegend(
-                    color: Colors.green,
-                    label: 'Standard',
-                  ),
-                  _SeatLegend(
-                    color: Colors.blue,
-                    label: 'Regular',
-                  ),
+                  _SeatLegend(color: Colors.red, label: 'VIP'),
+                  _SeatLegend(color: Colors.orange, label: 'Premium'),
+                  _SeatLegend(color: Colors.green, label: 'Standard'),
+                  _SeatLegend(color: Colors.blue, label: 'Regular'),
                 ],
               ),
             ],
@@ -1010,9 +882,7 @@ class _DetailPageState extends State<DetailPage> {
 
         const Text(
           'Choose your preferred ticket zone.',
-          style: TextStyle(
-            color: Colors.grey,
-          ),
+          style: TextStyle(color: Colors.grey),
         ),
 
         const SizedBox(height: 18),
@@ -1021,14 +891,11 @@ class _DetailPageState extends State<DetailPage> {
           const Text('No tickets available.')
         else
           ...List.generate(tickets.length, (index) {
-            final ticket = Map<String, dynamic>.from(
-              tickets[index],
-            );
+            final ticket = Map<String, dynamic>.from(tickets[index]);
 
             final isSelected = selectedTicketIndex == index;
 
-            final zone =
-                ticket['zone'] ?? ticket['seat'] ?? 'General';
+            final zone = ticket['zone'] ?? ticket['seat'] ?? 'General';
 
             return Container(
               margin: const EdgeInsets.only(bottom: 13),
@@ -1037,9 +904,7 @@ class _DetailPageState extends State<DetailPage> {
                 color: isSelected ? lightPink : Colors.white,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: isSelected
-                      ? pink
-                      : Colors.grey.shade300,
+                  color: isSelected ? pink : Colors.grey.shade300,
                   width: isSelected ? 2 : 1,
                 ),
               ),
@@ -1082,8 +947,7 @@ class _DetailPageState extends State<DetailPage> {
                         const SizedBox(height: 4),
 
                         Text(
-                          ticket['condition']?.toString() ??
-                              'Available',
+                          ticket['condition']?.toString() ?? 'Available',
                           style: const TextStyle(
                             color: Colors.green,
                             fontSize: 12,
@@ -1206,10 +1070,7 @@ class _DetailPageState extends State<DetailPage> {
                     Positioned.fill(
                       child: Opacity(
                         opacity: 0.35,
-                        child: Image.network(
-                          eventImage,
-                          fit: BoxFit.cover,
-                        ),
+                        child: Image.network(eventImage, fit: BoxFit.cover),
                       ),
                     ),
 
@@ -1248,10 +1109,7 @@ class _SeatLegend extends StatelessWidget {
   final Color color;
   final String label;
 
-  const _SeatLegend({
-    required this.color,
-    required this.label,
-  });
+  const _SeatLegend({required this.color, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -1271,10 +1129,7 @@ class _SeatLegend extends StatelessWidget {
 
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Colors.black87,
-          ),
+          style: const TextStyle(fontSize: 11, color: Colors.black87),
         ),
       ],
     );
