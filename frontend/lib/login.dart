@@ -439,7 +439,7 @@ class _LoginState extends State<Login> {
                                 if (username.isEmpty || password.isEmpty) {
                                   _showMessage(
                                     'Please enter username and password',
-                                    Colors.orangeAccent,
+                                    Colors.redAccent,
                                   );
                                   return;
                                 }
@@ -449,7 +449,7 @@ class _LoginState extends State<Login> {
                                         password) {
                                   _showMessage(
                                     'Login successful! Welcome $username',
-                                    Colors.pinkAccent,
+                                    Colors.green,
                                   );
 
                                   Navigator.pushReplacement(
