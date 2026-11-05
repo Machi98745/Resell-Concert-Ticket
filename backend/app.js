@@ -4,6 +4,9 @@ const argon2 = require('@node-rs/argon2');
 const jwt = require('jsonwebtoken');
 const db = require('./db_config');
 
+const resellRoutes = require('./routes/resellRoutes');
+const resellController = require('./controllers/resellController');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_KEY = process.env.JWT_SECRET || 'thisisthesecretforjwt_concert_app';
@@ -14,8 +17,6 @@ app.use(express.json());
 // ==========================================
 // AUTH MIDDLEWARE (ตรวจสอบ JWT Token & Role)
 // ==========================================
-
-// 1. ตรวจสอบ JWT Token ใน Header (Authorization: Bearer <token>)
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -26,14 +27,13 @@ const verifyToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_KEY);
-    req.user = decoded; // เก็บ { user_id, username, role, is_verified }
+    req.user = decoded;
     next();
   } catch (err) {
     return res.status(403).json({ message: 'Invalid or expired token.' });
   }
 };
 
-// 2. ตรวจสอบสิทธิ์ตาม Role ('customer', 'admin')
 const authorizeRoles = (...allowedRoles) => {
   return (req, res, next) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {
@@ -46,8 +46,6 @@ const authorizeRoles = (...allowedRoles) => {
 // ==========================================
 // 1. AUTH MODULE (ระบบสมาชิก)
 // ==========================================
-
-// สมัครสมาชิก (Register)
 app.post('/api/auth/register', async (req, res) => {
   const { username, email, password, full_name, phone, role } = req.body;
 
@@ -57,7 +55,6 @@ app.post('/api/auth/register', async (req, res) => {
 
   try {
     const password_hash = await argon2.hash(password);
-    // กำหนดค่าเริ่มต้นเป็น customer เสมอ (ยกเว้นส่ง role: 'admin' มาตอนเทส)
     const userRole = role === 'admin' ? 'admin' : 'customer';
 
     const sql = `
@@ -86,7 +83,6 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// เข้าสู่ระบบ (Login)
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
@@ -103,7 +99,6 @@ app.post('/api/auth/login', async (req, res) => {
 
     const user = result[0];
 
-    // เช็กว่าบัญชีถูก Admin ปิดการใช้งาน (is_active = 0) หรือไม่
     if (user.is_active === 0) {
       return res.status(403).json({
         message: 'Account disabled: Your account has been suspended by an administrator.'
@@ -143,7 +138,6 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// ตรวจสอบข้อมูลตัวเองจาก Token (ใช้เทส Middleware)
 app.get('/api/auth/me', verifyToken, async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -162,8 +156,6 @@ app.get('/api/auth/me', verifyToken, async (req, res) => {
 // ==========================================
 // 2. ADMIN MODULE (จัดการผู้ใช้ & ยืนยันตัวตนผู้ขาย)
 // ==========================================
-
-// ดึงรายชื่อผู้ใช้ทั้งหมด (เฉพาะ Admin)
 app.get('/api/admin/users', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
     const [users] = await db.query(
@@ -175,7 +167,6 @@ app.get('/api/admin/users', verifyToken, authorizeRoles('admin'), async (req, re
   }
 });
 
-// เปิด-ปิดการใช้งานบัญชี User (is_active: 1 = เปิด, 0 = ปิด/ระงับ)
 app.patch('/api/admin/users/:id/status', verifyToken, authorizeRoles('admin'), async (req, res) => {
   const { id } = req.params;
   const { is_active } = req.body;
@@ -199,7 +190,6 @@ app.patch('/api/admin/users/:id/status', verifyToken, authorizeRoles('admin'), a
   }
 });
 
-// ยืนยันตัวตนผู้ขายว่าเป็นคนจริง (is_verified: 1 = คนจริง, 0 = ยังไม่ยืนยัน)
 app.patch('/api/admin/users/:id/verify', verifyToken, authorizeRoles('admin'), async (req, res) => {
   const { id } = req.params;
   const { is_verified } = req.body;
@@ -226,8 +216,6 @@ app.patch('/api/admin/users/:id/verify', verifyToken, authorizeRoles('admin'), a
 // ==========================================
 // 3. CONCERT MODULE (ระบบคอนเสิร์ต)
 // ==========================================
-
-// ดึงคอนเสิร์ตทั้งหมด (พร้อมค้นหาจาก title หรือ venue)
 app.get('/api/concerts', async (req, res) => {
   const { search } = req.query;
   let sql = 'SELECT * FROM concerts';
@@ -249,7 +237,6 @@ app.get('/api/concerts', async (req, res) => {
   }
 });
 
-// ดึงรายละเอียดคอนเสิร์ตตาม ID
 app.get('/api/concerts/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -262,6 +249,12 @@ app.get('/api/concerts/:id', async (req, res) => {
     res.status(500).json({ message: 'Database Error', error: err.message });
   }
 });
+
+// ==========================================
+// 4. RESELL MODULE (เชื่อมงานของ 6731501049)
+// ==========================================
+app.use('/api/resell', resellRoutes);
+app.get('/api/user/my-tickets', verifyToken, resellController.getMyTickets);
 
 // ==========================================
 // START SERVER
