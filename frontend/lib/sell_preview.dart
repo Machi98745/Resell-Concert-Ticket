@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/sell_page.dart';
+import 'views/sell_page.dart';
 
 void main() {
   runApp(

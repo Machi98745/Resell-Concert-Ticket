@@ -1,6 +1,6 @@
 
 import 'package:flutter/material.dart';
-import 'screens/payment_page.dart';
+import 'views/payment_page.dart';
 
 void main() {
   runApp(
