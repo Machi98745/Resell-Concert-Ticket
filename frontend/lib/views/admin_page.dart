@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/views/login.dart';
+import 'package:frontend/views/login.dart';
 
 // Palette: White, Pink, Dark Charcoal, Slate Grey
 const Color primaryPink = Color(0xFFE85D9E);
@@ -18,7 +20,7 @@ class _AdminPageState extends State<AdminPage> {
   final TextEditingController searchController = TextEditingController();
   String selectedFilter = 'All';
 
-  // Mock data (แพลตฟอร์มตัวกลางส่งต่อตั๋วคนสู่คน - Pure Resell Platform)
+  // Mock data
   final List<Map<String, dynamic>> users = [
     {
       'id': '1',
@@ -162,28 +164,93 @@ class _AdminPageState extends State<AdminPage> {
     },
   ];
 
+  // filter bar
+  List<Map<String, dynamic>> get filteredUsers {
+    final query = searchController.text.toLowerCase();
+    return users.where((user) {
+      final matchesSearch =
+          user['full_name'].toString().toLowerCase().contains(query) ||
+          user['email'].toString().toLowerCase().contains(query) ||
+          user['id'].toString().toLowerCase().contains(query);
+
+      final matchesFilter =
+          selectedFilter == 'All' ||
+          (selectedFilter == 'Active' && user['isActive'] == true) ||
+          (selectedFilter == 'Suspended' && user['isActive'] == false);
+
+      return matchesSearch && matchesFilter;
+    }).toList();
+  }
+
+  // method
   @override
   void dispose() {
     searchController.dispose();
     super.dispose();
   }
 
-  /// Success Rate จำนวนการขายและรายการตั๋ว
+  // =============================== logic ======================================
+  /// logout
+  void _logout() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Log Out',
+            style: TextStyle(color: darkCharcoal, fontWeight: FontWeight.bold),
+          ),
+          content: const Text(
+            'Are you sure you want to log out?',
+            style: TextStyle(color: slateGrey, fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: slateGrey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const Login()),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryPink,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text('Log Out'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// คำนวณ Success Rate
   String _calculateSuccessRate(Map<String, dynamic> user) {
     final int sold = (user['ticketsSold'] as num?)?.toInt() ?? 0;
     final List listings = (user['resellListings'] as List?) ?? [];
-    
     final int uncompleted = listings.where((l) => l['status'] != 'sold').length;
     final int totalAttempts = sold + uncompleted;
 
-    if (totalAttempts == 0) {
-      return 'N/A';
-    }
+    if (totalAttempts == 0) return 'N/A';
 
     final double rate = (sold / totalAttempts) * 100;
     return '${rate.toStringAsFixed(0)}%';
   }
 
+  /// disable / enable user account
   void _toggleUserStatusDirectly(String userId) {
     final index = users.indexWhere((user) => user['id'].toString() == userId);
     if (index == -1) return;
@@ -210,6 +277,7 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  /// delete user account
   void _deleteUser(String userId) {
     final index = users.indexWhere((user) => user['id'].toString() == userId);
     if (index == -1) return;
@@ -231,6 +299,8 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  // =============================== Dialogs and popups ======================================
+  /// ยืนยันลบบัญชี
   void _showDeleteDialog(Map<String, dynamic> user) {
     showDialog(
       context: context,
@@ -283,14 +353,16 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  // Pop-up My tickets
+  /// Dialog My Tickets
   void _showTicketAndPaymentDetailsDialog(Map<String, dynamic> ticket) {
     showDialog(
       context: context,
       builder: (context) {
         return Dialog(
           backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
           child: Container(
             constraints: const BoxConstraints(maxWidth: 520),
             padding: const EdgeInsets.all(24.0),
@@ -306,7 +378,11 @@ class _AdminPageState extends State<AdminPage> {
                         color: softPink,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.confirmation_number_outlined, color: primaryPink, size: 24),
+                      child: const Icon(
+                        Icons.confirmation_number_outlined,
+                        color: primaryPink,
+                        size: 24,
+                      ),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -341,19 +417,38 @@ class _AdminPageState extends State<AdminPage> {
                 const SizedBox(height: 16),
                 const Divider(height: 1),
                 const SizedBox(height: 16),
-                _simpleInfoRow('Venue', ticket['venue'] ?? 'N/A'),
-                const SizedBox(height: 10),
-                _simpleInfoRow('Zone / Seat', '${ticket['zone'] ?? 'N/A'} (${ticket['seat'] ?? 'N/A'})'),
-                const SizedBox(height: 10),
-                _simpleInfoRow('Paid Amount', '฿${(ticket['paidAmount'] ?? ticket['originalPrice']).toInt()}'),
-                if (ticket['paymentMethod'] != null) ...[
-                  const SizedBox(height: 10),
-                  _simpleInfoRow('Payment Method', ticket['paymentMethod'].toString().toUpperCase()),
-                ],
-                if (ticket['paidAt'] != null) ...[
-                  const SizedBox(height: 10),
-                  _simpleInfoRow('Transaction Date', ticket['paidAt'].toString()),
-                ],
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Column(
+                    children: [
+                      _simpleInfoRow('Venue', ticket['venue'] ?? 'N/A'),
+                      const SizedBox(height: 10),
+                      _simpleInfoRow(
+                        'Zone / Seat',
+                        '${ticket['zone'] ?? 'N/A'} (${ticket['seat'] ?? 'N/A'})',
+                      ),
+                      const SizedBox(height: 10),
+                      _simpleInfoRow(
+                        'Paid Amount',
+                        '฿${(ticket['paidAmount'] ?? ticket['originalPrice']).toInt()}',
+                      ),
+                      if (ticket['paymentMethod'] != null) ...[
+                        const SizedBox(height: 10),
+                        _simpleInfoRow(
+                          'Payment Method',
+                          ticket['paymentMethod'].toString().toUpperCase(),
+                        ),
+                      ],
+                      if (ticket['paidAt'] != null) ...[
+                        const SizedBox(height: 10),
+                        _simpleInfoRow(
+                          'Transaction Date',
+                          ticket['paidAt'].toString(),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -374,7 +469,10 @@ class _AdminPageState extends State<AdminPage> {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      _simpleInfoRow('Name', ticket['sellerName'] ?? 'Unknown Seller'),
+                      _simpleInfoRow(
+                        'Name',
+                        ticket['sellerName'] ?? 'Unknown Seller',
+                      ),
                       const SizedBox(height: 8),
                       _simpleInfoRow('Email', ticket['sellerEmail'] ?? 'N/A'),
                       const SizedBox(height: 8),
@@ -396,7 +494,10 @@ class _AdminPageState extends State<AdminPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      'Close',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
               ],
@@ -407,12 +508,11 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  // Pop-up resell
+  /// Dialog Resell
   void _showResellDetailsDialog(Map<String, dynamic> resell) {
     final bool isSold = resell['status'] == 'sold';
-    final double resellPrice = (resell['resellPrice'] as num?)?.toDouble() ?? 0.0;
-    
-    // commit 2%
+    final double resellPrice =
+        (resell['resellPrice'] as num?)?.toDouble() ?? 0.0;
     final int commissionFee = (resellPrice * 0.02).round();
     final int totalBuyerPrice = resellPrice.toInt() + commissionFee;
 
@@ -421,7 +521,9 @@ class _AdminPageState extends State<AdminPage> {
       builder: (context) {
         return Dialog(
           backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
           child: Container(
             constraints: const BoxConstraints(maxWidth: 520),
             padding: const EdgeInsets.all(24.0),
@@ -437,7 +539,11 @@ class _AdminPageState extends State<AdminPage> {
                         color: softPink,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.sell_outlined, color: primaryPink, size: 24),
+                      child: const Icon(
+                        Icons.sell_outlined,
+                        color: primaryPink,
+                        size: 24,
+                      ),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -472,21 +578,35 @@ class _AdminPageState extends State<AdminPage> {
                 const SizedBox(height: 16),
                 const Divider(height: 1),
                 const SizedBox(height: 16),
-                _simpleInfoRow('Ticket Code', resell['ticketCode'].toString()),
-                const SizedBox(height: 10),
-                _simpleInfoRow('Zone / Seat', '${resell['zone'] ?? 'N/A'} (${resell['seat'] ?? 'N/A'})'),
-                const SizedBox(height: 10),
-                _simpleInfoRow(
-                  'Status',
-                  isSold ? 'Sold' : resell['status'].toString(),
-                ),
-                const SizedBox(height: 10),
-                _simpleInfoRow(
-                  'Shipping Status',
-                  isSold ? 'Shipped' : (resell['shippingStatus'] ?? 'Pending'),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Column(
+                    children: [
+                      _simpleInfoRow(
+                        'Ticket Code',
+                        resell['ticketCode'].toString(),
+                      ),
+                      const SizedBox(height: 10),
+                      _simpleInfoRow(
+                        'Zone / Seat',
+                        '${resell['zone'] ?? 'N/A'} (${resell['seat'] ?? 'N/A'})',
+                      ),
+                      const SizedBox(height: 10),
+                      _simpleInfoRow(
+                        'Status',
+                        isSold ? 'Sold' : resell['status'].toString(),
+                      ),
+                      const SizedBox(height: 10),
+                      _simpleInfoRow(
+                        'Shipping Status',
+                        isSold
+                            ? 'Shipped'
+                            : (resell['shippingStatus'] ?? 'Pending'),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
-                
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -506,11 +626,18 @@ class _AdminPageState extends State<AdminPage> {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      _simpleInfoRow('Seller Ticket Price', '฿${resellPrice.toInt()}'),
+                      _simpleInfoRow(
+                        'Seller Ticket Price',
+                        '฿${resellPrice.toInt()}',
+                      ),
                       const SizedBox(height: 8),
                       _simpleInfoRow('Platform Fee (+2%)', '+ ฿$commissionFee'),
                       const Divider(height: 16),
-                      _simpleInfoRow('Total Buyer Payment', '฿$totalBuyerPrice', isBold: true),
+                      _simpleInfoRow(
+                        'Total Buyer Payment',
+                        '฿$totalBuyerPrice',
+                        isBold: true,
+                      ),
                     ],
                   ),
                 ),
@@ -528,7 +655,10 @@ class _AdminPageState extends State<AdminPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      'Close',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
               ],
@@ -539,7 +669,7 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  // BottomSheet แสดงรายละเอียดผู้ใช้
+  /// btn show user details
   void _showUserDetailsSheet(Map<String, dynamic> user) {
     final ownedTickets = List.from(user['ownedTickets'] ?? []);
     final resellListings = List.from(user['resellListings'] ?? []);
@@ -564,7 +694,6 @@ class _AdminPageState extends State<AdminPage> {
               child: ListView(
                 controller: scrollController,
                 children: [
-                  // Header Sheet
                   Row(
                     children: [
                       Container(
@@ -622,7 +751,8 @@ class _AdminPageState extends State<AdminPage> {
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
-                                      (user['role'] ?? 'customer').toUpperCase(),
+                                      (user['role'] ?? 'customer')
+                                          .toUpperCase(),
                                       style: TextStyle(
                                         color: user['role'] == 'admin'
                                             ? Colors.white
@@ -646,8 +776,6 @@ class _AdminPageState extends State<AdminPage> {
                   const SizedBox(height: 24),
                   const Divider(height: 1),
                   const SizedBox(height: 20),
-
-                  // Account Information
                   const Text(
                     'Account Information',
                     style: TextStyle(
@@ -657,8 +785,6 @@ class _AdminPageState extends State<AdminPage> {
                     ),
                   ),
                   const SizedBox(height: 14),
-
-                  // Detail Cards
                   Row(
                     children: [
                       _detailTile(
@@ -690,9 +816,7 @@ class _AdminPageState extends State<AdminPage> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 20),
-                  // Personal Info List
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -706,16 +830,21 @@ class _AdminPageState extends State<AdminPage> {
                         const Divider(height: 20),
                         _simpleInfoRow('Phone', user['phone'].toString()),
                         const Divider(height: 20),
-                        _simpleInfoRow('Member Since', user['joinedDate'].toString()),
+                        _simpleInfoRow(
+                          'Member Since',
+                          user['joinedDate'].toString(),
+                        ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 24),
-
-                  // 1. My Tickets Section
                   Row(
                     children: [
-                      const Icon(Icons.confirmation_number, size: 18, color: primaryPink),
+                      const Icon(
+                        Icons.confirmation_number,
+                        size: 18,
+                        color: primaryPink,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'My Tickets (${ownedTickets.length})',
@@ -731,75 +860,90 @@ class _AdminPageState extends State<AdminPage> {
                   if (ownedTickets.isEmpty)
                     _buildEmptyState('No tickets owned.')
                   else
-                    ...ownedTickets.map((t) => Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.shade300),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      t['concert']?.toString() ?? 'Concert Ticket',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: darkCharcoal,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Code: ${t['ticketCode']} | From: ${t['sellerName'] ?? 'N/A'}',
-                                      style: const TextStyle(color: slateGrey, fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Row(
+                    ...ownedTickets.map(
+                      (t) => Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    '฿${(t['paidAmount'] ?? t['originalPrice']).toInt()}',
+                                    t['concert']?.toString() ??
+                                        'Concert Ticket',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      color: primaryPink,
+                                      color: darkCharcoal,
                                       fontSize: 13,
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  ElevatedButton(
-                                    onPressed: () => _showTicketAndPaymentDetailsDialog(t),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: softPink,
-                                      foregroundColor: primaryPink,
-                                      elevation: 0,
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    child: const Text(
-                                      'View',
-                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Code: ${t['ticketCode']} | From: ${t['sellerName'] ?? 'N/A'}',
+                                    style: const TextStyle(
+                                      color: slateGrey,
+                                      fontSize: 12,
                                     ),
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
-                        )),
+                            ),
+                            Row(
+                              children: [
+                                Text(
+                                  '฿${(t['paidAmount'] ?? t['originalPrice']).toInt()}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: primaryPink,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton(
+                                  onPressed: () =>
+                                      _showTicketAndPaymentDetailsDialog(t),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: softPink,
+                                    foregroundColor: primaryPink,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'View',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 20),
-
-                  // 2. Resell Section
                   Row(
                     children: [
-                      const Icon(Icons.sell_outlined, size: 18, color: primaryPink),
+                      const Icon(
+                        Icons.sell_outlined,
+                        size: 18,
+                        color: primaryPink,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'Resell (${resellListings.length})',
@@ -833,7 +977,8 @@ class _AdminPageState extends State<AdminPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    r['concert']?.toString() ?? 'Concert Ticket',
+                                    r['concert']?.toString() ??
+                                        'Concert Ticket',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 13,
@@ -861,12 +1006,21 @@ class _AdminPageState extends State<AdminPage> {
                                       ),
                                       const SizedBox(width: 8),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
                                         decoration: BoxDecoration(
-                                          color: isSold ? Colors.green.shade50 : softPink,
-                                          borderRadius: BorderRadius.circular(4),
+                                          color: isSold
+                                              ? Colors.green.shade50
+                                              : softPink,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
                                           border: Border.all(
-                                            color: isSold ? Colors.green.shade300 : primaryPink.withOpacity(0.4),
+                                            color: isSold
+                                                ? Colors.green.shade300
+                                                : primaryPink.withOpacity(0.4),
                                           ),
                                         ),
                                         child: Text(
@@ -874,7 +1028,9 @@ class _AdminPageState extends State<AdminPage> {
                                           style: TextStyle(
                                             fontSize: 10,
                                             fontWeight: FontWeight.bold,
-                                            color: isSold ? Colors.green.shade700 : primaryPink,
+                                            color: isSold
+                                                ? Colors.green.shade700
+                                                : primaryPink,
                                           ),
                                         ),
                                       ),
@@ -900,14 +1056,20 @@ class _AdminPageState extends State<AdminPage> {
                                     backgroundColor: softPink,
                                     foregroundColor: primaryPink,
                                     elevation: 0,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                   ),
                                   child: const Text(
                                     'View',
-                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -926,108 +1088,7 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  Widget _buildEmptyState(String text) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: lightBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(color: slateGrey, fontSize: 12),
-        textAlign: TextAlign.center,
-      ),
-    );
-  }
-
-  Widget _detailTile(String title, String value, IconData icon) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: lightBg,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: primaryPink),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontSize: 11, color: slateGrey),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: darkCharcoal,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Helper Row แบบเรียบง่าย ไม่มี Icon ด้านหน้า Clean สบายตา
-  Widget _simpleInfoRow(String label, String value, {bool isBold = false}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: isBold ? darkCharcoal : slateGrey,
-            fontSize: 13,
-            fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Text(
-            value,
-            textAlign: TextAlign.end,
-            style: TextStyle(
-              color: isBold ? primaryPink : darkCharcoal,
-              fontSize: 13,
-              fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
-            ),
-            softWrap: true,
-          ),
-        ),
-      ],
-    );
-  }
-
-  List<Map<String, dynamic>> get filteredUsers {
-    final query = searchController.text.toLowerCase();
-    return users.where((user) {
-      final matchesSearch =
-          user['full_name'].toString().toLowerCase().contains(query) ||
-          user['email'].toString().toLowerCase().contains(query) ||
-          user['id'].toString().toLowerCase().contains(query);
-
-      final matchesFilter =
-          selectedFilter == 'All' ||
-          (selectedFilter == 'Active' && user['isActive'] == true) ||
-          (selectedFilter == 'Suspended' && user['isActive'] == false);
-
-      return matchesSearch && matchesFilter;
-    }).toList();
-  }
-
+  // =============================== main build ================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1062,6 +1123,8 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  // ========================== widget components ===============================
+  /// Header
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -1071,15 +1134,6 @@ class _AdminPageState extends State<AdminPage> {
       ),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(
-              Icons.arrow_back_ios_new,
-              color: darkCharcoal,
-              size: 18,
-            ),
-            onPressed: () => Navigator.pop(context),
-          ),
-          const SizedBox(width: 8),
           RichText(
             text: const TextSpan(
               children: [
@@ -1119,20 +1173,18 @@ class _AdminPageState extends State<AdminPage> {
             ),
           ),
           const Spacer(),
-          const CircleAvatar(
-            radius: 18,
-            backgroundColor: softPink,
-            child: Icon(
-              Icons.admin_panel_settings,
-              color: primaryPink,
-              size: 20,
-            ),
+          // ปุ่ม Logout เพียงอย่างเดียวทางขวา
+          IconButton(
+            icon: const Icon(Icons.logout, color: slateGrey, size: 20),
+            tooltip: 'Log Out',
+            onPressed: _logout,
           ),
         ],
       ),
     );
   }
 
+  /// total active suspended
   Widget _buildMetricsSection() {
     final total = users.length;
     final active = users.where((u) => u['isActive'] == true).length;
@@ -1173,6 +1225,7 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  /// Card total active suspended
   Widget _metricCard(
     String label,
     String value,
@@ -1231,12 +1284,13 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  /// หัวข้อ User Management
   Widget _buildTitleSection() {
     return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'User Directory',
+          'User Management',
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
@@ -1252,6 +1306,7 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  /// search bar and filter dropdown
   Widget _buildSearchAndFilterBar() {
     return Row(
       children: [
@@ -1315,6 +1370,7 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  /// card user
   Widget _buildUserCardsList() {
     final list = filteredUsers;
 
@@ -1484,6 +1540,93 @@ class _AdminPageState extends State<AdminPage> {
           ),
         );
       },
+    );
+  }
+
+  /// Empty State Helper
+  Widget _buildEmptyState(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: lightBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(color: slateGrey, fontSize: 12),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  /// Detail Tile Helper ใน Btn view user details
+  Widget _detailTile(String title, String value, IconData icon) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: lightBg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: primaryPink),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontSize: 11, color: slateGrey),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: darkCharcoal,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Simple Info Row Helper สำหรับแสดงข้อมูลคู่ key-value
+  Widget _simpleInfoRow(String label, String value, {bool isBold = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: isBold ? darkCharcoal : slateGrey,
+            fontSize: 13,
+            fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              color: isBold ? primaryPink : darkCharcoal,
+              fontSize: 13,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+            ),
+            softWrap: true,
+          ),
+        ),
+      ],
     );
   }
 }
