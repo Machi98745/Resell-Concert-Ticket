@@ -1,10 +1,11 @@
 
 import 'dart:async';
-
 import 'package:flutter/material.dart';
+
 import 'detail.dart';
 import 'cart.dart';
 import 'cart_service.dart';
+import 'profile.dart';
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -18,22 +19,22 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final TextEditingController searchController =
-      TextEditingController();
-
+  final TextEditingController searchController = TextEditingController();
   final PageController bannerController = PageController();
 
   Timer? bannerTimer;
 
   String selectedCategory = 'All';
   int currentBannerIndex = 0;
+  bool showBannerControls = false;
 
   final List<Map<String, dynamic>> concerts = [
     {
       'name': 'BLACKPINK WORLD TOUR',
       'artist': 'BLACKPINK',
       'date': '15 December 2026',
-      'location': 'Bangkok, Thailand',
+      'time': '19:00',
+      'location': 'Rajamangala National Stadium, Bangkok',
       'category': 'K-Pop',
       'image':
           'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=900',
@@ -42,28 +43,30 @@ class _HomePageState extends State<HomePage> {
         'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=1200',
         'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=1200',
       ],
-      'description':
-          'Experience an unforgettable night with BLACKPINK.',
+      'description': 'Experience an unforgettable night with BLACKPINK.',
       'tickets': [
         {
           'seller': 'PinkSeller',
           'zone': 'VIP Zone',
           'price': 6500,
           'condition': 'Available',
+          'status': 'available',
         },
         {
           'seller': 'LisaFan',
           'zone': 'Standing Zone',
           'price': 4200,
           'condition': 'Available',
+          'status': 'available',
         },
       ],
     },
     {
       'name': 'LISA FAN MEETING',
       'artist': 'LISA',
-      'date': '20 December 2026',
-      'location': 'Bangkok, Thailand',
+      'date': '1 December 2026',
+      'time': '18:00',
+      'location': 'Impact Arena, Bangkok',
       'category': 'K-Pop',
       'image':
           'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=900',
@@ -75,10 +78,10 @@ class _HomePageState extends State<HomePage> {
       'description': 'Meet and enjoy a special event with LISA.',
       'tickets': [
         {
-          'seller': 'LisaWorld',
-          'zone': 'Zone A',
-          'price': 3500,
-          'condition': 'Available',
+          'zone': 'VIP Zone',
+          'price': 6500,
+          'condition': 'Sold Out',
+          'status': 'sold',
         },
       ],
     },
@@ -86,7 +89,8 @@ class _HomePageState extends State<HomePage> {
       'name': 'THE ERAS TOUR',
       'artist': 'Taylor Swift',
       'date': '25 December 2026',
-      'location': 'Singapore',
+      'time': '19:00',
+      'location': 'National Stadium, Singapore',
       'category': 'Pop',
       'image':
           'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=900',
@@ -102,6 +106,7 @@ class _HomePageState extends State<HomePage> {
           'zone': 'CAT 1',
           'price': 5200,
           'condition': 'Available',
+          'status': 'available',
         },
       ],
     },
@@ -109,7 +114,8 @@ class _HomePageState extends State<HomePage> {
       'name': 'BTS WORLD TOUR',
       'artist': 'BTS',
       'date': '30 December 2026',
-      'location': 'Bangkok, Thailand',
+      'time': '19:00',
+      'location': 'Rajamangala National Stadium, Bangkok',
       'category': 'K-Pop',
       'image':
           'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=900',
@@ -125,6 +131,7 @@ class _HomePageState extends State<HomePage> {
           'zone': 'VIP Zone',
           'price': 4800,
           'condition': 'Available',
+          'status': 'available',
         },
       ],
     },
@@ -137,25 +144,23 @@ class _HomePageState extends State<HomePage> {
   }
 
   void startBannerAutoSlide() {
-    bannerTimer = Timer.periodic(
-      const Duration(seconds: 3),
-      (timer) {
-        if (!mounted || !bannerController.hasClients) return;
+    bannerTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (!mounted || !bannerController.hasClients) return;
 
-        final images = concerts[0]['images'] as List;
-        int nextPage = currentBannerIndex + 1;
+      final activeConcerts = upcomingConcerts;
+      if (activeConcerts.isEmpty) return;
 
-        if (nextPage >= images.length) {
-          nextPage = 0;
-        }
+      final images = activeConcerts.first['images'] as List;
+      if (images.isEmpty) return;
 
-        bannerController.animateToPage(
-          nextPage,
-          duration: const Duration(milliseconds: 600),
-          curve: Curves.easeInOut,
-        );
-      },
-    );
+      final nextPage = (currentBannerIndex + 1) % images.length;
+
+      bannerController.animateToPage(
+        nextPage,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOut,
+      );
+    });
   }
 
   @override
@@ -166,10 +171,18 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+  // แสดงเฉพาะคอนเสิร์ตที่ยังไม่ผ่านวันจัดงาน
+  List<Map<String, dynamic>> get upcomingConcerts {
+    return concerts.where((concert) {
+      return !CartService.isConcertFinished(concert);
+    }).toList();
+  }
+
+  // ค้นหาและกรองหมวดหมู่
   List<Map<String, dynamic>> get filteredConcerts {
     final searchText = searchController.text.toLowerCase();
 
-    return concerts.where((concert) {
+    return upcomingConcerts.where((concert) {
       final matchesSearch =
           concert['name'].toString().toLowerCase().contains(searchText) ||
           concert['artist'].toString().toLowerCase().contains(searchText);
@@ -186,7 +199,7 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => DetailPage(concert: concert),
+        builder: (_) => DetailPage(concert: concert),
       ),
     ).then((_) {
       if (mounted) setState(() {});
@@ -197,53 +210,109 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const CartPage(),
+        builder: (_) => const CartPage(),
       ),
     ).then((_) {
       if (mounted) setState(() {});
     });
   }
 
+  void openProfile() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ProfilePage(),
+      ),
+    );
+  }
+
+  void openSellTickets() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Selling feature coming soon!'),
+      ),
+    );
+  }
+
+  void previousBanner(List images) {
+    if (images.isEmpty) return;
+
+    final previous = currentBannerIndex == 0
+        ? images.length - 1
+        : currentBannerIndex - 1;
+
+    bannerController.animateToPage(
+      previous,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  void nextBanner(List images) {
+    if (images.isEmpty) return;
+
+    final next = (currentBannerIndex + 1) % images.length;
+
+    bannerController.animateToPage(
+      next,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildBanner(),
-                    const SizedBox(height: 35),
-                    _buildSearch(),
-                    const SizedBox(height: 25),
-                    _buildCategories(),
-                    const SizedBox(height: 25),
-                    _buildConcertSection(),
-                    const SizedBox(height: 40),
-                    _buildResellSection(),
-                    const SizedBox(height: 40),
-                    _buildFooter(),
-                  ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+
+        // กลับไปหน้า Login
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/',
+          (route) => false,
+        );
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (upcomingConcerts.isNotEmpty) _buildBanner(),
+                      const SizedBox(height: 35),
+                      _buildSearch(),
+                      const SizedBox(height: 25),
+                      _buildCategories(),
+                      const SizedBox(height: 25),
+                      _buildConcertSection(),
+                      const SizedBox(height: 40),
+                      _buildFooter(),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // HEADER
+  // Header
   Widget _buildHeader() {
+    final isMobile = MediaQuery.of(context).size.width <= 600;
+
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 35,
-        vertical: 18,
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 35,
+        vertical: 12,
       ),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -257,38 +326,65 @@ class _HomePageState extends State<HomePage> {
       ),
       child: Row(
         children: [
-          const Text(
+          Text(
             'Ticket Pink',
             style: TextStyle(
-              fontSize: 25,
+              fontSize: isMobile ? 20 : 25,
               fontWeight: FontWeight.bold,
               color: pink,
             ),
           ),
           const Spacer(),
-          if (MediaQuery.of(context).size.width > 600) ...[
+          if (!isMobile) ...[
             _headerText('Home'),
             const SizedBox(width: 25),
             _headerText('Concerts'),
-            const SizedBox(width: 25),
-            _headerText('Sell Tickets'),
-            const SizedBox(width: 25),
+            const SizedBox(width: 20),
           ],
+          ElevatedButton.icon(
+            onPressed: openSellTickets,
+            icon: Icon(
+              Icons.confirmation_number_outlined,
+              size: isMobile ? 16 : 18,
+            ),
+            label: Text(
+              'Sell Tickets',
+              style: TextStyle(fontSize: isMobile ? 11 : 14),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: pink,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 10 : 16,
+                vertical: 12,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          SizedBox(width: isMobile ? 2 : 10),
           Stack(
             clipBehavior: Clip.none,
             children: [
               IconButton(
                 onPressed: openCart,
-                icon: const Icon(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 38,
+                  minHeight: 40,
+                ),
+                icon: Icon(
                   Icons.shopping_bag_outlined,
                   color: darkPink,
-                  size: 26,
+                  size: isMobile ? 23 : 26,
                 ),
               ),
               if (CartService.items.isNotEmpty)
                 Positioned(
-                  right: 3,
-                  top: 2,
+                  right: 0,
+                  top: 0,
                   child: Container(
                     padding: const EdgeInsets.all(5),
                     decoration: const BoxDecoration(
@@ -307,11 +403,19 @@ class _HomePageState extends State<HomePage> {
                 ),
             ],
           ),
-          const SizedBox(width: 8),
-          const Icon(
-            Icons.account_circle_outlined,
-            color: darkPink,
-            size: 27,
+          IconButton(
+            onPressed: openProfile,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(
+              minWidth: 38,
+              minHeight: 40,
+            ),
+            tooltip: 'My Profile',
+            icon: Icon(
+              Icons.account_circle_outlined,
+              color: darkPink,
+              size: isMobile ? 24 : 27,
+            ),
           ),
         ],
       ),
@@ -329,36 +433,54 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // AUTO SLIDE BANNER
+  // Banner: ปุ่มลูกศรแสดงเมื่อเอาเมาส์วางบน Banner เท่านั้น
   Widget _buildBanner() {
-    final images = concerts[0]['images'] as List;
+    final featured = upcomingConcerts.first;
+    final images = featured['images'] as List;
+
+    if (images.isEmpty) return const SizedBox.shrink();
+
+    final concertStatus = CartService.getConcertStatus(featured);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(25, 25, 25, 0),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: SizedBox(
-          height: 360,
-          width: double.infinity,
-          child: Stack(
-            children: [
-              PageView.builder(
-                controller: bannerController,
-                itemCount: images.length,
-                onPageChanged: (index) {
-                  setState(() {
-                    currentBannerIndex = index;
-                  });
-                },
-                itemBuilder: (context, index) {
-                  return GestureDetector(
-                    onTap: () => openDetail(concerts[0]),
-                    child: Image.network(
-                      images[index],
+      padding: const EdgeInsets.fromLTRB(12, 25, 12, 0),
+      child: MouseRegion(
+        onEnter: (_) {
+          if (!showBannerControls) {
+            setState(() {
+              showBannerControls = true;
+            });
+          }
+        },
+        onExit: (_) {
+          if (showBannerControls) {
+            setState(() {
+              showBannerControls = false;
+            });
+          }
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(25),
+          child: SizedBox(
+            height: 540,
+            width: double.infinity,
+            child: Stack(
+              children: [
+                PageView.builder(
+                  controller: bannerController,
+                  itemCount: images.length,
+                  onPageChanged: (index) {
+                    setState(() {
+                      currentBannerIndex = index;
+                    });
+                  },
+                  itemBuilder: (context, index) {
+                    return Image.network(
+                      images[index].toString(),
                       width: double.infinity,
-                      height: 360,
+                      height: 540,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
+                      errorBuilder: (_, __, ___) {
                         return Container(
                           color: darkPink,
                           child: const Center(
@@ -370,151 +492,207 @@ class _HomePageState extends State<HomePage> {
                           ),
                         );
                       },
-                    ),
-                  );
-                },
-              ),
+                    );
+                  },
+                ),
 
-              // DARK OVERLAY
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.black.withOpacity(0.65),
-                      Colors.transparent,
-                    ],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
+                // Dark gradient
+                IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.black.withOpacity(0.65),
+                          Colors.transparent,
+                        ],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                    ),
                   ),
                 ),
-              ),
 
-              // BANNER TEXT
-              Positioned(
-                left: 40,
-                top: 75,
-                bottom: 75,
-                child: SizedBox(
-                  width: 350,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: pink,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'FEATURED EVENT',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      const Text(
-                        'BLACKPINK\nWORLD TOUR 2026',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Get your tickets and enjoy the show!',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: () => openDetail(concerts[0]),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: pink,
-                          foregroundColor: Colors.white,
+                // Banner information
+                Positioned(
+                  left: 35,
+                  top: 0,
+                  bottom: 0,
+                  child: SizedBox(
+                    width: MediaQuery.of(context).size.width * 0.55,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 25,
-                            vertical: 15,
+                            horizontal: 15,
+                            vertical: 8,
                           ),
-                          shape: RoundedRectangleBorder(
+                          decoration: BoxDecoration(
+                            color: concertStatus == 'sold out'
+                                ? Colors.red
+                                : concertStatus == 'no tickets'
+                                    ? Colors.orange
+                                    : pink,
                             borderRadius: BorderRadius.circular(25),
                           ),
+                          child: Text(
+                            concertStatus == 'sold out'
+                                ? 'SOLD OUT'
+                                : concertStatus == 'no tickets'
+                                    ? 'ยังไม่มีบัตร'
+                                    : 'FEATURED EVENT',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
-                        child: const Text('Explore Tickets'),
-                      ),
-                    ],
+                        const SizedBox(height: 20),
+                        Text(
+                          featured['name'].toString(),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '${featured['date']}  •  ${featured['time'] ?? ''}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          featured['location'].toString(),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: concertStatus == 'sold out' ||
+                                  concertStatus == 'no tickets'
+                              ? null
+                              : () => openDetail(featured),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: pink,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 25,
+                              vertical: 15,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(25),
+                            ),
+                          ),
+                          child: const Text('Explore Tickets'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
 
-              // PAGE INDICATORS
-              Positioned(
-                bottom: 20,
-                left: 0,
-                right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    images.length,
-                    (index) {
-                      final isSelected =
-                          currentBannerIndex == index;
+                // Banner controls
+                if (showBannerControls) ...[
+                  Positioned(
+                    left: 8,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: _bannerArrowButton(
+                        icon: Icons.chevron_left,
+                        onPressed: () => previousBanner(images),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 8,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: _bannerArrowButton(
+                        icon: Icons.chevron_right,
+                        onPressed: () => nextBanner(images),
+                      ),
+                    ),
+                  ),
+                ],
+
+                // Slide indicator
+                Positioned(
+                  bottom: 20,
+                  left: 0,
+                  right: 0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(images.length, (index) {
+                      final selected = currentBannerIndex == index;
 
                       return AnimatedContainer(
                         duration: const Duration(milliseconds: 300),
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                        ),
-                        width: isSelected ? 25 : 8,
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        width: selected ? 25 : 8,
                         height: 8,
                         decoration: BoxDecoration(
-                          color: isSelected
-                              ? pink
-                              : Colors.white.withOpacity(0.7),
+                          color: selected ? pink : Colors.white70,
                           borderRadius: BorderRadius.circular(10),
                         ),
                       );
-                    },
+                    }),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // SEARCH
+  Widget _bannerArrowButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.35),
+        shape: BoxShape.circle,
+      ),
+      child: IconButton(
+        onPressed: onPressed,
+        icon: Icon(
+          icon,
+          color: Colors.white,
+          size: 40,
+        ),
+      ),
+    );
+  }
+
+  // Search
   Widget _buildSearch() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 35),
+      padding: const EdgeInsets.symmetric(horizontal: 25),
       child: TextField(
         controller: searchController,
-        onChanged: (value) {
-          setState(() {});
-        },
+        onChanged: (_) => setState(() {}),
         decoration: InputDecoration(
           hintText: 'Search concerts, artists...',
-          prefixIcon: const Icon(
-            Icons.search,
-            color: pink,
-          ),
+          prefixIcon: const Icon(Icons.search, color: pink),
           filled: true,
           fillColor: lightPink,
-          contentPadding: const EdgeInsets.symmetric(
-            vertical: 16,
-          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 16),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(15),
             borderSide: BorderSide.none,
@@ -524,12 +702,12 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // CATEGORY
+  // Categories
   Widget _buildCategories() {
-    final categories = ['All', 'K-Pop', 'Pop'];
+    const categories = ['All', 'K-Pop', 'Pop'];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 35),
+      padding: const EdgeInsets.symmetric(horizontal: 25),
       child: Wrap(
         spacing: 12,
         children: categories.map((category) {
@@ -538,7 +716,7 @@ class _HomePageState extends State<HomePage> {
           return ChoiceChip(
             label: Text(category),
             selected: selected,
-            onSelected: (value) {
+            onSelected: (_) {
               setState(() {
                 selectedCategory = category;
               });
@@ -556,12 +734,12 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // CONCERT SECTION
+  // Concert section
   Widget _buildConcertSection() {
     final items = filteredConcerts;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 35),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -582,12 +760,11 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           const SizedBox(height: 22),
-
           if (items.isEmpty)
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(30),
-                child: Text('No concerts found.'),
+                child: Text('No upcoming concerts found.'),
               ),
             )
           else
@@ -623,17 +800,32 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // CONCERT CARD
+  // Concert card
   Widget _buildConcertCard(Map<String, dynamic> concert) {
+    final concertStatus = CartService.getConcertStatus(concert);
+
+    final soldOut = concertStatus == 'sold out';
+    final noTickets = concertStatus == 'no tickets';
+
+    final statusText = soldOut
+        ? 'SOLD OUT'
+        : noTickets
+            ? 'ยังไม่มีบัตร'
+            : 'AVAILABLE';
+
+    final statusColor = soldOut
+        ? Colors.red
+        : noTickets
+            ? Colors.orange
+            : Colors.green;
+
     return GestureDetector(
       onTap: () => openDetail(concert),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.grey.shade200,
-          ),
+          border: Border.all(color: Colors.grey.shade200),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.04),
@@ -647,27 +839,57 @@ class _HomePageState extends State<HomePage> {
           children: [
             Expanded(
               flex: 5,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(16),
-                ),
-                child: Image.network(
-                  concert['image'],
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: lightPink,
-                      child: const Center(
-                        child: Icon(
-                          Icons.music_note,
-                          size: 45,
-                          color: pink,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(16),
+                      ),
+                      child: Image.network(
+                        concert['image']?.toString() ?? '',
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) {
+                          return Container(
+                            color: lightPink,
+                            child: const Center(
+                              child: Icon(
+                                Icons.music_note,
+                                size: 45,
+                                color: pink,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+
+                  // Status label
+                  Positioned(
+                    top: 12,
+                    left: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                ],
               ),
             ),
             Expanded(
@@ -678,7 +900,7 @@ class _HomePageState extends State<HomePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      concert['name'],
+                      concert['name'].toString(),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -689,7 +911,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     const SizedBox(height: 7),
                     Text(
-                      concert['artist'],
+                      concert['artist'].toString(),
                       style: const TextStyle(
                         color: pink,
                         fontSize: 12,
@@ -707,7 +929,7 @@ class _HomePageState extends State<HomePage> {
                         const SizedBox(width: 5),
                         Expanded(
                           child: Text(
-                            concert['date'],
+                            concert['date'].toString(),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -724,7 +946,9 @@ class _HomePageState extends State<HomePage> {
                       child: ElevatedButton(
                         onPressed: () => openDetail(concert),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: pink,
+                          backgroundColor: soldOut
+                              ? Colors.grey
+                              : pink,
                           foregroundColor: Colors.white,
                           elevation: 0,
                           padding: const EdgeInsets.symmetric(
@@ -734,9 +958,11 @@ class _HomePageState extends State<HomePage> {
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        child: const Text(
-                          'View Tickets',
-                          style: TextStyle(fontSize: 12),
+                        child: Text(
+                          soldOut || noTickets
+                              ? 'View Details'
+                              : 'View Tickets',
+                          style: const TextStyle(fontSize: 12),
                         ),
                       ),
                     ),
@@ -750,66 +976,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // RESELL SECTION
-  Widget _buildResellSection() {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.symmetric(horizontal: 25),
-      padding: const EdgeInsets.all(30),
-      decoration: BoxDecoration(
-        color: lightPink,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          const Icon(
-            Icons.confirmation_number_outlined,
-            color: pink,
-            size: 45,
-          ),
-          const SizedBox(height: 15),
-          const Text(
-            'Have a ticket to sell?',
-            style: TextStyle(
-              color: darkPink,
-              fontWeight: FontWeight.bold,
-              fontSize: 22,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Sell your concert tickets easily with Ticket Pink.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Selling feature coming soon!'),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: pink,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 30,
-                vertical: 14,
-              ),
-            ),
-            child: const Text('Start Selling'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // FOOTER
+  // Footer
   Widget _buildFooter() {
     return Container(
       width: double.infinity,
