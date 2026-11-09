@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'admin_page.dart';
 import 'homepage.dart';
 import 'register.dart';
 
@@ -277,7 +278,6 @@ class _LoginState extends State<Login> {
                           Colors.pinkAccent,
                         );
                       } else {
-                        
                         setDialogState(() {
                           dialogErrorMessage = 'Not found account';
                         });
@@ -452,12 +452,22 @@ class _LoginState extends State<Login> {
                                     Colors.green,
                                   );
 
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const HomePage(),
-                                    ),
-                                  );
+                                  // check if user is admin
+                                  if (username == 'admin') {
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const AdminPage(),
+                                      ),
+                                    );
+                                  } else {
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const HomePage(),
+                                      ),
+                                    );
+                                  }
                                 } else {
                                   _showMessage(
                                     'Invalid username or password',

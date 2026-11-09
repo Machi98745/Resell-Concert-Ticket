@@ -1,6 +1,6 @@
 
 import 'package:flutter/material.dart';
-import '../controller/cart_service.dart';
+import 'cart_service.dart';
 import 'payment_page.dart';
 
 const Color pink = Color(0xFFE85D9E);
