@@ -18,67 +18,133 @@ class _AdminPageState extends State<AdminPage> {
   final TextEditingController searchController = TextEditingController();
   String selectedFilter = 'All';
 
-  // Mock data 
+  // Mock data
   final List<Map<String, dynamic>> users = [
     {
-      'id': 'USR-001',
-      'name': 'PinkSeller',
-      'email': 'pinkseller@example.com',
-      'phone': '+66 81 234 5678',
+      'id': '1',
+      'full_name': 'PinkSeller',
+      'email': 'pinkseller@gmail.com',
+      'phone': '0812345678',
       'kycStatus': 'Verified',
       'ticketsSold': 12,
       'ticketsBought': 3,
       'successRate': '100%',
       'isActive': true,
       'joinedDate': '10 Jan 2026',
+      'username': 'somchai01',
+      'role': 'customer',
+      'isVerified': 1,
+      'ownedTickets': [
+        {
+          'ticketCode': 'TKT-BS2026-A101',
+          'concert': 'BODYSLAM EVERYBODYSLAM 2026',
+          'venue': 'Impact Arena Muang Thong Thani',
+          'zone': 'VIP A1',
+          'seat': 'A1-01',
+          'originalPrice': 4500.00,
+        },
+        {
+          'ticketCode': 'TKT-BS2026-A102',
+          'concert': 'BODYSLAM EVERYBODYSLAM 2026',
+          'venue': 'Impact Arena Muang Thong Thani',
+          'zone': 'VIP A1',
+          'seat': 'A1-02',
+          'originalPrice': 4500.00,
+        },
+      ],
+      'resellListings': [
+        {
+          'listingId': 1,
+          'ticketCode': 'TKT-BS2026-A101',
+          'concert': 'BODYSLAM EVERYBODYSLAM 2026',
+          'resellPrice': 4200.00,
+          'status': 'available',
+        },
+      ],
+      'payments': [],
     },
     {
-      'id': 'USR-002',
-      'name': 'LisaFan',
-      'email': 'lisafan@example.com',
-      'phone': '+66 89 987 6543',
-      'kycStatus': 'Verified',
-      'ticketsSold': 5,
-      'ticketsBought': 8,
-      'successRate': '100%',
-      'isActive': true,
-      'joinedDate': '15 Feb 2026',
-    },
-    {
-      'id': 'USR-003',
-      'name': 'Scammer101',
-      'email': 'fakeuser@example.com',
-      'phone': '+66 61 111 2222',
+      'id': '3',
+      'full_name': 'Scammer101',
+      'email': 'fakeuser@gmail.com',
+      'phone': '0611112222',
       'kycStatus': 'Pending',
       'ticketsSold': 0,
-      'ticketsBought': 0,
+      'ticketsBought': 1,
       'successRate': '0%',
       'isActive': false,
       'joinedDate': '01 Mar 2026',
+      'username': 'somsak_unverified',
+      'role': 'customer',
+      'isVerified': 0,
+      'ownedTickets': [
+        {
+          'ticketCode': 'TKT-TMD2026-S15',
+          'concert': 'THREE MAN DOWN LIVE IN BANGKOK',
+          'venue': 'Rajamangala National Stadium',
+          'zone': 'Zone S1',
+          'seat': 'S1-15',
+          'originalPrice': 3500.00,
+        },
+      ],
+      'resellListings': [
+        {
+          'listingId': 2,
+          'ticketCode': 'TKT-TMD2026-S15',
+          'concert': 'THREE MAN DOWN LIVE IN BANGKOK',
+          'resellPrice': 3300.00,
+          'status': 'available',
+        },
+      ],
+      'payments': [
+        {
+          'paymentId': 1,
+          'listingId': 2,
+          'concert': 'THREE MAN DOWN LIVE IN BANGKOK',
+          'amount': 3300.00,
+          'method': 'promptpay',
+          'status': 'completed',
+          'paidAt': '2026-11-04 17:00:00',
+          'sellerName': 'PinkSeller (1)',
+          'sellerPhone': '0812345678',
+        },
+      ],
     },
     {
-      'id': 'USR-004',
-      'name': 'SwiftieShop',
-      'email': 'swiftie@example.com',
-      'phone': '+66 82 444 5555',
+      'id': '4',
+      'full_name': 'Swiftie Shoppiesss',
+      'email': 'swiftie@gmail.com',
+      'phone': '0824445555',
       'kycStatus': 'Verified',
       'ticketsSold': 24,
-      'ticketsBought': 15,
+      'ticketsBought': 0,
       'successRate': '98%',
       'isActive': true,
       'joinedDate': '20 Nov 2025',
+      'username': 'swiftie_shop',
+      'role': 'customer',
+      'isVerified': 1,
+      'ownedTickets': [], // ไม่ได้ซื้อไว้ จะแสดง No tickets owned
+      'resellListings': [],
+      'payments': [],
     },
     {
-      'id': 'USR-005',
-      'name': 'BlinkBuyer',
-      'email': 'blinkbuyer@example.com',
-      'phone': '+66 95 333 7777',
+      'id': '5',
+      'full_name': 'Blink Buyer',
+      'email': 'blinkbuyer@gmail.com',
+      'phone': '0953337777',
       'kycStatus': 'Verified',
       'ticketsSold': 2,
-      'ticketsBought': 11,
+      'ticketsBought': 0,
       'successRate': '100%',
       'isActive': true,
       'joinedDate': '05 Mar 2026',
+      'username': 'blink_buyer',
+      'role': 'customer',
+      'isVerified': 1,
+      'ownedTickets': [],
+      'resellListings': [],
+      'payments': [],
     },
   ];
 
@@ -88,7 +154,6 @@ class _AdminPageState extends State<AdminPage> {
     super.dispose();
   }
 
-  
   void _toggleUserStatusDirectly(String userId) {
     final index = users.indexWhere((user) => user['id'].toString() == userId);
     if (index == -1) return;
@@ -99,7 +164,7 @@ class _AdminPageState extends State<AdminPage> {
       users[index]['isActive'] = newStatus;
     });
 
-    final String name = users[index]['name'].toString();
+    final String name = users[index]['full_name'].toString();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -120,7 +185,7 @@ class _AdminPageState extends State<AdminPage> {
     final index = users.indexWhere((user) => user['id'].toString() == userId);
     if (index == -1) return;
 
-    final String name = users[index]['name'].toString();
+    final String name = users[index]['full_name'].toString();
 
     setState(() {
       users.removeAt(index);
@@ -137,7 +202,6 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  
   void _showDeleteDialog(Map<String, dynamic> user) {
     showDialog(
       context: context,
@@ -161,7 +225,7 @@ class _AdminPageState extends State<AdminPage> {
             ],
           ),
           content: Text(
-            'Are you sure you want to delete "${user['name']}"? This action cannot be undone.',
+            'Are you sure you want to delete "${user['full_name']}"? This action cannot be undone.',
             style: const TextStyle(color: slateGrey, fontSize: 14),
           ),
           actions: [
@@ -190,8 +254,334 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  // show each data
+  // Pop-up รายละเอียดตั๋วที่ครอบครอง (Owned Ticket Pop-up)
+  void _showTicketDetailsDialog(Map<String, dynamic> ticket) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              const Icon(
+                Icons.confirmation_number_outlined,
+                color: primaryPink,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  ticket['ticketCode'].toString(),
+                  style: const TextStyle(
+                    color: darkCharcoal,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                ticket['concert']?.toString() ?? 'Concert Ticket',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: darkCharcoal,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Venue: ${ticket['venue'] ?? 'N/A'}',
+                style: const TextStyle(color: slateGrey, fontSize: 12),
+              ),
+              const Divider(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Zone: ${ticket['zone'] ?? 'N/A'}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                  Text(
+                    'Seat: ${ticket['seat'] ?? 'N/A'}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Original Price: ฿${ticket['originalPrice'] ?? '0.00'}',
+                style: const TextStyle(
+                  color: primaryPink,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Close',
+                style: TextStyle(
+                  color: primaryPink,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Pop-up รายละเอียดตั๋วที่ลงขาย (Resell Listing Pop-up)
+  void _showResellDetailsDialog(Map<String, dynamic> resell) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              const Icon(Icons.sell_outlined, color: primaryPink),
+              const SizedBox(width: 10),
+              Text(
+                'Listing #${resell['listingId']}',
+                style: const TextStyle(
+                  color: darkCharcoal,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                resell['concert']?.toString() ?? 'Concert Ticket',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: darkCharcoal,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _infoRow(
+                Icons.confirmation_number_outlined,
+                'Ticket Code',
+                resell['ticketCode'].toString(),
+              ),
+              const SizedBox(height: 8),
+              _infoRow(
+                Icons.attach_money,
+                'Resell Price',
+                '฿${resell['resellPrice']}',
+              ),
+              const SizedBox(height: 8),
+              _infoRow(
+                Icons.info_outline,
+                'Status',
+                resell['status'].toString(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Close',
+                style: TextStyle(
+                  color: primaryPink,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Pop-up รายละเอียดการชำระเงิน
+  void _showPaymentDetailsDialog(Map<String, dynamic> payment) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 500),
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: softPink,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.receipt_long_outlined,
+                        color: primaryPink,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Payment #${payment['paymentId']}',
+                            style: const TextStyle(
+                              color: darkCharcoal,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            payment['concert']?.toString() ?? 'Concert Payment',
+                            style: const TextStyle(
+                              color: primaryPink,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: slateGrey),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1),
+                const SizedBox(height: 16),
+                _infoRow(
+                  Icons.confirmation_number_outlined,
+                  'Listing ID',
+                  '#${payment['listingId']}',
+                ),
+                const SizedBox(height: 10),
+                _infoRow(
+                  Icons.attach_money,
+                  'Amount Paid',
+                  '฿${payment['amount']}',
+                ),
+                const SizedBox(height: 10),
+                _infoRow(
+                  Icons.payment,
+                  'Payment Method',
+                  payment['method'].toString().toUpperCase(),
+                ),
+                const SizedBox(height: 10),
+                _infoRow(
+                  Icons.check_circle_outline,
+                  'Payment Status',
+                  payment['status'].toString(),
+                ),
+                const SizedBox(height: 10),
+                _infoRow(
+                  Icons.access_time,
+                  'Transaction Date',
+                  payment['paidAt'].toString(),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: lightBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Seller Information',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: darkCharcoal,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _infoRow(
+                        Icons.person_outline,
+                        'Bought From',
+                        payment['sellerName'] ?? 'Unknown Seller',
+                      ),
+                      const SizedBox(height: 8),
+                      _infoRow(
+                        Icons.phone_outlined,
+                        'Seller Contact',
+                        payment['sellerPhone'] ?? 'N/A',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryPink,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Close',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // BottomSheet แสดงรายละเอียดผู้ใช้
   void _showUserDetailsSheet(Map<String, dynamic> user) {
+    final ownedTickets = List.from(user['ownedTickets'] ?? []);
+    final resellListings = List.from(user['resellListings'] ?? []);
+    final payments = List.from(user['payments'] ?? []);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -200,140 +590,448 @@ class _AdminPageState extends State<AdminPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header Sheet
-              Row(
+        return DraggableScrollableSheet(
+          initialChildSize: 0.85,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (context, scrollController) {
+            return Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: ListView(
+                controller: scrollController,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: softPink,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(
-                      Icons.person_outline,
-                      color: primaryPink,
-                      size: 28,
+                  // Header Sheet
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: softPink,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(
+                          Icons.person_outline,
+                          color: primaryPink,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user['full_name'].toString(),
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: darkCharcoal,
+                              ),
+                            ),
+                            Text(
+                              'ID: ${user['id']}',
+                              style: const TextStyle(
+                                color: slateGrey,
+                                fontSize: 13,
+                              ),
+                            ),
+                            if (user['username'] != null)
+                              Row(
+                                children: [
+                                  Text(
+                                    '@${user['username']}',
+                                    style: const TextStyle(
+                                      color: slateGrey,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: user['role'] == 'admin'
+                                          ? darkCharcoal
+                                          : softPink,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      (user['role'] ?? 'customer')
+                                          .toUpperCase(),
+                                      style: TextStyle(
+                                        color: user['role'] == 'admin'
+                                            ? Colors.white
+                                            : primaryPink,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: slateGrey),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  const Divider(height: 1),
+                  const SizedBox(height: 20),
+
+                  // Overview Title
+                  const Text(
+                    'Account Statistics & Info',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: darkCharcoal,
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
+                  const SizedBox(height: 14),
+
+                  // Detail Cards
+                  Row(
+                    children: [
+                      _detailTile(
+                        'Tickets Sold',
+                        '${user['ticketsSold']}',
+                        Icons.confirmation_number_outlined,
+                      ),
+                      const SizedBox(width: 12),
+                      _detailTile(
+                        'Tickets Bought',
+                        '${user['ticketsBought']}',
+                        Icons.shopping_bag_outlined,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      _detailTile(
+                        'Success Rate',
+                        '${user['successRate']}',
+                        Icons.star_outline,
+                      ),
+                      const SizedBox(width: 12),
+                      _detailTile(
+                        'Verification',
+                        '${user['kycStatus']}',
+                        Icons.verified_outlined,
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+                  // Personal Info List
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: lightBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          user['name'].toString(),
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: darkCharcoal,
-                          ),
+                        _infoRow(
+                          Icons.email_outlined,
+                          'Email',
+                          user['email'].toString(),
                         ),
-                        Text(
-                          'ID: ${user['id']}',
-                          style: const TextStyle(
-                            color: slateGrey,
-                            fontSize: 13,
-                          ),
+                        const Divider(height: 20),
+                        _infoRow(
+                          Icons.phone_outlined,
+                          'Phone',
+                          user['phone'].toString(),
+                        ),
+                        const Divider(height: 20),
+                        _infoRow(
+                          Icons.calendar_today_outlined,
+                          'Member Since',
+                          user['joinedDate'].toString(),
                         ),
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: slateGrey),
-                    onPressed: () => Navigator.pop(context),
+                  const SizedBox(height: 24),
+
+                  // 1. Owned Tickets Section (แสดงตั๋วที่ซื้อมาเท่านั้น)
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.confirmation_number,
+                        size: 18,
+                        color: primaryPink,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Owned Tickets (${ownedTickets.length})',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: darkCharcoal,
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 10),
+                  if (ownedTickets.isEmpty)
+                    _buildEmptyState('No tickets owned.')
+                  else
+                    ...ownedTickets.map(
+                      (t) => Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    t['concert']?.toString() ??
+                                        'Concert Ticket',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: darkCharcoal,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Code: ${t['ticketCode']}',
+                                    style: const TextStyle(
+                                      color: slateGrey,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => _showTicketDetailsDialog(t),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: softPink,
+                                foregroundColor: primaryPink,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text(
+                                'View Ticket',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+
+                  // 2. Resell Listings Section (แสดงเฉพาะตั๋วที่นำลงขาย)
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.sell_outlined,
+                        size: 18,
+                        color: primaryPink,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Resell Listings (${resellListings.length})',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: darkCharcoal,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (resellListings.isEmpty)
+                    _buildEmptyState('No resell listings.')
+                  else
+                    ...resellListings.map(
+                      (r) => Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    r['concert']?.toString() ??
+                                        'Concert Ticket',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                      color: darkCharcoal,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Listing #${r['listingId']} | Status: ${r['status']}',
+                                    style: const TextStyle(
+                                      color: slateGrey,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => _showResellDetailsDialog(r),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: softPink,
+                                foregroundColor: primaryPink,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text(
+                                'View Listing',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+
+                  // 3. Payment History Section
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.receipt_long_outlined,
+                        size: 18,
+                        color: primaryPink,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Payment History (${payments.length})',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: darkCharcoal,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (payments.isEmpty)
+                    _buildEmptyState('No payment records.')
+                  else
+                    ...payments.map(
+                      (p) => InkWell(
+                        onTap: () => _showPaymentDetailsDialog(p),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      p['concert']?.toString() ??
+                                          'Concert Payment',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: darkCharcoal,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Payment #${p['paymentId']} | From: ${p['sellerName'] ?? 'N/A'}',
+                                      style: const TextStyle(
+                                        color: slateGrey,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  Text(
+                                    '฿${p['amount']}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: primaryPink,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.chevron_right,
+                                    size: 16,
+                                    color: slateGrey,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 20),
                 ],
               ),
-              const SizedBox(height: 24),
-              const Divider(height: 1),
-              const SizedBox(height: 20),
-
-              // Overview Title
-              const Text(
-                'Account Statistics & Info',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: darkCharcoal,
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              // Detail Cards
-              Row(
-                children: [
-                  _detailTile(
-                    'Tickets Sold',
-                    '${user['ticketsSold']}',
-                    Icons.confirmation_number_outlined,
-                  ),
-                  const SizedBox(width: 12),
-                  _detailTile(
-                    'Tickets Bought',
-                    '${user['ticketsBought']}',
-                    Icons.shopping_bag_outlined,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _detailTile(
-                    'Success Rate',
-                    '${user['successRate']}',
-                    Icons.star_outline,
-                  ),
-                  const SizedBox(width: 12),
-                  _detailTile(
-                    'Verification',
-                    '${user['kycStatus']}',
-                    Icons.verified_outlined,
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-              // Personal Info List
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: lightBg,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Column(
-                  children: [
-                    _infoRow(
-                      Icons.email_outlined,
-                      'Email',
-                      user['email'].toString(),
-                    ),
-                    const Divider(height: 20),
-                    _infoRow(
-                      Icons.phone_outlined,
-                      'Phone',
-                      user['phone'].toString(),
-                    ),
-                    const Divider(height: 20),
-                    _infoRow(
-                      Icons.calendar_today_outlined,
-                      'Member Since',
-                      user['joinedDate'].toString(),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
+            );
+          },
         );
       },
+    );
+  }
+
+  Widget _buildEmptyState(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: lightBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(color: slateGrey, fontSize: 12),
+        textAlign: TextAlign.center,
+      ),
     );
   }
 
@@ -397,7 +1095,7 @@ class _AdminPageState extends State<AdminPage> {
     final query = searchController.text.toLowerCase();
     return users.where((user) {
       final matchesSearch =
-          user['name'].toString().toLowerCase().contains(query) ||
+          user['full_name'].toString().toLowerCase().contains(query) ||
           user['email'].toString().toLowerCase().contains(query) ||
           user['id'].toString().toLowerCase().contains(query);
 
@@ -444,7 +1142,7 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  
+  // Header Component (แก้ไขให้เหลือคำว่า ADMIN)
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -493,7 +1191,7 @@ class _AdminPageState extends State<AdminPage> {
               borderRadius: BorderRadius.circular(6),
             ),
             child: const Text(
-              'ADMIN PANEL',
+              'ADMIN', // ปรับแก้ไขตรงนี้แล้วครับ
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 10,
@@ -516,7 +1214,6 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  // METRICS CARDS SECTION
   Widget _buildMetricsSection() {
     final total = users.length;
     final active = users.where((u) => u['isActive'] == true).length;
@@ -615,7 +1312,6 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  // TITLE & SUBTITLE
   Widget _buildTitleSection() {
     return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -637,7 +1333,6 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  // SEARCH & FILTER BAR
   Widget _buildSearchAndFilterBar() {
     return Row(
       children: [
@@ -701,7 +1396,6 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  // LIST OF USER CARDS
   Widget _buildUserCardsList() {
     final list = filteredUsers;
 
@@ -748,7 +1442,6 @@ class _AdminPageState extends State<AdminPage> {
           ),
           child: Row(
             children: [
-              // Icon แทนรูปภาพ
               Container(
                 width: 48,
                 height: 48,
@@ -763,7 +1456,6 @@ class _AdminPageState extends State<AdminPage> {
                 ),
               ),
               const SizedBox(width: 14),
-              // User Details
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -772,7 +1464,7 @@ class _AdminPageState extends State<AdminPage> {
                       children: [
                         Flexible(
                           child: Text(
-                            user['name'].toString(),
+                            user['full_name'].toString(),
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
@@ -808,7 +1500,6 @@ class _AdminPageState extends State<AdminPage> {
                       style: const TextStyle(color: slateGrey, fontSize: 12),
                     ),
                     const SizedBox(height: 8),
-                    // ปุ่มเปิดดูข้อมูลประวัติผู้ใช้
                     InkWell(
                       onTap: () => _showUserDetailsSheet(user),
                       child: const Row(
@@ -834,7 +1525,6 @@ class _AdminPageState extends State<AdminPage> {
                   ],
                 ),
               ),
-              // Direct Toggle Switch & Actions
               Row(
                 children: [
                   Column(
