@@ -28,7 +28,6 @@ class _AdminPageState extends State<AdminPage> {
       'kycStatus': 'Verified',
       'ticketsSold': 12,
       'ticketsBought': 3,
-      'successRate': '100%',
       'isActive': true,
       'joinedDate': '10 Jan 2026',
       'username': 'somchai01',
@@ -42,6 +41,12 @@ class _AdminPageState extends State<AdminPage> {
           'zone': 'VIP A1',
           'seat': 'A1-01',
           'originalPrice': 4500.00,
+          'sellerName': 'Official Ticket',
+          'sellerPhone': 'N/A',
+          'sellerEmail': 'support@ticketpink.com',
+          'paidAmount': 4500.00,
+          'paymentMethod': 'Credit Card',
+          'paidAt': '2026-01-10 10:00:00',
         },
         {
           'ticketCode': 'TKT-BS2026-A102',
@@ -50,6 +55,12 @@ class _AdminPageState extends State<AdminPage> {
           'zone': 'VIP A1',
           'seat': 'A1-02',
           'originalPrice': 4500.00,
+          'sellerName': 'Official Ticket',
+          'sellerPhone': 'N/A',
+          'sellerEmail': 'support@ticketpink.com',
+          'paidAmount': 4500.00,
+          'paymentMethod': 'Credit Card',
+          'paidAt': '2026-01-10 10:00:00',
         },
       ],
       'resellListings': [
@@ -71,7 +82,6 @@ class _AdminPageState extends State<AdminPage> {
       'kycStatus': 'Pending',
       'ticketsSold': 0,
       'ticketsBought': 1,
-      'successRate': '0%',
       'isActive': false,
       'joinedDate': '01 Mar 2026',
       'username': 'somsak_unverified',
@@ -85,6 +95,12 @@ class _AdminPageState extends State<AdminPage> {
           'zone': 'Zone S1',
           'seat': 'S1-15',
           'originalPrice': 3500.00,
+          'sellerName': 'PinkSeller (1)',
+          'sellerPhone': '0812345678',
+          'sellerEmail': 'pinkseller@gmail.com',
+          'paidAmount': 3300.00,
+          'paymentMethod': 'PROMPTPAY',
+          'paidAt': '2026-11-04 17:00:00',
         },
       ],
       'resellListings': [
@@ -96,19 +112,7 @@ class _AdminPageState extends State<AdminPage> {
           'status': 'available',
         },
       ],
-      'payments': [
-        {
-          'paymentId': 1,
-          'listingId': 2,
-          'concert': 'THREE MAN DOWN LIVE IN BANGKOK',
-          'amount': 3300.00,
-          'method': 'promptpay',
-          'status': 'completed',
-          'paidAt': '2026-11-04 17:00:00',
-          'sellerName': 'PinkSeller (1)',
-          'sellerPhone': '0812345678',
-        },
-      ],
+      'payments': [],
     },
     {
       'id': '4',
@@ -118,13 +122,12 @@ class _AdminPageState extends State<AdminPage> {
       'kycStatus': 'Verified',
       'ticketsSold': 24,
       'ticketsBought': 0,
-      'successRate': '98%',
       'isActive': true,
       'joinedDate': '20 Nov 2025',
       'username': 'swiftie_shop',
       'role': 'customer',
       'isVerified': 1,
-      'ownedTickets': [], // ไม่ได้ซื้อไว้ จะแสดง No tickets owned
+      'ownedTickets': [],
       'resellListings': [],
       'payments': [],
     },
@@ -134,9 +137,8 @@ class _AdminPageState extends State<AdminPage> {
       'email': 'blinkbuyer@gmail.com',
       'phone': '0953337777',
       'kycStatus': 'Verified',
-      'ticketsSold': 2,
+      'ticketsSold': 0,
       'ticketsBought': 0,
-      'successRate': '100%',
       'isActive': true,
       'joinedDate': '05 Mar 2026',
       'username': 'blink_buyer',
@@ -152,6 +154,22 @@ class _AdminPageState extends State<AdminPage> {
   void dispose() {
     searchController.dispose();
     super.dispose();
+  }
+
+  /// คำนวณ Success Rate ด้วยโค้ดจากจำนวนการขายและรายการตั๋ว
+  String _calculateSuccessRate(Map<String, dynamic> user) {
+    final int sold = (user['ticketsSold'] as num?)?.toInt() ?? 0;
+    final List listings = (user['resellListings'] as List?) ?? [];
+    
+    final int uncompleted = listings.where((l) => l['status'] != 'sold').length;
+    final int totalAttempts = sold + uncompleted;
+
+    if (totalAttempts == 0) {
+      return 'N/A';
+    }
+
+    final double rate = (sold / totalAttempts) * 100;
+    return '${rate.toStringAsFixed(0)}%';
   }
 
   void _toggleUserStatusDirectly(String userId) {
@@ -180,7 +198,6 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  // delete
   void _deleteUser(String userId) {
     final index = users.indexWhere((user) => user['id'].toString() == userId);
     if (index == -1) return;
@@ -254,185 +271,16 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  // Pop-up รายละเอียดตั๋วที่ครอบครอง (Owned Ticket Pop-up)
-  void _showTicketDetailsDialog(Map<String, dynamic> ticket) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: [
-              const Icon(
-                Icons.confirmation_number_outlined,
-                color: primaryPink,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  ticket['ticketCode'].toString(),
-                  style: const TextStyle(
-                    color: darkCharcoal,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                ticket['concert']?.toString() ?? 'Concert Ticket',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: darkCharcoal,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Venue: ${ticket['venue'] ?? 'N/A'}',
-                style: const TextStyle(color: slateGrey, fontSize: 12),
-              ),
-              const Divider(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Zone: ${ticket['zone'] ?? 'N/A'}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                  Text(
-                    'Seat: ${ticket['seat'] ?? 'N/A'}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Original Price: ฿${ticket['originalPrice'] ?? '0.00'}',
-                style: const TextStyle(
-                  color: primaryPink,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Close',
-                style: TextStyle(
-                  color: primaryPink,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // Pop-up รายละเอียดตั๋วที่ลงขาย (Resell Listing Pop-up)
-  void _showResellDetailsDialog(Map<String, dynamic> resell) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: [
-              const Icon(Icons.sell_outlined, color: primaryPink),
-              const SizedBox(width: 10),
-              Text(
-                'Listing #${resell['listingId']}',
-                style: const TextStyle(
-                  color: darkCharcoal,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                resell['concert']?.toString() ?? 'Concert Ticket',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: darkCharcoal,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _infoRow(
-                Icons.confirmation_number_outlined,
-                'Ticket Code',
-                resell['ticketCode'].toString(),
-              ),
-              const SizedBox(height: 8),
-              _infoRow(
-                Icons.attach_money,
-                'Resell Price',
-                '฿${resell['resellPrice']}',
-              ),
-              const SizedBox(height: 8),
-              _infoRow(
-                Icons.info_outline,
-                'Status',
-                resell['status'].toString(),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Close',
-                style: TextStyle(
-                  color: primaryPink,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // Pop-up รายละเอียดการชำระเงิน
-  void _showPaymentDetailsDialog(Map<String, dynamic> payment) {
+  // Pop-up รายละเอียดตั๋วประวัติการซื้อ (แสดงข้อมูลทั้งหมดไม่โดนตัด)
+  void _showTicketAndPaymentDetailsDialog(Map<String, dynamic> ticket) {
     showDialog(
       context: context,
       builder: (context) {
         return Dialog(
           backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 500),
+            constraints: const BoxConstraints(maxWidth: 520),
             padding: const EdgeInsets.all(24.0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -446,11 +294,7 @@ class _AdminPageState extends State<AdminPage> {
                         color: softPink,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
-                        Icons.receipt_long_outlined,
-                        color: primaryPink,
-                        size: 24,
-                      ),
+                      child: const Icon(Icons.confirmation_number_outlined, color: primaryPink, size: 24),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -458,15 +302,15 @@ class _AdminPageState extends State<AdminPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Payment #${payment['paymentId']}',
+                            ticket['concert']?.toString() ?? 'Concert Ticket',
                             style: const TextStyle(
                               color: darkCharcoal,
-                              fontSize: 18,
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           Text(
-                            payment['concert']?.toString() ?? 'Concert Payment',
+                            'Code: ${ticket['ticketCode']}',
                             style: const TextStyle(
                               color: primaryPink,
                               fontSize: 13,
@@ -485,35 +329,19 @@ class _AdminPageState extends State<AdminPage> {
                 const SizedBox(height: 16),
                 const Divider(height: 1),
                 const SizedBox(height: 16),
-                _infoRow(
-                  Icons.confirmation_number_outlined,
-                  'Listing ID',
-                  '#${payment['listingId']}',
-                ),
+                _infoRow(Icons.location_on_outlined, 'Venue', ticket['venue'] ?? 'N/A'),
                 const SizedBox(height: 10),
-                _infoRow(
-                  Icons.attach_money,
-                  'Amount Paid',
-                  '฿${payment['amount']}',
-                ),
+                _infoRow(Icons.event_seat_outlined, 'Zone / Seat', '${ticket['zone'] ?? 'N/A'} (${ticket['seat'] ?? 'N/A'})'),
                 const SizedBox(height: 10),
-                _infoRow(
-                  Icons.payment,
-                  'Payment Method',
-                  payment['method'].toString().toUpperCase(),
-                ),
-                const SizedBox(height: 10),
-                _infoRow(
-                  Icons.check_circle_outline,
-                  'Payment Status',
-                  payment['status'].toString(),
-                ),
-                const SizedBox(height: 10),
-                _infoRow(
-                  Icons.access_time,
-                  'Transaction Date',
-                  payment['paidAt'].toString(),
-                ),
+                _infoRow(Icons.attach_money, 'Paid Amount', '฿${ticket['paidAmount'] ?? ticket['originalPrice']}'),
+                if (ticket['paymentMethod'] != null) ...[
+                  const SizedBox(height: 10),
+                  _infoRow(Icons.payment, 'Payment Method', ticket['paymentMethod'].toString().toUpperCase()),
+                ],
+                if (ticket['paidAt'] != null) ...[
+                  const SizedBox(height: 10),
+                  _infoRow(Icons.access_time, 'Transaction Date', ticket['paidAt'].toString()),
+                ],
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -526,7 +354,7 @@ class _AdminPageState extends State<AdminPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Seller Information',
+                        'Seller Contact Information',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: darkCharcoal,
@@ -534,17 +362,11 @@ class _AdminPageState extends State<AdminPage> {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      _infoRow(
-                        Icons.person_outline,
-                        'Bought From',
-                        payment['sellerName'] ?? 'Unknown Seller',
-                      ),
-                      const SizedBox(height: 8),
-                      _infoRow(
-                        Icons.phone_outlined,
-                        'Seller Contact',
-                        payment['sellerPhone'] ?? 'N/A',
-                      ),
+                      _infoRow(Icons.person_outline, 'Seller Name', ticket['sellerName'] ?? 'Unknown Seller'),
+                      const SizedBox(height: 10),
+                      _infoRow(Icons.email_outlined, 'Seller Email', ticket['sellerEmail'] ?? 'N/A'),
+                      const SizedBox(height: 10),
+                      _infoRow(Icons.phone_outlined, 'Seller Phone', ticket['sellerPhone'] ?? 'N/A'),
                     ],
                   ),
                 ),
@@ -562,10 +384,95 @@ class _AdminPageState extends State<AdminPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text(
-                      'Close',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Pop-up รายละเอียดตั๋วที่ลงขาย (Resell Details Dialog)
+  void _showResellDetailsDialog(Map<String, dynamic> resell) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 500),
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: softPink,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.sell_outlined, color: primaryPink, size: 24),
                     ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Listing #${resell['listingId']}',
+                            style: const TextStyle(
+                              color: darkCharcoal,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            resell['concert']?.toString() ?? 'Concert Ticket',
+                            style: const TextStyle(
+                              color: primaryPink,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: slateGrey),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1),
+                const SizedBox(height: 16),
+                _infoRow(Icons.confirmation_number_outlined, 'Ticket Code', resell['ticketCode'].toString()),
+                const SizedBox(height: 10),
+                _infoRow(Icons.attach_money, 'Resell Price', '฿${resell['resellPrice']}'),
+                const SizedBox(height: 10),
+                _infoRow(Icons.info_outline, 'Status', resell['status'].toString()),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryPink,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
@@ -580,7 +487,7 @@ class _AdminPageState extends State<AdminPage> {
   void _showUserDetailsSheet(Map<String, dynamic> user) {
     final ownedTickets = List.from(user['ownedTickets'] ?? []);
     final resellListings = List.from(user['resellListings'] ?? []);
-    final payments = List.from(user['payments'] ?? []);
+    final String calculatedSuccessRate = _calculateSuccessRate(user);
 
     showModalBottomSheet(
       context: context,
@@ -659,8 +566,7 @@ class _AdminPageState extends State<AdminPage> {
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
-                                      (user['role'] ?? 'customer')
-                                          .toUpperCase(),
+                                      (user['role'] ?? 'customer').toUpperCase(),
                                       style: TextStyle(
                                         color: user['role'] == 'admin'
                                             ? Colors.white
@@ -717,7 +623,7 @@ class _AdminPageState extends State<AdminPage> {
                     children: [
                       _detailTile(
                         'Success Rate',
-                        '${user['successRate']}',
+                        calculatedSuccessRate,
                         Icons.star_outline,
                       ),
                       const SizedBox(width: 12),
@@ -762,17 +668,13 @@ class _AdminPageState extends State<AdminPage> {
                   ),
                   const SizedBox(height: 24),
 
-                  // 1. Owned Tickets Section (แสดงตั๋วที่ซื้อมาเท่านั้น)
+                  // Combined Owned Tickets & Payment History Section
                   Row(
                     children: [
-                      const Icon(
-                        Icons.confirmation_number,
-                        size: 18,
-                        color: primaryPink,
-                      ),
+                      const Icon(Icons.confirmation_number, size: 18, color: primaryPink),
                       const SizedBox(width: 8),
                       Text(
-                        'Owned Tickets (${ownedTickets.length})',
+                        'My Tickets & Payment History (${ownedTickets.length})',
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
@@ -785,174 +687,7 @@ class _AdminPageState extends State<AdminPage> {
                   if (ownedTickets.isEmpty)
                     _buildEmptyState('No tickets owned.')
                   else
-                    ...ownedTickets.map(
-                      (t) => Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    t['concert']?.toString() ??
-                                        'Concert Ticket',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: darkCharcoal,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Code: ${t['ticketCode']}',
-                                    style: const TextStyle(
-                                      color: slateGrey,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            ElevatedButton(
-                              onPressed: () => _showTicketDetailsDialog(t),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: softPink,
-                                foregroundColor: primaryPink,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              child: const Text(
-                                'View Ticket',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 20),
-
-                  // 2. Resell Listings Section (แสดงเฉพาะตั๋วที่นำลงขาย)
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.sell_outlined,
-                        size: 18,
-                        color: primaryPink,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Resell Listings (${resellListings.length})',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: darkCharcoal,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  if (resellListings.isEmpty)
-                    _buildEmptyState('No resell listings.')
-                  else
-                    ...resellListings.map(
-                      (r) => Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    r['concert']?.toString() ??
-                                        'Concert Ticket',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                      color: darkCharcoal,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Listing #${r['listingId']} | Status: ${r['status']}',
-                                    style: const TextStyle(
-                                      color: slateGrey,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            ElevatedButton(
-                              onPressed: () => _showResellDetailsDialog(r),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: softPink,
-                                foregroundColor: primaryPink,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              child: const Text(
-                                'View Listing',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 20),
-
-                  // 3. Payment History Section
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.receipt_long_outlined,
-                        size: 18,
-                        color: primaryPink,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Payment History (${payments.length})',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: darkCharcoal,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  if (payments.isEmpty)
-                    _buildEmptyState('No payment records.')
-                  else
-                    ...payments.map(
-                      (p) => InkWell(
-                        onTap: () => _showPaymentDetailsDialog(p),
-                        child: Container(
+                    ...ownedTickets.map((t) => Container(
                           margin: const EdgeInsets.only(bottom: 10),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -968,16 +703,100 @@ class _AdminPageState extends State<AdminPage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      p['concert']?.toString() ??
-                                          'Concert Payment',
+                                      t['concert']?.toString() ?? 'Concert Ticket',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: darkCharcoal,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Code: ${t['ticketCode']} | From: ${t['sellerName'] ?? 'N/A'}',
+                                      style: const TextStyle(color: slateGrey, fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  Text(
+                                    '฿${t['paidAmount'] ?? t['originalPrice']}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: primaryPink,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  ElevatedButton(
+                                    onPressed: () => _showTicketAndPaymentDetailsDialog(t),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: softPink,
+                                      foregroundColor: primaryPink,
+                                      elevation: 0,
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'View',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        )),
+                  const SizedBox(height: 20),
+
+                  // Resell Listings Section (นำกลับมาตามที่ต้องการ)
+                  Row(
+                    children: [
+                      const Icon(Icons.sell_outlined, size: 18, color: primaryPink),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Resell Listings (${resellListings.length})',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: darkCharcoal,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (resellListings.isEmpty)
+                    _buildEmptyState('No resell listings.')
+                  else
+                    ...resellListings.map((r) => Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      r['concert']?.toString() ?? 'Concert Ticket',
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
                                         color: darkCharcoal,
                                       ),
                                     ),
+                                    const SizedBox(height: 2),
                                     Text(
-                                      'Payment #${p['paymentId']} | From: ${p['sellerName'] ?? 'N/A'}',
+                                      'Listing #${r['listingId']} | Status: ${r['status']}',
                                       style: const TextStyle(
                                         color: slateGrey,
                                         fontSize: 12,
@@ -989,25 +808,35 @@ class _AdminPageState extends State<AdminPage> {
                               Row(
                                 children: [
                                   Text(
-                                    '฿${p['amount']}',
+                                    '฿${r['resellPrice']}',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       color: primaryPink,
-                                      fontSize: 14,
+                                      fontSize: 13,
                                     ),
                                   ),
-                                  const Icon(
-                                    Icons.chevron_right,
-                                    size: 16,
-                                    color: slateGrey,
+                                  const SizedBox(width: 8),
+                                  ElevatedButton(
+                                    onPressed: () => _showResellDetailsDialog(r),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: softPink,
+                                      foregroundColor: primaryPink,
+                                      elevation: 0,
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'View',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                    ),
                                   ),
                                 ],
                               ),
                             ],
                           ),
-                        ),
-                      ),
-                    ),
+                        )),
                   const SizedBox(height: 20),
                 ],
               ),
@@ -1072,19 +901,25 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  /// ปรับปรุง Helper Row แสดงข้อความยาวได้โดยไม่โดนตัดปลายคำ (Ellipsis)
   Widget _infoRow(IconData icon, String label, String value) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, size: 18, color: slateGrey),
         const SizedBox(width: 12),
         Text(label, style: const TextStyle(color: slateGrey, fontSize: 13)),
-        const Spacer(),
-        Text(
-          value,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            color: darkCharcoal,
-            fontSize: 13,
+        const SizedBox(width: 16),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              color: darkCharcoal,
+              fontSize: 13,
+            ),
+            softWrap: true, // อนุญาตให้ตัดขึ้นบรรทัดใหม่ได้เมื่อข้อความยาวเกิน
           ),
         ),
       ],
@@ -1142,7 +977,7 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  // Header Component (แก้ไขให้เหลือคำว่า ADMIN)
+  // Header Component
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -1191,7 +1026,7 @@ class _AdminPageState extends State<AdminPage> {
               borderRadius: BorderRadius.circular(6),
             ),
             child: const Text(
-              'ADMIN', // ปรับแก้ไขตรงนี้แล้วครับ
+              'ADMIN',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 10,
@@ -1545,7 +1380,6 @@ class _AdminPageState extends State<AdminPage> {
                         activeTrackColor: softPink,
                         inactiveThumbColor: Colors.grey.shade400,
                         inactiveTrackColor: Colors.grey.shade200,
-                        // กดแล้วสลับสถานะทันทีแบบไม่มี Pop-up ยืนยัน
                         onChanged: (_) =>
                             _toggleUserStatusDirectly(user['id'].toString()),
                       ),
