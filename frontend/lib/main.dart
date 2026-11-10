@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'views/login.dart';
-
 void main() {
-  runApp(const MyApp());
+  runApp(const ResellCertApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class ResellCertApp extends StatelessWidget {
+  const ResellCertApp({super.key});
 
   @override
   Widget build(BuildContext context) {
