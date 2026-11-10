@@ -118,7 +118,7 @@ exports.createResellListing = async (req, res) => {
     }
 
     if (ticketCheck[0].user_id !== Number(seller_id)) {
-      return res.status(403).json({ message: 'Forbidden: คุณไม่ใช่เจ้าของตั๋วใบนี้ ไม่สามารถนำมาลงขายได้' });
+      return res.status(403).json({ message: 'Forbidden: You are not the owner of this ticket and cannot list it for resale' });
     }
 
     // เช็กว่าตั๋วใบนี้วางขายอยู่แล้วหรือยัง
@@ -164,7 +164,7 @@ exports.getMyTickets = async (req, res) => {
       JOIN concerts c ON t.concert_id = c.concert_id
       WHERE t.user_id = ?
         AND t.ticket_id NOT IN (
-          SELECT ticket_id FROM resell_listings WHERE status IN ('available', 'sold')
+          SELECT ticket_id FROM resell_listings WHERE status = 'available'
         )
       ORDER BY t.ticket_id DESC
     `;

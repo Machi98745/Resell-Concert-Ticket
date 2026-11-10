@@ -275,101 +275,116 @@ app.post('/api/user/add-ticket', async (req, res) => {
   }
 });
 
-// ==========================================
-// 5. PAYMENT MODULE (Timeout 15 นาที + ที่อยู่จัดส่ง / นัดรับบัตร)
-// ==========================================
+// ============================================================================
+// MODULE 5: PAYMENT (15-Min Timeout + Delivery/Meetup + Ownership Transfer)
+// ============================================================================
 
-// 5.1 สร้างรายการรอชำระเงิน (เลือกจัดส่ง/นัดรับ + ตั้งเวลา 15 นาที)
+// 1. สร้างรายการชำระเงิน (ล็อกเวลาจ่ายเงิน 15 นาที + เลือกจัดส่งหรือนัดรับ)
 app.post('/api/payments/checkout', verifyToken, async (req, res) => {
-  const buyer_id = req.user.user_id;
   const { listing_id, payment_method, delivery_method, shipping_info } = req.body;
+  const buyer_id = req.user.user_id;
 
-  if (!listing_id || !payment_method || !delivery_method || !shipping_info) {
+  if (!listing_id || !payment_method) {
+    return res.status(400).json({ message: 'listing_id and payment_method are required' });
+  }
+
+  const finalDeliveryMethod = delivery_method === 'meetup' ? 'meetup' : 'delivery';
+  if (!shipping_info || shipping_info.trim() === '') {
     return res.status(400).json({
-      message: 'Please provide the following complete information: listing_id, payment_method, delivery_method (delivery/meetup), and shipping_info (address or meeting point).'
+      message: finalDeliveryMethod === 'meetup'
+        ? 'Please specify the location and time for ticket pickup (shipping_info).'
+        : 'Please fill in the address for ticket delivery (shipping_info).'
     });
   }
 
   try {
+    // 1. เช็กว่าตั๋วมือสองใบนี้ยังว่างอยู่ไหม
     const [listings] = await db.query(
       "SELECT * FROM resell_listings WHERE listing_id = ? AND status = 'available'",
       [listing_id]
     );
     if (listings.length === 0) {
-      return res.status(404).json({ message: 'Ticket is no longer available' });
+      return res.status(404).json({ message: 'Resell listing not found or already sold' });
     }
 
     const listing = listings[0];
 
-    const sql = `
-      INSERT INTO payments (listing_id, buyer_id, amount, payment_method, delivery_method, shipping_info, status, expires_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'pending', DATE_ADD(NOW(), INTERVAL 15 MINUTE))
-    `;
-    const [result] = await db.query(sql, [
-      listing_id,
-      buyer_id,
-      listing.resell_price,
-      payment_method,
-      delivery_method, // 'delivery' หรือ 'meetup'
-      shipping_info    // ที่อยู่จัดส่ง หรือ จุดนัดรับ
-    ]);
+    // 2. [Sprint 3 Business Logic] ห้ามผู้ขายกดซื้อตั๋วที่ตัวเองลงขาย
+    if (listing.seller_id === buyer_id) {
+      return res.status(400).json({ message: 'You cannot purchase a ticket that you are listing for resale' });
+    }
+
+    const amount = listing.resell_price;
+
+    // 3. บันทึกรายการรอชำระเงิน พร้อมกำหนดเวลาหมดอายุ 15 นาที
+    const [result] = await db.query(
+      `INSERT INTO payments (listing_id, buyer_id, amount, payment_method, delivery_method, shipping_info, status, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'pending', DATE_ADD(NOW(), INTERVAL 15 MINUTE))`,
+      [listing_id, buyer_id, amount, payment_method, finalDeliveryMethod, shipping_info.trim()]
+    );
+
+    const [newPayment] = await db.query(
+      'SELECT payment_id, listing_id, amount, delivery_method, shipping_info, status, expires_at FROM payments WHERE payment_id = ?',
+      [result.insertId]
+    );
 
     res.status(201).json({
-      message: 'Order created successfully. Please complete the payment within 15 minutes.',
-      payment_id: result.insertId,
-      delivery_method,
-      shipping_info,
-      timeout_minutes: 15
+      message: 'Payment created successfully. Please complete the payment within 15 minutes.',
+      payment: newPayment[0]
     });
   } catch (err) {
-    res.status(500).json({ message: 'Database Error', error: err.message });
+    res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// 5.2 ยืนยันการชำระเงิน (เช็กว่าเกิน 15 นาทีหรือยัง)
+// 2. ยืนยันการชำระเงิน (เช็กว่าเกิน 15 นาทีหรือยัง + โอนสิทธิ์ตั๋วให้ผู้ซื้อ)
 app.post('/api/payments/:id/confirm', verifyToken, async (req, res) => {
   const { id } = req.params;
 
   try {
-    const [payments] = await db.query(
-      'SELECT *, (NOW() > expires_at) AS is_expired FROM payments WHERE payment_id = ?',
-      [id]
-    );
-
+    const [payments] = await db.query('SELECT * FROM payments WHERE payment_id = ?', [id]);
     if (payments.length === 0) {
-      return res.status(404).json({ message: 'Payment record not found' });
+      return res.status(404).json({ message: 'Payment not found' });
     }
 
     const payment = payments[0];
 
-    if (payment.is_expired || payment.status === 'expired') {
+    // 1. [Sprint 3 Business Logic] ตรวจสอบว่าผู้กดยืนยันคือผู้ซื้อตัวจริง
+    if (payment.buyer_id !== req.user.user_id && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'You are not the owner of this payment and cannot confirm it' });
+    }
+
+    // 2. [Sprint 3 Business Logic] ตรวจสอบว่ารายการชำระเงินเสร็จสมบูรณ์ไปแล้วหรือยัง
+    if (payment.status === 'completed') {
+      return res.status(400).json({ message: 'This payment has already been confirmed' });
+    }
+
+    // 3. ตรวจสอบว่าเวลาปัจจุบัน (NOW) เลยเวลา expires_at ไปหรือยัง
+    const [timeCheck] = await db.query(
+      'SELECT (NOW() > expires_at) AS is_expired FROM payments WHERE payment_id = ?',
+      [id]
+    );
+
+    if (timeCheck[0].is_expired) {
       await db.query("UPDATE payments SET status = 'expired' WHERE payment_id = ?", [id]);
       return res.status(400).json({
-        message: 'Payment timeout: Payment time expired (exceeded 15 minutes). Please create a new order.'
+        message: 'Payment expired ( exceeded the payment time of 15 minutes. Please create a new request)'
       });
     }
 
-    await db.query("UPDATE payments SET status = 'completed', paid_at = NOW() WHERE payment_id = ?", [id]);
+    // 4. ถ้ายังไม่หมดเวลา -> อัปเดตสถานะจ่ายเงินสำเร็จ + เปลี่ยนตั๋วเป็น sold + โอนตั๋วให้ผู้ซื้อ
+    await db.query("UPDATE payments SET status = 'completed' WHERE payment_id = ?", [id]);
     await db.query("UPDATE resell_listings SET status = 'sold' WHERE listing_id = ?", [payment.listing_id]);
-
-    // ย้ายเจ้าของตั๋วไปเป็นของคนซื้อ
     await db.query(
-      `UPDATE tickets t
-       JOIN resell_listings rl ON rl.ticket_id = t.ticket_id
-       SET t.user_id = ?
-       WHERE rl.listing_id = ?`,
+      `UPDATE tickets 
+       SET user_id = ? 
+       WHERE ticket_id = (SELECT ticket_id FROM resell_listings WHERE listing_id = ?)`,
       [payment.buyer_id, payment.listing_id]
     );
 
-    res.status(200).json({
-      message: 'Payment completed successfully!',
-      payment_id: Number(id),
-      delivery_method: payment.delivery_method,
-      shipping_info: payment.shipping_info,
-      status: 'completed'
-    });
+    res.json({ message: 'Payment successful and ticket ownership transferred to the buyer.' });
   } catch (err) {
-    res.status(500).json({ message: 'Database Error', error: err.message });
+    res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
