@@ -1,7 +1,8 @@
-
 import 'package:flutter/material.dart';
 import 'historypage.dart';
 import 'favorite.dart';
+import 'login.dart';
+
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -131,6 +132,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // LOG OUT: กลับไปหน้า Login และล้าง Navigation Stack
   void logout() {
     showDialog(
       context: context,
@@ -138,12 +140,17 @@ class _ProfilePageState extends State<ProfilePage> {
         return AlertDialog(
           title: const Text(
             'Log Out',
-            style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: darkPink,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           content: const Text('Are you sure you want to log out?'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -153,7 +160,14 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               onPressed: () {
                 Navigator.pop(dialogContext);
-                Navigator.pop(context);
+
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const Login(),
+                  ),
+                  (route) => false,
+                );
               },
               child: const Text('Log Out'),
             ),
@@ -462,7 +476,6 @@ class MyResellingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // เชื่อมรายการบัตรของผู้ใช้กับฐานข้อมูลภายหลัง
     final List<Map<String, dynamic>> myListings = [];
 
     return Scaffold(
