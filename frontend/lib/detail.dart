@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'favorite_service.dart';
 import 'cart.dart';
@@ -238,8 +237,6 @@ class _DetailPageState extends State<DetailPage> {
   bool validateSeatSelection(Map<String, dynamic> ticket) {
     final seats = getSeats(ticket);
 
-    // ถ้าผู้ขายไม่ได้ระบุรายการที่นั่ง
-    // จะอนุญาตให้ใช้ข้อมูล seat ที่ระบุไว้ในบัตร
     if (seats.isEmpty) {
       return true;
     }
@@ -301,6 +298,7 @@ class _DetailPageState extends State<DetailPage> {
         ..showSnackBar(
           const SnackBar(
             backgroundColor: darkPink,
+            duration: Duration(seconds: 2),
             content: Text(
               'This ticket is already in your cart!',
               style: TextStyle(color: Colors.white),
@@ -310,30 +308,34 @@ class _DetailPageState extends State<DetailPage> {
       return;
     }
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          backgroundColor: darkPink,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
-          content: const Text(
-            'Ticket added to your cart!',
-            style: TextStyle(color: Colors.white),
-          ),
-          action: SnackBarAction(
-            label: 'VIEW CART',
-            textColor: Colors.white,
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const CartPage(),
-                ),
-              );
-            },
-          ),
+    final messenger = ScaffoldMessenger.of(context);
+
+    messenger.hideCurrentSnackBar();
+
+    messenger.showSnackBar(
+      SnackBar(
+        backgroundColor: darkPink,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        content: const Text(
+          'Ticket added to your cart!',
+          style: TextStyle(color: Colors.white),
         ),
-      );
+        action: SnackBarAction(
+          label: 'VIEW CART',
+          textColor: Colors.white,
+          onPressed: () {
+            messenger.hideCurrentSnackBar();
+
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const CartPage(),
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   // ==========================================
@@ -631,10 +633,6 @@ class _DetailPageState extends State<DetailPage> {
           ),
         ),
         const Spacer(),
-        IconButton(
-          onPressed: () {},
-          icon: const Icon(Icons.share_outlined, color: Colors.white),
-        ),
         IconButton(
           onPressed: toggleFavorite,
           tooltip: isFavorite
@@ -1083,7 +1081,6 @@ class _DetailPageState extends State<DetailPage> {
         ),
         const SizedBox(height: 18),
 
-        // Zone filter
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(

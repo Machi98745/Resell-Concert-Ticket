@@ -1,12 +1,17 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'historypage.dart';
 import 'favorite.dart';
 import 'login.dart';
 
-
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
 const Color darkPink = Color(0xFF54283D);
+
+// =====================================================
+// PROFILE PAGE
+// =====================================================
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -20,6 +25,55 @@ class _ProfilePageState extends State<ProfilePage> {
   String email = 'user@email.com';
   String phone = '080-123-4567';
 
+  Uint8List? profileImageBytes;
+
+  final ImagePicker picker = ImagePicker();
+
+  // SELECT PROFILE IMAGE
+  Future<void> pickProfileImage() async {
+    try {
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
+
+      if (image == null) return;
+
+      final bytes = await image.readAsBytes();
+
+      if (!mounted) return;
+
+      setState(() {
+        profileImageBytes = bytes;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to select image: $e')),
+      );
+    }
+  }
+
+  // PROFILE AVATAR
+  Widget profileAvatar({double radius = 48}) {
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Colors.white,
+      backgroundImage: profileImageBytes != null
+          ? MemoryImage(profileImageBytes!)
+          : null,
+      child: profileImageBytes == null
+          ? Icon(
+              Icons.person,
+              size: radius * 1.15,
+              color: pink,
+            )
+          : null,
+    );
+  }
+
+  // EDIT PROFILE
   void editProfile() {
     final nameController = TextEditingController(text: name);
     final emailController = TextEditingController(text: email);
@@ -28,50 +82,94 @@ class _ProfilePageState extends State<ProfilePage> {
     showDialog(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text(
-            'Edit Profile',
-            style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _editField('Full Name', nameController),
-                const SizedBox(height: 12),
-                _editField('Email', emailController),
-                const SizedBox(height: 12),
-                _editField('Phone Number', phoneController),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: pink,
-                foregroundColor: Colors.white,
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text(
+                'Edit Profile',
+                style: TextStyle(
+                  color: darkPink,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              onPressed: () {
-                if (nameController.text.trim().isEmpty ||
-                    emailController.text.trim().isEmpty) {
-                  return;
-                }
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // PROFILE IMAGE
+                    Stack(
+                      children: [
+                        profileAvatar(radius: 48),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: () async {
+                              await pickProfileImage();
+                              setDialogState(() {});
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: const BoxDecoration(
+                                color: pink,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
 
-                setState(() {
-                  name = nameController.text.trim();
-                  email = emailController.text.trim();
-                  phone = phoneController.text.trim();
-                });
+                    _editField('Full Name', nameController),
+                    const SizedBox(height: 12),
+                    _editField('Email', emailController),
+                    const SizedBox(height: 12),
+                    _editField('Phone Number', phoneController),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: pink,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {
+                    if (nameController.text.trim().isEmpty ||
+                        emailController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Name and email cannot be empty.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
 
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('Save'),
-            ),
-          ],
+                    setState(() {
+                      name = nameController.text.trim();
+                      email = emailController.text.trim();
+                      phone = phoneController.text.trim();
+                    });
+
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
         );
       },
     ).then((_) {
@@ -81,7 +179,10 @@ class _ProfilePageState extends State<ProfilePage> {
     });
   }
 
-  Widget _editField(String label, TextEditingController controller) {
+  Widget _editField(
+    String label,
+    TextEditingController controller,
+  ) {
     return TextField(
       controller: controller,
       decoration: InputDecoration(
@@ -97,42 +198,53 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // NAVIGATION
   void openHistory() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const HistoryPage()),
+      MaterialPageRoute(
+        builder: (_) => const HistoryPage(),
+      ),
     );
   }
 
   void openFavorites() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const FavoritePage()),
+      MaterialPageRoute(
+        builder: (_) => const FavoritePage(),
+      ),
     );
   }
 
   void openReselling() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const MyResellingPage()),
+      MaterialPageRoute(
+        builder: (_) => const MyResellingPage(),
+      ),
     );
   }
 
   void openSettings() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const SettingsPage()),
+      MaterialPageRoute(
+        builder: (_) => const SettingsPage(),
+      ),
     );
   }
 
   void openHelp() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const HelpSupportPage()),
+      MaterialPageRoute(
+        builder: (_) => const HelpSupportPage(),
+      ),
     );
   }
 
-  // LOG OUT: กลับไปหน้า Login และล้าง Navigation Stack
+  // LOG OUT
   void logout() {
     showDialog(
       context: context,
@@ -145,12 +257,12 @@ class _ProfilePageState extends State<ProfilePage> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          content: const Text('Are you sure you want to log out?'),
+          content: const Text(
+            'Are you sure you want to log out?',
+          ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -202,6 +314,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // PROFILE HEADER
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
@@ -222,7 +335,10 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                icon: const Icon(
+                  Icons.arrow_back,
+                  color: Colors.white,
+                ),
               ),
               const Spacer(),
               const Text(
@@ -237,16 +353,41 @@ class _ProfilePageState extends State<ProfilePage> {
               IconButton(
                 onPressed: editProfile,
                 tooltip: 'Edit Profile',
-                icon: const Icon(Icons.edit, color: Colors.white),
+                icon: const Icon(
+                  Icons.edit,
+                  color: Colors.white,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 20),
-          const CircleAvatar(
-            radius: 48,
-            backgroundColor: Colors.white,
-            child: Icon(Icons.person, size: 55, color: pink),
+
+          // PROFILE PICTURE
+          Stack(
+            children: [
+              profileAvatar(radius: 48),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: GestureDetector(
+                  onTap: pickProfileImage,
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt,
+                      color: pink,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
+
           const SizedBox(height: 12),
           Text(
             name,
@@ -260,13 +401,17 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 5),
           Text(
             email,
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+            ),
           ),
         ],
       ),
     );
   }
 
+  // PERSONAL INFORMATION
   Widget _buildProfileCard() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -294,6 +439,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // MEMBER CARD
   Widget _buildInformationCard() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -328,7 +474,10 @@ class _ProfilePageState extends State<ProfilePage> {
                   SizedBox(height: 4),
                   Text(
                     'Manage your concert tickets here.',
-                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
@@ -339,6 +488,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // ACCOUNT MENU
   Widget _buildAccountMenu() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -386,6 +536,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // WHITE CARD
   Widget _whiteCard({required Widget child}) {
     return Container(
       width: double.infinity,
@@ -398,7 +549,12 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _infoRow(IconData icon, String title, String value) {
+  // INFORMATION ROW
+  Widget _infoRow(
+    IconData icon,
+    String title,
+    String value,
+  ) {
     return Row(
       children: [
         Icon(icon, color: pink, size: 22),
@@ -409,7 +565,10 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               Text(
                 title,
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -427,7 +586,12 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _menuItem(IconData icon, String title, VoidCallback onTap) {
+  // MENU ITEM
+  Widget _menuItem(
+    IconData icon,
+    String title,
+    VoidCallback onTap,
+  ) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: Icon(icon, color: pink),
@@ -439,11 +603,15 @@ class _ProfilePageState extends State<ProfilePage> {
           fontWeight: FontWeight.w500,
         ),
       ),
-      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+      trailing: const Icon(
+        Icons.chevron_right,
+        color: Colors.grey,
+      ),
       onTap: onTap,
     );
   }
 
+  // LOG OUT BUTTON
   Widget _buildLogoutButton() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -483,7 +651,10 @@ class MyResellingPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text(
           'My Reselling',
-          style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: darkPink,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         backgroundColor: Colors.white,
         foregroundColor: darkPink,
@@ -521,7 +692,10 @@ class MyResellingPage extends StatelessWidget {
                     const Text(
                       'Your reselling tickets will appear here.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ),
@@ -532,13 +706,16 @@ class MyResellingPage extends StatelessWidget {
               itemCount: myListings.length,
               itemBuilder: (context, index) {
                 final ticket = myListings[index];
+
                 return Card(
                   child: ListTile(
                     title: Text(ticket['concert'] ?? ''),
                     subtitle: Text(
                       '${ticket['zone']} • ฿${ticket['price']}',
                     ),
-                    trailing: Text(ticket['status'] ?? 'Available'),
+                    trailing: Text(
+                      ticket['status'] ?? 'Available',
+                    ),
                   ),
                 );
               },
@@ -564,10 +741,12 @@ class _SettingsPageState extends State<SettingsPage> {
   bool darkModeEnabled = false;
 
   void showMessage(String message) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: darkPink,
+        duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -590,11 +769,20 @@ class _SettingsPageState extends State<SettingsPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _passwordField('Current Password', currentController),
+                _passwordField(
+                  'Current Password',
+                  currentController,
+                ),
                 const SizedBox(height: 12),
-                _passwordField('New Password', newController),
+                _passwordField(
+                  'New Password',
+                  newController,
+                ),
                 const SizedBox(height: 12),
-                _passwordField('Confirm New Password', confirmController),
+                _passwordField(
+                  'Confirm New Password',
+                  confirmController,
+                ),
               ],
             ),
           ),
@@ -612,7 +800,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 if (currentController.text.isEmpty ||
                     newController.text.length < 6 ||
                     newController.text != confirmController.text) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
                     const SnackBar(
                       content: Text(
                         'Check your password. New password must be at least 6 characters and match.',
@@ -623,6 +811,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 }
 
                 Navigator.pop(dialogContext);
+
                 showMessage(
                   'Password change UI completed. Connect to your API to save it.',
                 );
@@ -639,7 +828,10 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  Widget _passwordField(String label, TextEditingController controller) {
+  Widget _passwordField(
+    String label,
+    TextEditingController controller,
+  ) {
     return TextField(
       controller: controller,
       obscureText: true,
@@ -663,7 +855,10 @@ class _SettingsPageState extends State<SettingsPage> {
       appBar: AppBar(
         title: const Text(
           'Settings',
-          style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: darkPink,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         backgroundColor: Colors.white,
         foregroundColor: darkPink,
@@ -676,23 +871,33 @@ class _SettingsPageState extends State<SettingsPage> {
           _settingsCard([
             SwitchListTile(
               activeColor: pink,
-              secondary: const Icon(Icons.notifications_outlined, color: pink),
+              secondary: const Icon(
+                Icons.notifications_outlined,
+                color: pink,
+              ),
               title: const Text('Push Notifications'),
               subtitle: const Text('Receive app notifications'),
               value: notificationsEnabled,
               onChanged: (value) {
-                setState(() => notificationsEnabled = value);
+                setState(() {
+                  notificationsEnabled = value;
+                });
               },
             ),
             const Divider(height: 1),
             SwitchListTile(
               activeColor: pink,
-              secondary: const Icon(Icons.email_outlined, color: pink),
+              secondary: const Icon(
+                Icons.email_outlined,
+                color: pink,
+              ),
               title: const Text('Email Notifications'),
               subtitle: const Text('Receive updates by email'),
               value: emailNotifications,
               onChanged: (value) {
-                setState(() => emailNotifications = value);
+                setState(() {
+                  emailNotifications = value;
+                });
               },
             ),
           ]),
@@ -701,12 +906,18 @@ class _SettingsPageState extends State<SettingsPage> {
           _settingsCard([
             SwitchListTile(
               activeColor: pink,
-              secondary: const Icon(Icons.dark_mode_outlined, color: pink),
+              secondary: const Icon(
+                Icons.dark_mode_outlined,
+                color: pink,
+              ),
               title: const Text('Dark Mode'),
               subtitle: const Text('Change the app appearance'),
               value: darkModeEnabled,
               onChanged: (value) {
-                setState(() => darkModeEnabled = value);
+                setState(() {
+                  darkModeEnabled = value;
+                });
+
                 showMessage(
                   value
                       ? 'Dark Mode selected. Apply it through your app theme.'
@@ -719,14 +930,20 @@ class _SettingsPageState extends State<SettingsPage> {
           _sectionTitle('Account Security'),
           _settingsCard([
             ListTile(
-              leading: const Icon(Icons.lock_outline, color: pink),
+              leading: const Icon(
+                Icons.lock_outline,
+                color: pink,
+              ),
               title: const Text('Change Password'),
               trailing: const Icon(Icons.chevron_right),
               onTap: changePassword,
             ),
             const Divider(height: 1),
             ListTile(
-              leading: const Icon(Icons.privacy_tip_outlined, color: pink),
+              leading: const Icon(
+                Icons.privacy_tip_outlined,
+                color: pink,
+              ),
               title: const Text('Privacy'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
@@ -747,7 +964,10 @@ class _SettingsPageState extends State<SettingsPage> {
           const Center(
             child: Text(
               'Ticket Pink • Version 1.0.0',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+              ),
             ),
           ),
         ],
@@ -794,7 +1014,9 @@ class HelpSupportPage extends StatelessWidget {
   void contactSupport(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const ContactSupportPage()),
+      MaterialPageRoute(
+        builder: (_) => const ContactSupportPage(),
+      ),
     );
   }
 
@@ -805,7 +1027,10 @@ class HelpSupportPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text(
           'Help & Support',
-          style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: darkPink,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         backgroundColor: Colors.white,
         foregroundColor: darkPink,
@@ -827,7 +1052,11 @@ class HelpSupportPage extends StatelessWidget {
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.support_agent, color: Colors.white, size: 42),
+                Icon(
+                  Icons.support_agent,
+                  color: Colors.white,
+                  size: 42,
+                ),
                 SizedBox(height: 12),
                 Text(
                   'How can we help you?',
@@ -840,7 +1069,10 @@ class HelpSupportPage extends StatelessWidget {
                 SizedBox(height: 6),
                 Text(
                   'Find answers to common questions about Ticket Pink.',
-                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                  ),
                 ),
               ],
             ),
@@ -876,7 +1108,12 @@ class HelpSupportPage extends StatelessWidget {
                 ),
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+                    padding: const EdgeInsets.fromLTRB(
+                      16,
+                      0,
+                      16,
+                      18,
+                    ),
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
@@ -909,7 +1146,10 @@ class HelpSupportPage extends StatelessWidget {
             child: ListTile(
               leading: const CircleAvatar(
                 backgroundColor: lightPink,
-                child: Icon(Icons.mail_outline, color: pink),
+                child: Icon(
+                  Icons.mail_outline,
+                  color: pink,
+                ),
               ),
               title: const Text(
                 'Contact Support',
@@ -918,8 +1158,13 @@ class HelpSupportPage extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              subtitle: const Text('Send us a message about your problem'),
-              trailing: const Icon(Icons.chevron_right, color: pink),
+              subtitle: const Text(
+                'Send us a message about your problem',
+              ),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: pink,
+              ),
               onTap: () => contactSupport(context),
             ),
           ),
@@ -937,7 +1182,8 @@ class ContactSupportPage extends StatefulWidget {
   const ContactSupportPage({super.key});
 
   @override
-  State<ContactSupportPage> createState() => _ContactSupportPageState();
+  State<ContactSupportPage> createState() =>
+      _ContactSupportPageState();
 }
 
 class _ContactSupportPageState extends State<ContactSupportPage> {
@@ -960,7 +1206,9 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
         emailController.text.trim().isEmpty ||
         messageController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please complete all fields.')),
+        const SnackBar(
+          content: Text('Please complete all fields.'),
+        ),
       );
       return;
     }
@@ -968,7 +1216,11 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        icon: const Icon(Icons.check_circle, color: pink, size: 45),
+        icon: const Icon(
+          Icons.check_circle,
+          color: pink,
+          size: 45,
+        ),
         title: const Text('Message Prepared'),
         content: const Text(
           'Your support message has been prepared. Connect this form to your backend or email service to send it.',
@@ -1022,7 +1274,10 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
       appBar: AppBar(
         title: const Text(
           'Contact Support',
-          style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: darkPink,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         backgroundColor: Colors.white,
         foregroundColor: darkPink,
@@ -1074,7 +1329,9 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
             }).toList(),
             onChanged: (value) {
               if (value != null) {
-                setState(() => selectedTopic = value);
+                setState(() {
+                  selectedTopic = value;
+                });
               }
             },
           ),
@@ -1158,6 +1415,10 @@ class InformationPage extends StatelessWidget {
     );
   }
 }
+
+// =====================================================
+// SHARED SETTINGS WIDGETS
+// =====================================================
 
 Widget _sectionTitle(String title) {
   return Padding(

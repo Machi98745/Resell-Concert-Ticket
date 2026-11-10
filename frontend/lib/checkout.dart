@@ -1,5 +1,8 @@
+
 import 'package:flutter/material.dart';
 import 'cart_service.dart';
+import 'historypage.dart';
+
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -20,14 +23,9 @@ class CheckoutPage extends StatefulWidget {
 class _CheckoutPageState extends State<CheckoutPage> {
   final _formKey = GlobalKey<FormState>();
 
-  final TextEditingController nameController =
-      TextEditingController();
-
-  final TextEditingController emailController =
-      TextEditingController();
-
-  final TextEditingController phoneController =
-      TextEditingController();
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController phoneController = TextEditingController();
 
   String paymentMethod = 'Bank Transfer';
 
@@ -49,10 +47,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
     super.dispose();
   }
 
-  void confirmPayment() {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+  // Confirm order and navigate to My Orders
+  Future<void> confirmPayment() async {
+    if (!_formKey.currentState!.validate()) return;
 
     if (widget.items.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -63,9 +60,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       return;
     }
 
-    final order = CartService.createOrderFromItems(
-      widget.items,
-    );
+    final order = CartService.createOrderFromItems(widget.items);
 
     if (order == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -81,7 +76,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     order['phone'] = phoneController.text.trim();
     order['paymentMethod'] = paymentMethod;
 
-    showDialog(
+    await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
@@ -107,14 +102,23 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 foregroundColor: Colors.white,
               ),
               onPressed: () {
-                Navigator.pop(dialogContext);
-                Navigator.pop(context, true);
+                Navigator.of(dialogContext).pop();
               },
               child: const Text('Done'),
             ),
           ],
         );
       },
+    );
+
+    // Wait until the dialog closes before navigating.
+    if (!mounted) return;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => const HistoryPage(),
+      ),
+      (route) => route.isFirst,
     );
   }
 
@@ -154,10 +158,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           },
           decoration: InputDecoration(
             hintText: hint,
-            prefixIcon: Icon(
-              icon,
-              color: pink,
-            ),
+            prefixIcon: Icon(icon, color: pink),
             filled: true,
             fillColor: lightPink,
             border: OutlineInputBorder(
@@ -166,9 +167,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(
-                color: Colors.red,
-              ),
+              borderSide: const BorderSide(color: Colors.red),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
@@ -311,8 +310,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Row(
-                  mainAxisAlignment:
-                      MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
                       'Total',
@@ -352,7 +350,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 value: 'Bank Transfer',
                 icon: Icons.account_balance,
               ),
-
               const SizedBox(height: 10),
 
               _paymentOption(
@@ -386,7 +383,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 20),
             ],
           ),

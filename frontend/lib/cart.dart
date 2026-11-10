@@ -1,7 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'cart_service.dart';
-import 'historypage.dart';
+import 'checkout.dart';
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -15,27 +15,52 @@ class CartPage extends StatefulWidget {
 }
 
 class _CartPageState extends State<CartPage> {
+
+  // Navigate to Checkout Page
   Future<void> _checkout() async {
-    if (CartService.items.isEmpty) return;
+    if (CartService.items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Your cart is empty.'),
+        ),
+      );
+      return;
+    }
 
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Order'),
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
+        title: const Text(
+          'Confirm Order',
+          style: TextStyle(
+            color: darkPink,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: const Text(
           'Do you want to proceed with this order?',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            onPressed: () {
+              Navigator.of(dialogContext).pop(false);
+            },
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: pink,
               foregroundColor: Colors.white,
             ),
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              Navigator.of(dialogContext).pop(true);
+            },
             child: const Text('Confirm'),
           ),
         ],
@@ -44,14 +69,16 @@ class _CartPageState extends State<CartPage> {
 
     if (confirm != true || !mounted) return;
 
-    CartService.createOrder();
+    // Copy cart items and send them to CheckoutPage.
+    final checkoutItems = CartService.items
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
 
-    if (!mounted) return;
-
-    Navigator.push(
-      context,
+    Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const HistoryPage(),
+        builder: (_) => CheckoutPage(
+          items: checkoutItems,
+        ),
       ),
     );
   }
@@ -158,15 +185,21 @@ class _CartPageState extends State<CartPage> {
                                     const SizedBox(height: 5),
                                     Text(
                                       'Artist: ${item['artist'] ?? '-'}',
-                                      style: const TextStyle(fontSize: 12),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                      ),
                                     ),
                                     Text(
                                       'Seller: ${item['seller'] ?? '-'}',
-                                      style: const TextStyle(fontSize: 12),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                      ),
                                     ),
                                     Text(
                                       'Seat: ${item['seat'] ?? '-'}',
-                                      style: const TextStyle(fontSize: 12),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                      ),
                                     ),
                                     const SizedBox(height: 5),
                                     Text(
@@ -199,8 +232,12 @@ class _CartPageState extends State<CartPage> {
                     },
                   ),
                 ),
+
+                // Total and Checkout Button
                 Container(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  padding: const EdgeInsets.fromLTRB(
+                    20, 16, 20, 24,
+                  ),
                   decoration: const BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.vertical(
@@ -210,7 +247,8 @@ class _CartPageState extends State<CartPage> {
                   child: Column(
                     children: [
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        mainAxisAlignment:
+                            MainAxisAlignment.spaceBetween,
                         children: [
                           const Text(
                             'Total',
