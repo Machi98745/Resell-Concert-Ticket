@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'favorite_service.dart';
-import 'cart.dart';
 import 'cart_service.dart';
 import 'checkout.dart';
 
