@@ -448,17 +448,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _headerText(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        color: darkPink,
-        fontWeight: FontWeight.w500,
-        fontSize: 14,
-      ),
-    );
-  }
-
   // ==========================================
   // CONCERT BANNER SLIDER
   // ==========================================
