@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'detail.dart';
@@ -18,67 +17,77 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final TextEditingController searchController =
-      TextEditingController();
-
+  final TextEditingController searchController = TextEditingController();
   final PageController bannerController = PageController();
 
   Timer? bannerTimer;
 
   String selectedCategory = 'All';
   int currentBannerIndex = 0;
+  bool showBannerControls = false;
 
   final List<Map<String, dynamic>> concerts = [
     {
       'name': 'BLACKPINK WORLD TOUR',
       'artist': 'BLACKPINK',
       'date': '15 December 2026',
-      'location': 'Bangkok, Thailand',
+      'time': '19:00',
+      'location': 'Rajamangala National Stadium, Bangkok',
       'category': 'K-Pop',
-      'image':
-          'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=900',
-      'images': [
-        'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=1200',
-        'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=1200',
-        'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=1200',
-      ],
-      'description':
-          'Experience an unforgettable night with BLACKPINK.',
+      'image': 'assets/images/blackpink.jpg',
+      'description': 'Experience an unforgettable night with BLACKPINK.',
       'tickets': [
         {
-          'seller': 'PinkSeller',
+          'seller': 'BlackPinkFan',
           'zone': 'VIP Zone',
           'price': 6500,
           'condition': 'Available',
+          'status': 'available',
+          'seats': ['VIP-A1', 'VIP-A2', 'VIP-A3'],
         },
         {
-          'seller': 'LisaFan',
+          'seller': 'PinkFan',
           'zone': 'Standing Zone',
           'price': 4200,
           'condition': 'Available',
+          'status': 'available',
+          'seats': ['ST-A1', 'ST-A2', 'ST-A3'],
         },
       ],
     },
     {
       'name': 'LISA FAN MEETING',
       'artist': 'LISA',
-      'date': '20 December 2026',
-      'location': 'Bangkok, Thailand',
+      'date': '1 December 2026',
+      'time': '18:00',
+      'location': 'Impact Arena, Bangkok',
       'category': 'K-Pop',
-      'image':
-          'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=900',
-      'images': [
-        'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1200',
-        'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=1200',
-        'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=1200',
-      ],
+      'image': 'assets/images/lisa.jpg',
       'description': 'Meet and enjoy a special event with LISA.',
       'tickets': [
         {
-          'seller': 'LisaWorld',
-          'zone': 'Zone A',
-          'price': 3500,
+          'seller': 'LisaFan',
+          'zone': 'VIP Zone',
+          'price': 6500,
           'condition': 'Available',
+          'status': 'available',
+          'seats': ['VIP-A1', 'VIP-A2', 'VIP-A3'],
+        },
+        {
+          'seller': 'LisaFan2',
+          'zone': 'Premium Zone',
+          'price': 4800,
+          'condition': 'Available',
+          'status': 'available',
+          'seats': ['P-A1', 'P-A2', 'P-A3'],
+        },
+        {
+          'seller': 'LisaFan3',
+          'zone': 'Standard Zone',
+          'price': 3200,
+          'condition': 'Sold',
+          'status': 'sold',
+          'seats': ['S-A1', 'S-A2', 'S-A3'],
         },
       ],
     },
@@ -86,15 +95,10 @@ class _HomePageState extends State<HomePage> {
       'name': 'THE ERAS TOUR',
       'artist': 'Taylor Swift',
       'date': '25 December 2026',
-      'location': 'Singapore',
+      'time': '19:00',
+      'location': 'National Stadium, Singapore',
       'category': 'Pop',
-      'image':
-          'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=900',
-      'images': [
-        'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=1200',
-        'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=1200',
-        'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1200',
-      ],
+      'image': 'assets/images/taylor.png',
       'description': 'Enjoy an amazing live music experience.',
       'tickets': [
         {
@@ -102,6 +106,8 @@ class _HomePageState extends State<HomePage> {
           'zone': 'CAT 1',
           'price': 5200,
           'condition': 'Available',
+          'status': 'available',
+          'seats': ['C1-A1', 'C1-A2'],
         },
       ],
     },
@@ -109,15 +115,10 @@ class _HomePageState extends State<HomePage> {
       'name': 'BTS WORLD TOUR',
       'artist': 'BTS',
       'date': '30 December 2026',
-      'location': 'Bangkok, Thailand',
+      'time': '19:00',
+      'location': 'Rajamangala National Stadium, Bangkok',
       'category': 'K-Pop',
-      'image':
-          'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=900',
-      'images': [
-        'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=1200',
-        'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=1200',
-        'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=1200',
-      ],
+      'image': 'assets/images/bts.jpg',
       'description': 'A special concert experience for ARMY.',
       'tickets': [
         {
@@ -125,6 +126,8 @@ class _HomePageState extends State<HomePage> {
           'zone': 'VIP Zone',
           'price': 4800,
           'condition': 'Available',
+          'status': 'available',
+          'seats': ['VIP-B1', 'VIP-B2'],
         },
       ],
     },
@@ -136,18 +139,22 @@ class _HomePageState extends State<HomePage> {
     startBannerAutoSlide();
   }
 
+  // ==========================================
+  // AUTO SLIDE
+  // ==========================================
+
   void startBannerAutoSlide() {
     bannerTimer = Timer.periodic(
       const Duration(seconds: 3),
       (timer) {
         if (!mounted || !bannerController.hasClients) return;
 
-        final images = concerts[0]['images'] as List;
-        int nextPage = currentBannerIndex + 1;
+        final concertList = upcomingConcerts;
 
-        if (nextPage >= images.length) {
-          nextPage = 0;
-        }
+        if (concertList.isEmpty) return;
+
+        final nextPage =
+            (currentBannerIndex + 1) % concertList.length;
 
         bannerController.animateToPage(
           nextPage,
@@ -166,10 +173,20 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+  // ==========================================
+  // CONCERT LIST
+  // ==========================================
+
+  List<Map<String, dynamic>> get upcomingConcerts {
+    return concerts.where((concert) {
+      return !CartService.isConcertFinished(concert);
+    }).toList();
+  }
+
   List<Map<String, dynamic>> get filteredConcerts {
     final searchText = searchController.text.toLowerCase();
 
-    return concerts.where((concert) {
+    return upcomingConcerts.where((concert) {
       final matchesSearch =
           concert['name']
                   .toString()
@@ -189,10 +206,14 @@ class _HomePageState extends State<HomePage> {
   }
 
   void openDetail(Map<String, dynamic> concert) {
+    if (CartService.isConcertFinished(concert)) {
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => DetailPage(concert: concert),
+        builder: (_) => DetailPage(concert: concert),
       ),
     ).then((_) {
       if (mounted) setState(() {});
@@ -203,7 +224,7 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const CartPage(),
+        builder: (_) => const CartPage(),
       ),
     ).then((_) {
       if (mounted) setState(() {});
@@ -214,12 +235,11 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const ProfilePage(),
+        builder: (_) => const ProfilePage(),
       ),
     );
   }
 
-  // SELL TICKETS FUNCTION
   void openSellTickets() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -228,45 +248,99 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ==========================================
+  // BANNER NAVIGATION
+  // ==========================================
+
+  void previousBanner() {
+    final concertList = upcomingConcerts;
+
+    if (concertList.isEmpty) return;
+
+    final previous = currentBannerIndex == 0
+        ? concertList.length - 1
+        : currentBannerIndex - 1;
+
+    bannerController.animateToPage(
+      previous,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  void nextBanner() {
+    final concertList = upcomingConcerts;
+
+    if (concertList.isEmpty) return;
+
+    final next = (currentBannerIndex + 1) % concertList.length;
+
+    bannerController.animateToPage(
+      next,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  // ==========================================
+  // BUILD
+  // ==========================================
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildBanner(),
-                    const SizedBox(height: 35),
-                    _buildSearch(),
-                    const SizedBox(height: 25),
-                    _buildCategories(),
-                    const SizedBox(height: 25),
-                    _buildConcertSection(),
-                    const SizedBox(height: 40),
-                    _buildFooter(),
-                  ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/',
+          (route) => false,
+        );
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (upcomingConcerts.isNotEmpty)
+                        _buildBanner(),
+                      const SizedBox(height: 35),
+                      _buildSearch(),
+                      const SizedBox(height: 25),
+                      _buildCategories(),
+                      const SizedBox(height: 25),
+                      _buildConcertSection(),
+                      const SizedBox(height: 40),
+                      _buildFooter(),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
+  // ==========================================
   // HEADER
+  // ==========================================
+
   Widget _buildHeader() {
     final isMobile = MediaQuery.of(context).size.width <= 600;
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 20,
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 35,
         vertical: 12,
       ),
       decoration: BoxDecoration(
@@ -291,15 +365,6 @@ class _HomePageState extends State<HomePage> {
           ),
 
           const Spacer(),
-
-          if (!isMobile) ...[
-            _headerText('Home'),
-            const SizedBox(width: 25),
-            _headerText('Concerts'),
-            const SizedBox(width: 20),
-          ],
-
-          // SELL TICKETS BUTTON
           ElevatedButton.icon(
             onPressed: openSellTickets,
             icon: Icon(
@@ -325,10 +390,7 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-
           SizedBox(width: isMobile ? 2 : 10),
-
-          // CART BUTTON
           Stack(
             clipBehavior: Clip.none,
             children: [
@@ -367,8 +429,6 @@ class _HomePageState extends State<HomePage> {
                 ),
             ],
           ),
-
-          // PROFILE BUTTON
           IconButton(
             onPressed: openProfile,
             padding: EdgeInsets.zero,
@@ -399,176 +459,257 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // AUTO SLIDE BANNER
+  // ==========================================
+  // CONCERT BANNER SLIDER
+  // ==========================================
+
   Widget _buildBanner() {
-    final images = concerts[0]['images'] as List;
+    final concertList = upcomingConcerts;
+
+    if (concertList.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(25, 25, 25, 0),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: SizedBox(
-          height: 360,
-          width: double.infinity,
-          child: Stack(
-            children: [
-              PageView.builder(
-                controller: bannerController,
-                itemCount: images.length,
-                onPageChanged: (index) {
-                  setState(() {
-                    currentBannerIndex = index;
-                  });
-                },
-                itemBuilder: (context, index) {
-                  return GestureDetector(
-                    onTap: () => openDetail(concerts[0]),
-                    child: Image.network(
-                      images[index],
-                      width: double.infinity,
-                      height: 360,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: darkPink,
-                          child: const Center(
-                            child: Icon(
-                              Icons.music_note,
-                              color: Colors.white,
-                              size: 60,
+      padding: const EdgeInsets.fromLTRB(12, 25, 12, 0),
+      child: MouseRegion(
+        onEnter: (_) {
+          setState(() {
+            showBannerControls = true;
+          });
+        },
+        onExit: (_) {
+          setState(() {
+            showBannerControls = false;
+          });
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(25),
+          child: SizedBox(
+            height: 540,
+            width: double.infinity,
+            child: Stack(
+              children: [
+                PageView.builder(
+                  controller: bannerController,
+                  itemCount: concertList.length,
+                  onPageChanged: (index) {
+                    setState(() {
+                      currentBannerIndex = index;
+                    });
+                  },
+                  itemBuilder: (context, index) {
+                    final concert = concertList[index];
+
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.asset(
+                          concert['image'].toString(),
+                          width: double.infinity,
+                          height: 540,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) {
+                            return Container(
+                              color: darkPink,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.music_note,
+                                  color: Colors.white,
+                                  size: 60,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.black.withOpacity(0.75),
+                                Colors.black.withOpacity(0.35),
+                                Colors.transparent,
+                              ],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
                             ),
+                          ),
+                        ),
+                        Positioned(
+                          left: 35,
+                          top: 0,
+                          bottom: 0,
+                          child: SizedBox(
+                            width: MediaQuery.of(context).size.width * 0.55,
+                            child: _buildBannerInfo(concert),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                if (showBannerControls && concertList.length > 1) ...[
+                  Positioned(
+                    left: 8,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: _bannerArrowButton(
+                        icon: Icons.chevron_left,
+                        onPressed: previousBanner,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 8,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: _bannerArrowButton(
+                        icon: Icons.chevron_right,
+                        onPressed: nextBanner,
+                      ),
+                    ),
+                  ),
+                ],
+                Positioned(
+                  bottom: 20,
+                  left: 0,
+                  right: 0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      concertList.length,
+                      (index) {
+                        final selected = currentBannerIndex == index;
+
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          width: selected ? 25 : 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: selected ? pink : Colors.white70,
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         );
                       },
                     ),
-                  );
-                },
-              ),
-
-              // DARK OVERLAY
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.black.withValues(alpha: 0.65),
-                      Colors.transparent,
-                    ],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
                   ),
                 ),
-              ),
-
-              // BANNER TEXT
-              Positioned(
-                left: 40,
-                top: 75,
-                bottom: 75,
-                child: SizedBox(
-                  width: 350,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: pink,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'FEATURED EVENT',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      const Text(
-                        'BLACKPINK\nWORLD TOUR 2026',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Get your tickets and enjoy the show!',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: () => openDetail(concerts[0]),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: pink,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 25,
-                            vertical: 15,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                        ),
-                        child: const Text('Explore Tickets'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // PAGE INDICATORS
-              Positioned(
-                bottom: 20,
-                left: 0,
-                right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(images.length, (index) {
-                    final isSelected =
-                        currentBannerIndex == index;
-
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                      ),
-                      width: isSelected ? 25 : 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? pink
-                            : Colors.white.withValues(alpha: 0.7),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    );
-                  }),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
+  Widget _buildBannerInfo(Map<String, dynamic> concert) {
+    final soldOut = CartService.isConcertSoldOut(concert);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 15,
+            vertical: 8,
+          ),
+          decoration: BoxDecoration(
+            color: soldOut ? Colors.red : pink,
+            borderRadius: BorderRadius.circular(25),
+          ),
+          child: Text(
+            soldOut ? 'SOLD OUT' : 'FEATURED EVENT',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          concert['name'].toString(),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+            height: 1.2,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          '${concert['date']}  •  ${concert['time'] ?? ''}',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          concert['location'].toString(),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(height: 20),
+        ElevatedButton(
+          onPressed: soldOut ? null : () => openDetail(concert),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: pink,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 25,
+              vertical: 15,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(25),
+            ),
+          ),
+          child: const Text('Explore Tickets'),
+        ),
+      ],
+    );
+  }
+
+  Widget _bannerArrowButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.35),
+        shape: BoxShape.circle,
+      ),
+      child: IconButton(
+        onPressed: onPressed,
+        icon: Icon(
+          icon,
+          color: Colors.white,
+          size: 40,
+        ),
+      ),
+    );
+  }
+
+  // ==========================================
   // SEARCH
+  // ==========================================
+
   Widget _buildSearch() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 35),
+      padding: const EdgeInsets.symmetric(horizontal: 25),
       child: TextField(
         controller: searchController,
-        onChanged: (value) {
+        onChanged: (_) {
           setState(() {});
         },
         decoration: InputDecoration(
@@ -579,9 +720,7 @@ class _HomePageState extends State<HomePage> {
           ),
           filled: true,
           fillColor: lightPink,
-          contentPadding: const EdgeInsets.symmetric(
-            vertical: 16,
-          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 16),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(15),
             borderSide: BorderSide.none,
@@ -591,12 +730,15 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // CATEGORY
+  // ==========================================
+  // CATEGORIES
+  // ==========================================
+
   Widget _buildCategories() {
-    final categories = ['All', 'K-Pop', 'Pop'];
+    const categories = ['All', 'K-Pop', 'Pop'];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 35),
+      padding: const EdgeInsets.symmetric(horizontal: 25),
       child: Wrap(
         spacing: 12,
         children: categories.map((category) {
@@ -605,7 +747,7 @@ class _HomePageState extends State<HomePage> {
           return ChoiceChip(
             label: Text(category),
             selected: selected,
-            onSelected: (value) {
+            onSelected: (_) {
               setState(() {
                 selectedCategory = category;
               });
@@ -623,12 +765,15 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ==========================================
   // CONCERT SECTION
+  // ==========================================
+
   Widget _buildConcertSection() {
-    final items = filteredConcerts;
+    final concertList = filteredConcerts;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 35),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -649,12 +794,11 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           const SizedBox(height: 22),
-
-          if (items.isEmpty)
+          if (concertList.isEmpty)
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(30),
-                child: Text('No concerts found.'),
+                child: Text('No upcoming concerts found.'),
               ),
             )
           else
@@ -670,18 +814,17 @@ class _HomePageState extends State<HomePage> {
 
                 return GridView.builder(
                   shrinkWrap: true,
-                  physics:
-                      const NeverScrollableScrollPhysics(),
-                  itemCount: items.length,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: concertList.length,
                   gridDelegate:
                       SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: columns,
                     crossAxisSpacing: 20,
                     mainAxisSpacing: 20,
-                    childAspectRatio: 0.72,
+                    childAspectRatio: 0.65,
                   ),
                   itemBuilder: (context, index) {
-                    return _buildConcertCard(items[index]);
+                    return _buildConcertCard(concertList[index]);
                   },
                 );
               },
@@ -691,19 +834,23 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ==========================================
   // CONCERT CARD
-  Widget _buildConcertCard(
-    Map<String, dynamic> concert,
-  ) {
+  // ==========================================
+
+  Widget _buildConcertCard(Map<String, dynamic> concert) {
+    final soldOut = CartService.isConcertSoldOut(concert);
+
+    final statusText = soldOut ? 'SOLD OUT' : 'AVAILABLE';
+    final statusColor = soldOut ? Colors.red : Colors.green;
+
     return GestureDetector(
-      onTap: () => openDetail(concert),
+      onTap: soldOut ? null : () => openDetail(concert),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.grey.shade200,
-          ),
+          border: Border.all(color: Colors.grey.shade200),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -717,31 +864,59 @@ class _HomePageState extends State<HomePage> {
           children: [
             Expanded(
               flex: 5,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(16),
-                ),
-                child: Image.network(
-                  concert['image'],
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: lightPink,
-                      child: const Center(
-                        child: Icon(
-                          Icons.music_note,
-                          size: 45,
-                          color: pink,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(16),
+                      ),
+                      child: Image.asset(
+                        concert['image']?.toString() ?? '',
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) {
+                          return Container(
+                            color: lightPink,
+                            child: const Center(
+                              child: Icon(
+                                Icons.music_note,
+                                size: 45,
+                                color: pink,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 12,
+                    left: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                ],
               ),
             ),
             Expanded(
-              flex: 4,
+              flex: 5,
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
@@ -749,7 +924,7 @@ class _HomePageState extends State<HomePage> {
                       CrossAxisAlignment.start,
                   children: [
                     Text(
-                      concert['name'],
+                      concert['name'].toString(),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -758,28 +933,52 @@ class _HomePageState extends State<HomePage> {
                         color: darkPink,
                       ),
                     ),
-                    const SizedBox(height: 7),
+                    const SizedBox(height: 6),
                     Text(
-                      concert['artist'],
+                      concert['artist'].toString(),
                       style: const TextStyle(
                         color: pink,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Icon(
                           Icons.calendar_month,
-                          size: 13,
-                          color: Colors.grey,
+                          size: 15,
+                          color: pink,
                         ),
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 7),
                         Expanded(
                           child: Text(
-                            concert['date'],
-                            maxLines: 1,
+                            concert['date']?.toString() ?? 'Date TBA',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.location_on,
+                          size: 15,
+                          color: pink,
+                        ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text(
+                            concert['location']?.toString() ?? 'Venue TBA',
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 11,
@@ -795,21 +994,18 @@ class _HomePageState extends State<HomePage> {
                       child: ElevatedButton(
                         onPressed: () => openDetail(concert),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: pink,
+                          backgroundColor: soldOut ? Colors.grey : pink,
                           foregroundColor: Colors.white,
                           elevation: 0,
-                          padding:
-                              const EdgeInsets.symmetric(
-                            vertical: 10,
-                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
                           shape: RoundedRectangleBorder(
                             borderRadius:
                                 BorderRadius.circular(10),
                           ),
                         ),
-                        child: const Text(
-                          'View Tickets',
-                          style: TextStyle(fontSize: 12),
+                        child: Text(
+                          soldOut ? 'View Details' : 'View Tickets',
+                          style: const TextStyle(fontSize: 12),
                         ),
                       ),
                     ),
@@ -823,7 +1019,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ==========================================
   // FOOTER
+  // ==========================================
+
   Widget _buildFooter() {
     return Container(
       width: double.infinity,
