@@ -1,7 +1,6 @@
-
 import 'package:flutter/material.dart';
 import 'cart_service.dart';
-import 'checkout.dart';
+import 'payment_page.dart';
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -16,7 +15,7 @@ class CartPage extends StatefulWidget {
 
 class _CartPageState extends State<CartPage> {
 
-  // Navigate to Checkout Page
+  // Navigate to Payment Page
   Future<void> _checkout() async {
     if (CartService.items.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -41,7 +40,7 @@ class _CartPageState extends State<CartPage> {
           ),
         ),
         content: const Text(
-          'Do you want to proceed with this order?',
+          'Do you want to proceed to payment?',
         ),
         actions: [
           TextButton(
@@ -69,14 +68,14 @@ class _CartPageState extends State<CartPage> {
 
     if (confirm != true || !mounted) return;
 
-    // Copy cart items and send them to CheckoutPage.
+    // Copy cart items and send them directly to PaymentPage
     final checkoutItems = CartService.items
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => CheckoutPage(
+        builder: (_) => PaymentPage(
           items: checkoutItems,
         ),
       ),
@@ -175,6 +174,7 @@ class _CartPageState extends State<CartPage> {
                                   children: [
                                     Text(
                                       item['concertName']?.toString() ??
+                                          item['name']?.toString() ??
                                           'Concert',
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
@@ -282,7 +282,7 @@ class _CartPageState extends State<CartPage> {
                             ),
                           ),
                           child: const Text(
-                            'Proceed to Checkout',
+                            'Proceed to Payment',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,

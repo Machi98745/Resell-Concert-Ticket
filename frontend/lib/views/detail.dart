@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'favorite_service.dart';
 import 'cart_service.dart';
-import 'checkout.dart';
+import 'payment_page.dart';
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -21,8 +21,8 @@ class _DetailPageState extends State<DetailPage> {
 
   Map<String, dynamic> get concert => widget.concert;
 
-  List get tickets =>
-      concert['tickets'] is List ? concert['tickets'] as List : [];
+  List<Map<String, dynamic>> get tickets =>
+      concert['tickets'] is List<Map<String, dynamic>> ? concert['tickets'] as List<Map<String, dynamic>> : [];
 
   String get eventName => concert['name']?.toString() ?? 'Concert Event';
 
@@ -60,7 +60,7 @@ class _DetailPageState extends State<DetailPage> {
 
   List<Map<String, dynamic>> get ticketMaps {
     return tickets
-        .where((ticket) => ticket is Map)
+        .whereType()
         .map((ticket) => Map<String, dynamic>.from(ticket))
         .toList();
   }
@@ -259,39 +259,39 @@ class _DetailPageState extends State<DetailPage> {
   // ADD TO CART
   // ==========================================
 
-void addToCart(Map<String, dynamic> ticket) {
-  if (isFinished || !CartService.canBuy(ticket)) {
-    showUnavailableMessage();
-    setState(() {});
-    return;
+  void addToCart(Map<String, dynamic> ticket) {
+    if (isFinished || !CartService.canBuy(ticket)) {
+      showUnavailableMessage();
+      setState(() {});
+      return;
+    }
+
+    if (!validateSeatSelection(ticket)) return;
+
+    final cartItem = createTicketItem(ticket);
+    final added = CartService.addToCart(cartItem);
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          backgroundColor: darkPink,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+          content: Text(
+            added
+                ? 'Ticket added to your cart!'
+                : 'This ticket is already in your cart!',
+            style: const TextStyle(color: Colors.white),
+          ),
+        ),
+      );
   }
 
-  if (!validateSeatSelection(ticket)) return;
-
-  final cartItem = createTicketItem(ticket);
-  final added = CartService.addToCart(cartItem);
-
-  final messenger = ScaffoldMessenger.of(context);
-
-  messenger
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      SnackBar(
-        backgroundColor: darkPink,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-        content: Text(
-          added
-              ? 'Ticket added to your cart!'
-              : 'This ticket is already in your cart!',
-          style: const TextStyle(color: Colors.white),
-        ),
-      ),
-    );
-}
-
   // ==========================================
-  // BUY NOW
+  // BUY NOW (นำทางตรงไปหน้า PaymentPage)
   // ==========================================
 
   void buyNow(Map<String, dynamic> ticket) {
@@ -306,7 +306,9 @@ void addToCart(Map<String, dynamic> ticket) {
     final checkoutItem = createTicketItem(ticket);
 
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => CheckoutPage(items: [checkoutItem])),
+      MaterialPageRoute(
+        builder: (_) => PaymentPage(items: [checkoutItem]),
+      ),
     );
   }
 

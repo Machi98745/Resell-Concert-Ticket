@@ -4,6 +4,7 @@ import 'detail.dart';
 import 'cart.dart';
 import 'cart_service.dart';
 import 'profile.dart';
+import 'sell_page.dart';
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -241,11 +242,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   void openSellTickets() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Selling feature coming soon!'),
-      ),
-    );
+    Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SellPage(),
+                          ),
+                        );
   }
 
   // ==========================================

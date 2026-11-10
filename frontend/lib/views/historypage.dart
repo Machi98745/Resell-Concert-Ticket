@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'cart_service.dart';
@@ -208,7 +207,6 @@ class _HistoryPageState extends State<HistoryPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Order ID and status
             Row(
               children: [
                 const Icon(
@@ -240,16 +238,13 @@ class _HistoryPageState extends State<HistoryPage>
 
             const Divider(height: 25),
 
-            // Order items
             ...orderItems.map((item) {
               final ticket = Map<String, dynamic>.from(item);
-
               return _buildTicketItem(ticket);
             }),
 
             const Divider(height: 25),
 
-            // Order date
             _infoRow(
               Icons.calendar_month,
               'Order date',
@@ -258,7 +253,6 @@ class _HistoryPageState extends State<HistoryPage>
 
             const SizedBox(height: 8),
 
-            // Total price
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -282,11 +276,9 @@ class _HistoryPageState extends State<HistoryPage>
 
             const SizedBox(height: 15),
 
-            // Payment countdown
             if (status == 'To Pay')
               _buildPaymentCountdown(order),
 
-            // Tracking information
             if (status == 'To Ship' ||
                 status == 'To Receive' ||
                 status == 'Completed')
@@ -294,12 +286,10 @@ class _HistoryPageState extends State<HistoryPage>
 
             const SizedBox(height: 15),
 
-            // Action buttons
             _buildActionButtons(order),
 
             const SizedBox(height: 5),
 
-            // Order details
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
@@ -609,7 +599,7 @@ class _HistoryPageState extends State<HistoryPage>
             backgroundColor: pink,
             foregroundColor: Colors.white,
           ),
-          child: const Text('Confirm Received'),
+          child: const Text('Confirm Received Ticket'),
         ),
       );
     }

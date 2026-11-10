@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'cart_service.dart';
 
 class SellPage extends StatefulWidget {
   const SellPage({super.key});
@@ -230,7 +231,6 @@ class _SellPageState extends State<SellPage> {
           const SizedBox(height: 15),
           field('Shipping Fee (THB)', shipping, number: true),
         ] else
-          // Separate box so it looks different from the group above
           Container(
             margin: const EdgeInsets.only(left: 16, bottom: 15),
             padding: const EdgeInsets.all(12),
@@ -353,7 +353,24 @@ class _SellPageState extends State<SellPage> {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: button('Confirm Sell', () => setState(() => page = 2)),
+              child: button('Confirm Sell', () {
+                // สร้าง Listing บันทึกเข้าใน CartService
+                CartService.createResaleListing({
+                  'concert': concert.text.trim(),
+                  'date': date.text.trim(),
+                  'venue': venue.text.trim(),
+                  'zone': zone.text.trim(),
+                  'seat': seat.text.trim(),
+                  'price': priceNum,
+                  'delivery': delivery,
+                  'company': company,
+                  'bank': bank,
+                  'accName': accName.text.trim(),
+                  'accNumber': accNumber.text.trim(),
+                });
+
+                setState(() => page = 2);
+              }),
             ),
           ],
         ),

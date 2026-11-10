@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'cart_service.dart';
 import 'historypage.dart';
 import 'favorite.dart';
 import 'login.dart';
@@ -96,7 +97,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // PROFILE IMAGE
                     Stack(
                       children: [
                         profileAvatar(radius: 48),
@@ -125,7 +125,6 @@ class _ProfilePageState extends State<ProfilePage> {
                       ],
                     ),
                     const SizedBox(height: 12),
-
                     _editField('Full Name', nameController),
                     const SizedBox(height: 12),
                     _editField('Email', emailController),
@@ -149,9 +148,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         emailController.text.trim().isEmpty) {
                       ScaffoldMessenger.of(dialogContext).showSnackBar(
                         const SnackBar(
-                          content: Text(
-                            'Name and email cannot be empty.',
-                          ),
+                          content: Text('Name and email cannot be empty.'),
                         ),
                       );
                       return;
@@ -202,45 +199,35 @@ class _ProfilePageState extends State<ProfilePage> {
   void openHistory() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const HistoryPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const HistoryPage()),
     );
   }
 
   void openFavorites() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const FavoritePage(),
-      ),
+      MaterialPageRoute(builder: (_) => const FavoritePage()),
     );
   }
 
   void openReselling() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const MyResellingPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const MyResellingPage()),
     );
   }
 
   void openSettings() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const SettingsPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const SettingsPage()),
     );
   }
 
   void openHelp() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const HelpSupportPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const HelpSupportPage()),
     );
   }
 
@@ -257,9 +244,7 @@ class _ProfilePageState extends State<ProfilePage> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          content: const Text(
-            'Are you sure you want to log out?',
-          ),
+          content: const Text('Are you sure you want to log out?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
@@ -272,12 +257,9 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               onPressed: () {
                 Navigator.pop(dialogContext);
-
                 Navigator.pushAndRemoveUntil(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const Login(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const Login()),
                   (route) => false,
                 );
               },
@@ -333,10 +315,7 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(
-                  Icons.arrow_back,
-                  color: Colors.white,
-                ),
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
               ),
               const Spacer(),
               const Text(
@@ -351,16 +330,11 @@ class _ProfilePageState extends State<ProfilePage> {
               IconButton(
                 onPressed: editProfile,
                 tooltip: 'Edit Profile',
-                icon: const Icon(
-                  Icons.edit,
-                  color: Colors.white,
-                ),
+                icon: const Icon(Icons.edit, color: Colors.white),
               ),
             ],
           ),
           const SizedBox(height: 20),
-
-          // PROFILE PICTURE
           Stack(
             children: [
               profileAvatar(radius: 48),
@@ -375,17 +349,12 @@ class _ProfilePageState extends State<ProfilePage> {
                       color: Colors.white,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
-                      Icons.camera_alt,
-                      color: pink,
-                      size: 18,
-                    ),
+                    child: const Icon(Icons.camera_alt, color: pink, size: 18),
                   ),
                 ),
               ),
             ],
           ),
-
           const SizedBox(height: 12),
           Text(
             name,
@@ -399,10 +368,7 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 5),
           Text(
             email,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
-            ),
+            style: const TextStyle(color: Colors.white70, fontSize: 14),
           ),
         ],
       ),
@@ -436,8 +402,6 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
-
-  
 
   // ACCOUNT MENU
   Widget _buildAccountMenu() {
@@ -487,7 +451,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // WHITE CARD
   Widget _whiteCard({required Widget child}) {
     return Container(
       width: double.infinity,
@@ -500,12 +463,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // INFORMATION ROW
-  Widget _infoRow(
-    IconData icon,
-    String title,
-    String value,
-  ) {
+  Widget _infoRow(IconData icon, String title, String value) {
     return Row(
       children: [
         Icon(icon, color: pink, size: 22),
@@ -516,10 +474,7 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               Text(
                 title,
-                style: const TextStyle(
-                  color: Colors.grey,
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
               const SizedBox(height: 4),
               Text(
@@ -537,12 +492,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // MENU ITEM
-  Widget _menuItem(
-    IconData icon,
-    String title,
-    VoidCallback onTap,
-  ) {
+  Widget _menuItem(IconData icon, String title, VoidCallback onTap) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: Icon(icon, color: pink),
@@ -554,15 +504,11 @@ class _ProfilePageState extends State<ProfilePage> {
           fontWeight: FontWeight.w500,
         ),
       ),
-      trailing: const Icon(
-        Icons.chevron_right,
-        color: Colors.grey,
-      ),
+      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
       onTap: onTap,
     );
   }
 
-  // LOG OUT BUTTON
   Widget _buildLogoutButton() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -587,15 +533,20 @@ class _ProfilePageState extends State<ProfilePage> {
 }
 
 // =====================================================
-// MY RESELLING PAGE
+// MY RESELLING PAGE (หน้าจัดการตั๋วฝั่งผู้ขาย)
 // =====================================================
 
-class MyResellingPage extends StatelessWidget {
+class MyResellingPage extends StatefulWidget {
   const MyResellingPage({super.key});
 
   @override
+  State<MyResellingPage> createState() => _MyResellingPageState();
+}
+
+class _MyResellingPageState extends State<MyResellingPage> {
+  @override
   Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> myListings = [];
+    final myListings = CartService.resaleListings;
 
     return Scaffold(
       backgroundColor: lightPink,
@@ -643,10 +594,7 @@ class MyResellingPage extends StatelessWidget {
                     const Text(
                       'Your reselling tickets will appear here.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Colors.grey, fontSize: 14),
                     ),
                   ],
                 ),
@@ -657,15 +605,105 @@ class MyResellingPage extends StatelessWidget {
               itemCount: myListings.length,
               itemBuilder: (context, index) {
                 final ticket = myListings[index];
+                final status = ticket['status'] ?? 'Available';
+                final listingId = ticket['listingId'] ?? '';
+
+                Color getStatusColor() {
+                  switch (status) {
+                    case 'Sold':
+                      return Colors.orange;
+                    case 'Shipped':
+                      return Colors.blue;
+                    case 'Completed':
+                      return Colors.green;
+                    default:
+                      return Colors.pink;
+                  }
+                }
 
                 return Card(
-                  child: ListTile(
-                    title: Text(ticket['concert'] ?? ''),
-                    subtitle: Text(
-                      '${ticket['zone']} • ฿${ticket['price']}',
-                    ),
-                    trailing: Text(
-                      ticket['status'] ?? 'Available',
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                ticket['concert'] ?? 'Concert Ticket',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: darkPink,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: getStatusColor().withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                status,
+                                style: TextStyle(
+                                  color: getStatusColor(),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Zone: ${ticket['zone']} | Seat: ${ticket['seat']}',
+                          style: const TextStyle(color: Colors.grey, fontSize: 13),
+                        ),
+                        Text(
+                          'Price: ฿${ticket['price']}',
+                          style: const TextStyle(
+                            color: pink,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+
+                        // ปุ่มสำหรับผู้ขายกดยืนยันจัดส่งบัตร
+                        if (status == 'Sold') ...[
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.mark_email_read_outlined),
+                              label: const Text('Mark Ticket as Shipped'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: pink,
+                                foregroundColor: Colors.white,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  CartService.markTicketAsShipped(listingId);
+                                });
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Updated status: Ticket Shipped!'),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 );
@@ -693,7 +731,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void showMessage(String message) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -712,28 +749,16 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            'Change Password',
-            style: TextStyle(color: darkPink),
-          ),
+          title: const Text('Change Password', style: TextStyle(color: darkPink)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _passwordField(
-                  'Current Password',
-                  currentController,
-                ),
+                _passwordField('Current Password', currentController),
                 const SizedBox(height: 12),
-                _passwordField(
-                  'New Password',
-                  newController,
-                ),
+                _passwordField('New Password', newController),
                 const SizedBox(height: 12),
-                _passwordField(
-                  'Confirm New Password',
-                  confirmController,
-                ),
+                _passwordField('Confirm New Password', confirmController),
               ],
             ),
           ),
@@ -762,7 +787,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 }
 
                 Navigator.pop(dialogContext);
-
                 showMessage(
                   'Password change UI completed. Connect to your API to save it.',
                 );
@@ -779,18 +803,13 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  Widget _passwordField(
-    String label,
-    TextEditingController controller,
-  ) {
+  Widget _passwordField(String label, TextEditingController controller) {
     return TextField(
       controller: controller,
       obscureText: true,
       decoration: InputDecoration(
         labelText: label,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: pink),
@@ -806,10 +825,7 @@ class _SettingsPageState extends State<SettingsPage> {
       appBar: AppBar(
         title: const Text(
           'Settings',
-          style: TextStyle(
-            color: darkPink,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,
         foregroundColor: darkPink,
@@ -822,34 +838,20 @@ class _SettingsPageState extends State<SettingsPage> {
           _settingsCard([
             SwitchListTile(
               activeColor: pink,
-              secondary: const Icon(
-                Icons.notifications_outlined,
-                color: pink,
-              ),
+              secondary: const Icon(Icons.notifications_outlined, color: pink),
               title: const Text('Push Notifications'),
               subtitle: const Text('Receive app notifications'),
               value: notificationsEnabled,
-              onChanged: (value) {
-                setState(() {
-                  notificationsEnabled = value;
-                });
-              },
+              onChanged: (value) => setState(() => notificationsEnabled = value),
             ),
             const Divider(height: 1),
             SwitchListTile(
               activeColor: pink,
-              secondary: const Icon(
-                Icons.email_outlined,
-                color: pink,
-              ),
+              secondary: const Icon(Icons.email_outlined, color: pink),
               title: const Text('Email Notifications'),
               subtitle: const Text('Receive updates by email'),
               value: emailNotifications,
-              onChanged: (value) {
-                setState(() {
-                  emailNotifications = value;
-                });
-              },
+              onChanged: (value) => setState(() => emailNotifications = value),
             ),
           ]),
           const SizedBox(height: 25),
@@ -857,18 +859,12 @@ class _SettingsPageState extends State<SettingsPage> {
           _settingsCard([
             SwitchListTile(
               activeColor: pink,
-              secondary: const Icon(
-                Icons.dark_mode_outlined,
-                color: pink,
-              ),
+              secondary: const Icon(Icons.dark_mode_outlined, color: pink),
               title: const Text('Dark Mode'),
               subtitle: const Text('Change the app appearance'),
               value: darkModeEnabled,
               onChanged: (value) {
-                setState(() {
-                  darkModeEnabled = value;
-                });
-
+                setState(() => darkModeEnabled = value);
                 showMessage(
                   value
                       ? 'Dark Mode selected. Apply it through your app theme.'
@@ -881,20 +877,14 @@ class _SettingsPageState extends State<SettingsPage> {
           _sectionTitle('Account Security'),
           _settingsCard([
             ListTile(
-              leading: const Icon(
-                Icons.lock_outline,
-                color: pink,
-              ),
+              leading: const Icon(Icons.lock_outline, color: pink),
               title: const Text('Change Password'),
               trailing: const Icon(Icons.chevron_right),
               onTap: changePassword,
             ),
             const Divider(height: 1),
             ListTile(
-              leading: const Icon(
-                Icons.privacy_tip_outlined,
-                color: pink,
-              ),
+              leading: const Icon(Icons.privacy_tip_outlined, color: pink),
               title: const Text('Privacy'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
@@ -915,10 +905,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const Center(
             child: Text(
               'Ticket Pink • Version 1.0.0',
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ),
         ],
@@ -934,7 +921,7 @@ class _SettingsPageState extends State<SettingsPage> {
 class HelpSupportPage extends StatelessWidget {
   const HelpSupportPage({super.key});
 
-  final List<Map<String, String>> faqs = const [
+  final List<Map<String, dynamic>> faqs = const [
     {
       'question': 'How can I buy a concert ticket?',
       'answer':
@@ -965,9 +952,7 @@ class HelpSupportPage extends StatelessWidget {
   void contactSupport(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const ContactSupportPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const ContactSupportPage()),
     );
   }
 
@@ -978,10 +963,7 @@ class HelpSupportPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text(
           'Help & Support',
-          style: TextStyle(
-            color: darkPink,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,
         foregroundColor: darkPink,
@@ -1003,11 +985,7 @@ class HelpSupportPage extends StatelessWidget {
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.support_agent,
-                  color: Colors.white,
-                  size: 42,
-                ),
+                Icon(Icons.support_agent, color: Colors.white, size: 42),
                 SizedBox(height: 12),
                 Text(
                   'How can we help you?',
@@ -1020,10 +998,7 @@ class HelpSupportPage extends StatelessWidget {
                 SizedBox(height: 6),
                 Text(
                   'Find answers to common questions about Ticket Pink.',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
                 ),
               ],
             ),
@@ -1059,12 +1034,7 @@ class HelpSupportPage extends StatelessWidget {
                 ),
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      16,
-                      0,
-                      16,
-                      18,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
@@ -1097,25 +1067,14 @@ class HelpSupportPage extends StatelessWidget {
             child: ListTile(
               leading: const CircleAvatar(
                 backgroundColor: lightPink,
-                child: Icon(
-                  Icons.mail_outline,
-                  color: pink,
-                ),
+                child: Icon(Icons.mail_outline, color: pink),
               ),
               title: const Text(
                 'Contact Support',
-                style: TextStyle(
-                  color: darkPink,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
               ),
-              subtitle: const Text(
-                'Send us a message about your problem',
-              ),
-              trailing: const Icon(
-                Icons.chevron_right,
-                color: pink,
-              ),
+              subtitle: const Text('Send us a message about your problem'),
+              trailing: const Icon(Icons.chevron_right, color: pink),
               onTap: () => contactSupport(context),
             ),
           ),
@@ -1133,8 +1092,7 @@ class ContactSupportPage extends StatefulWidget {
   const ContactSupportPage({super.key});
 
   @override
-  State<ContactSupportPage> createState() =>
-      _ContactSupportPageState();
+  State<ContactSupportPage> createState() => _ContactSupportPageState();
 }
 
 class _ContactSupportPageState extends State<ContactSupportPage> {
@@ -1157,9 +1115,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
         emailController.text.trim().isEmpty ||
         messageController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please complete all fields.'),
-        ),
+        const SnackBar(content: Text('Please complete all fields.')),
       );
       return;
     }
@@ -1167,11 +1123,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        icon: const Icon(
-          Icons.check_circle,
-          color: pink,
-          size: 45,
-        ),
+        icon: const Icon(Icons.check_circle, color: pink, size: 45),
         title: const Text('Message Prepared'),
         content: const Text(
           'Your support message has been prepared. Connect this form to your backend or email service to send it.',
@@ -1225,10 +1177,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
       appBar: AppBar(
         title: const Text(
           'Contact Support',
-          style: TextStyle(
-            color: darkPink,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,
         foregroundColor: darkPink,
@@ -1273,25 +1222,16 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
               'Account',
               'Other',
             ].map((topic) {
-              return DropdownMenuItem(
-                value: topic,
-                child: Text(topic),
-              );
+              return DropdownMenuItem(value: topic, child: Text(topic));
             }).toList(),
             onChanged: (value) {
               if (value != null) {
-                setState(() {
-                  selectedTopic = value;
-                });
+                setState(() => selectedTopic = value);
               }
             },
           ),
           const SizedBox(height: 15),
-          inputField(
-            'Describe your problem',
-            messageController,
-            maxLines: 5,
-          ),
+          inputField('Describe your problem', messageController, maxLines: 5),
           const SizedBox(height: 25),
           SizedBox(
             height: 50,
@@ -1335,10 +1275,7 @@ class InformationPage extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           title,
-          style: const TextStyle(
-            color: darkPink,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(color: darkPink, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,
         foregroundColor: darkPink,
@@ -1355,11 +1292,7 @@ class InformationPage extends StatelessWidget {
           ),
           child: Text(
             content,
-            style: const TextStyle(
-              color: darkPink,
-              fontSize: 15,
-              height: 1.6,
-            ),
+            style: const TextStyle(color: darkPink, fontSize: 15, height: 1.6),
           ),
         ),
       ),

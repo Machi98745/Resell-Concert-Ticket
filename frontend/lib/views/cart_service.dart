@@ -1,18 +1,59 @@
-
 import 'dart:math';
 
 class CartService {
   // ==========================================
-  // CART DATA
+  // CART & RESALE DATA
   // ==========================================
 
   static final List<Map<String, dynamic>> items = [];
-
   static final List<Map<String, dynamic>> history = [];
+  
+  // รายการตั๋วที่ผู้ใช้งานนำมาประกาศขาย
+  static final List<Map<String, dynamic>> resaleListings = [];
 
   static const Duration paymentLimit = Duration(minutes: 15);
-
   static int _orderCounter = 1;
+
+  // ==========================================
+  // RESALE TICKET MANAGEMENT
+  // ==========================================
+
+  // สร้างรายการประกาศขายตั๋วใหม่
+  static void createResaleListing(Map<String, dynamic> listingData) {
+    final newListing = {
+      ...listingData,
+      'listingId': 'LIST_${DateTime.now().millisecondsSinceEpoch}',
+      'status': 'Available', // Available, Sold, Shipped, Completed
+      'createdDate': DateTime.now(),
+      'isShippedBySeller': false,
+    };
+    resaleListings.add(newListing);
+  }
+
+  // ผู้ขายกดยืนยันจัดส่งบัตร
+  static bool markTicketAsShipped(String listingId) {
+    final index = resaleListings.indexWhere((item) => item['listingId'] == listingId);
+    if (index != -1) {
+      resaleListings[index]['status'] = 'Shipped';
+      resaleListings[index]['isShippedBySeller'] = true;
+
+      // อัปเดตสถานะคำสั่งซื้อในฝั่งผู้ซื้อด้วย (ถ้ามี)
+      for (final order in history) {
+        final orderItems = order['items'] as List?;
+        if (orderItems != null) {
+          for (final item in orderItems) {
+            if (item['listingId'] == listingId) {
+              order['status'] = 'To Receive';
+              order['shippingStatus'] = 'Seller has shipped your ticket';
+              _addTimeline(order, 'Seller confirmed ticket shipment.');
+            }
+          }
+        }
+      }
+      return true;
+    }
+    return false;
+  }
 
   // ==========================================
   // CONCERT DATE FUNCTIONS
@@ -27,11 +68,9 @@ class CartService {
 
     final text = value.toString().trim();
 
-    // Format: 2026-12-15
     final parsed = DateTime.tryParse(text);
     if (parsed != null) return parsed;
 
-    // Format: 15 December 2026
     final match = RegExp(
       r'^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$',
     ).firstMatch(text);
@@ -82,14 +121,14 @@ class CartService {
   }
 
   static bool isTicketSold(Map<String, dynamic> ticket) {
-  final status = ticket['status']
-      ?.toString()
-      .trim()
-      .toLowerCase();
+    final status = ticket['status']
+        ?.toString()
+        .trim()
+        .toLowerCase();
 
-  return ticket['isSold'] == true ||
-      status == 'sold' ||
-      status == 'sold out';
+    return ticket['isSold'] == true ||
+        status == 'sold' ||
+        status == 'sold out';
   }
 
   static bool isConcertSoldOut(Map<String, dynamic> concert) {
@@ -122,34 +161,6 @@ class CartService {
     }
 
     return 'Available';
-  }
-
-  // ==========================================
-  // ADD RESALE TICKET
-  // ==========================================
-
-  static bool addResaleTicket(
-    Map<String, dynamic> concert,
-    Map<String, dynamic> ticket,
-  ) {
-    if (isConcertFinished(concert)) {
-      return false;
-    }
-
-    if (isTicketSold(ticket)) {
-      return false;
-    }
-
-    if (concert['tickets'] is! List) {
-      concert['tickets'] = <Map<String, dynamic>>[];
-    }
-
-    final newTicket = Map<String, dynamic>.from(ticket);
-    newTicket['status'] = 'Available';
-
-    (concert['tickets'] as List).add(newTicket);
-
-    return true;
   }
 
   // ==========================================
@@ -211,10 +222,6 @@ class CartService {
     return createOrderFromItems(items);
   }
 
-  // ==========================================
-  // CREATE ORDER FROM CHECKOUT ITEMS
-  // ==========================================
-
   static Map<String, dynamic>? createOrderFromItems(
     List<Map<String, dynamic>> sourceItems,
   ) {
@@ -263,14 +270,13 @@ class CartService {
 
     history.add(order);
 
-    // Clear cart after creating order
     items.clear();
 
     return order;
   }
 
   // ==========================================
-  // PAYMENT COUNTDOWN
+  // PAYMENT COUNTDOWN & EXPIRE
   // ==========================================
 
   static DateTime? _getPaymentDeadline(
@@ -319,10 +325,6 @@ class CartService {
         '${seconds.toString().padLeft(2, '0')}';
   }
 
-  // ==========================================
-  // EXPIRE UNPAID ORDERS
-  // ==========================================
-
   static void refreshExpiredOrders() {
     final now = DateTime.now();
 
@@ -351,7 +353,7 @@ class CartService {
   }
 
   // ==========================================
-  // PAY ORDER
+  // ORDER ACTIONS (PAY, SHIP, RECEIVE)
   // ==========================================
 
   static bool payOrder(Map<String, dynamic> order) {
@@ -376,12 +378,22 @@ class CartService {
       'Payment successful. Waiting for seller to ship.',
     );
 
+    // อัปเดตสถานะในตั๋วฝั่งผู้ขายให้เป็น 'Sold'
+    final orderItems = order['items'] as List?;
+    if (orderItems != null) {
+      for (final item in orderItems) {
+        final listingId = item['listingId'];
+        if (listingId != null) {
+          final resIndex = resaleListings.indexWhere((res) => res['listingId'] == listingId);
+          if (resIndex != -1) {
+            resaleListings[resIndex]['status'] = 'Sold';
+          }
+        }
+      }
+    }
+
     return true;
   }
-
-  // ==========================================
-  // SELLER SHIPS TICKET
-  // ==========================================
 
   static bool shipOrder(Map<String, dynamic> order) {
     if (order['status'] != 'To Ship') {
@@ -403,12 +415,19 @@ class CartService {
       'Seller has shipped your ticket. Tracking: $trackingCode',
     );
 
+    // อัปเดตในฝั่ง Resale
+    final orderItems = order['items'] as List?;
+    if (orderItems != null) {
+      for (final item in orderItems) {
+        final listingId = item['listingId'];
+        if (listingId != null) {
+          markTicketAsShipped(listingId.toString());
+        }
+      }
+    }
+
     return true;
   }
-
-  // ==========================================
-  // CONFIRM RECEIVED
-  // ==========================================
 
   static bool confirmReceived(
     Map<String, dynamic> order,
@@ -418,7 +437,7 @@ class CartService {
     }
 
     order['status'] = 'Completed';
-    order['shippingStatus'] = 'Delivered';
+    order['shippingStatus'] = 'Delivered & Received';
     order['receivedDate'] = DateTime.now();
 
     _addTimeline(
@@ -426,12 +445,22 @@ class CartService {
       'Buyer confirmed that the ticket was received.',
     );
 
+    // อัปเดตในฝั่ง Resale ให้สมบูรณ์
+    final orderItems = order['items'] as List?;
+    if (orderItems != null) {
+      for (final item in orderItems) {
+        final listingId = item['listingId'];
+        if (listingId != null) {
+          final resIndex = resaleListings.indexWhere((res) => res['listingId'] == listingId);
+          if (resIndex != -1) {
+            resaleListings[resIndex]['status'] = 'Completed';
+          }
+        }
+      }
+    }
+
     return true;
   }
-
-  // ==========================================
-  // CANCEL ORDER
-  // ==========================================
 
   static bool cancelOrder(Map<String, dynamic> order) {
     if (order['status'] != 'To Pay') {
@@ -449,10 +478,6 @@ class CartService {
 
     return true;
   }
-
-  // ==========================================
-  // TIMELINE
-  // ==========================================
 
   static void _addTimeline(
     Map<String, dynamic> order,
@@ -474,10 +499,6 @@ class CartService {
       ];
     }
   }
-
-  // ==========================================
-  // FILTER ORDERS BY STATUS
-  // ==========================================
 
   static List<Map<String, dynamic>> getOrdersByStatus(
     String status,
