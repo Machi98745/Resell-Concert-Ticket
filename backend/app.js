@@ -217,14 +217,19 @@ app.patch('/api/admin/users/:id/verify', verifyToken, authorizeRoles('admin'), a
 // 3. CONCERT MODULE (ระบบคอนเสิร์ต)
 // ==========================================
 app.get('/api/concerts', async (req, res) => {
-  const { search } = req.query;
-  let sql = 'SELECT * FROM concerts';
-  let params = [];
+  const { search, category } = req.query;
+  let sql = 'SELECT * FROM concerts WHERE 1=1';
+  const params = [];
 
   if (search && search.trim() !== '') {
-    sql += ' WHERE title LIKE ? OR venue LIKE ?';
+    sql += ' AND (title LIKE ? OR venue LIKE ? OR artist LIKE ?)';
     const keyword = `%${search.trim()}%`;
-    params = [keyword, keyword];
+    params.push(keyword, keyword, keyword);
+  }
+
+  if (category && category !== 'All') {
+    sql += ' AND category = ?';
+    params.push(category);
   }
 
   sql += ' ORDER BY show_datetime ASC';
@@ -346,6 +351,15 @@ app.post('/api/payments/:id/confirm', verifyToken, async (req, res) => {
 
     await db.query("UPDATE payments SET status = 'completed', paid_at = NOW() WHERE payment_id = ?", [id]);
     await db.query("UPDATE resell_listings SET status = 'sold' WHERE listing_id = ?", [payment.listing_id]);
+
+    // ย้ายเจ้าของตั๋วไปเป็นของคนซื้อ
+    await db.query(
+      `UPDATE tickets t
+       JOIN resell_listings rl ON rl.ticket_id = t.ticket_id
+       SET t.user_id = ?
+       WHERE rl.listing_id = ?`,
+      [payment.buyer_id, payment.listing_id]
+    );
 
     res.status(200).json({
       message: 'Payment completed successfully!',
