@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'favorite_service.dart';
 import 'cart_service.dart';
 import 'payment_page.dart';
+import 'historypage.dart';
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -21,8 +22,16 @@ class _DetailPageState extends State<DetailPage> {
 
   Map<String, dynamic> get concert => widget.concert;
 
-  List<Map<String, dynamic>> get tickets =>
-      concert['tickets'] is List<Map<String, dynamic>> ? concert['tickets'] as List<Map<String, dynamic>> : [];
+  List<Map<String, dynamic>> get baseTickets {
+    final rawTickets = concert['tickets'];
+    if (rawTickets is List) {
+      return rawTickets
+          .whereType()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    }
+    return [];
+  }
 
   String get eventName => concert['name']?.toString() ?? 'Concert Event';
 
@@ -47,7 +56,7 @@ class _DetailPageState extends State<DetailPage> {
 
   String get ticketStatus {
     if (isFinished) return 'EVENT FINISHED';
-    if (isSoldOut) return 'SOLD OUT';
+    if (isSoldOut && ticketMaps.isEmpty) return 'SOLD OUT';
     return 'ON SALE NOW';
   }
 
@@ -59,10 +68,27 @@ class _DetailPageState extends State<DetailPage> {
   // ==========================================
 
   List<Map<String, dynamic>> get ticketMaps {
-    return tickets
-        .whereType()
-        .map((ticket) => Map<String, dynamic>.from(ticket))
-        .toList();
+    final List<Map<String, dynamic>> list = [];
+    for (var item in baseTickets) {
+      list.add(Map<String, dynamic>.from(item));
+    }
+
+    final resaleListings = CartService.getResaleListingsForConcert(eventName);
+    for (final listing in resaleListings) {
+      list.add({
+        'listingId': listing['listingId'],
+        'zone': listing['zone'] ?? 'General',
+        'seat': listing['seat'] ?? 'General',
+        'price': listing['price'] ?? 0,
+        'seller': listing['accName'] != null && listing['accName'].toString().isNotEmpty
+            ? listing['accName']
+            : 'Resell Seller',
+        'condition': 'Resell Ticket',
+        'delivery': listing['delivery'],
+      });
+    }
+
+    return list;
   }
 
   List<String> get availableZones {
@@ -130,10 +156,6 @@ class _DetailPageState extends State<DetailPage> {
     return null;
   }
 
-  // ==========================================
-  // FAVORITE
-  // ==========================================
-
   void toggleFavorite() {
     final wasFavorite = isFavorite;
 
@@ -158,20 +180,12 @@ class _DetailPageState extends State<DetailPage> {
       );
   }
 
-  // ==========================================
-  // PRICE
-  // ==========================================
-
   String formatPrice(dynamic price) {
     final number = double.tryParse(price.toString()) ?? 0;
     final value = number.toStringAsFixed(0);
 
     return '฿${value.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => ',')}';
   }
-
-  // ==========================================
-  // SCROLL TO TICKETS
-  // ==========================================
 
   void scrollToTickets() {
     final targetContext = ticketSectionKey.currentContext;
@@ -185,10 +199,6 @@ class _DetailPageState extends State<DetailPage> {
       );
     }
   }
-
-  // ==========================================
-  // CREATE CART ITEM
-  // ==========================================
 
   Map<String, dynamic> createTicketItem(Map<String, dynamic> ticket) {
     final selectedSeat = getSelectedSeat(ticket);
@@ -208,10 +218,6 @@ class _DetailPageState extends State<DetailPage> {
       'condition': ticket['condition'] ?? 'Available',
     };
   }
-
-  // ==========================================
-  // CHECK SEAT SELECTION
-  // ==========================================
 
   bool validateSeatSelection(Map<String, dynamic> ticket) {
     final seats = getSeats(ticket);
@@ -237,10 +243,6 @@ class _DetailPageState extends State<DetailPage> {
     return true;
   }
 
-  // ==========================================
-  // UNAVAILABLE MESSAGE
-  // ==========================================
-
   void showUnavailableMessage() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -256,8 +258,62 @@ class _DetailPageState extends State<DetailPage> {
   }
 
   // ==========================================
-  // ADD TO CART
+  // POP-UP DIALOG (แจ้งเตือนรายการค้างชำระ)
   // ==========================================
+
+  void _showPendingOrderDialog() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Pending Order',
+                style: TextStyle(
+                  color: darkPink,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'You already have a pending ticket reservation. Please complete payment or cancel your previous order before reserving new tickets.',
+          style: TextStyle(color: Colors.black87, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: pink,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () {
+              Navigator.pop(dialogContext); // ปิด Dialog
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const HistoryPage()),
+              );
+            },
+            child: const Text('Go to My Orders'),
+          ),
+        ],
+      ),
+    );
+  }
 
   void addToCart(Map<String, dynamic> ticket) {
     if (isFinished || !CartService.canBuy(ticket)) {
@@ -290,14 +346,16 @@ class _DetailPageState extends State<DetailPage> {
       );
   }
 
-  // ==========================================
-  // BUY NOW (นำทางตรงไปหน้า PaymentPage)
-  // ==========================================
-
   void buyNow(Map<String, dynamic> ticket) {
     if (isFinished || !CartService.canBuy(ticket)) {
       showUnavailableMessage();
       setState(() {});
+      return;
+    }
+
+    // ตรวจสอบว่าผู้ใช้มีรายการค้างชำระอยู่แล้วหรือไม่
+    if (CartService.hasActiveUnpaidOrder()) {
+      _showPendingOrderDialog();
       return;
     }
 
@@ -311,10 +369,6 @@ class _DetailPageState extends State<DetailPage> {
       ),
     );
   }
-
-  // ==========================================
-  // MAIN BUILD
-  // ==========================================
 
   @override
   Widget build(BuildContext context) {
@@ -336,10 +390,6 @@ class _DetailPageState extends State<DetailPage> {
       ),
     );
   }
-
-  // ==========================================
-  // MOBILE HEADER
-  // ==========================================
 
   Widget _buildMobileHeader() {
     return Stack(
@@ -426,7 +476,7 @@ class _DetailPageState extends State<DetailPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: isFinished || isSoldOut ? null : scrollToTickets,
+                  onPressed: isFinished ? null : scrollToTickets,
                   icon: const Icon(Icons.keyboard_arrow_down),
                   label: const Text('Choose Tickets'),
                   style: ElevatedButton.styleFrom(
@@ -445,10 +495,6 @@ class _DetailPageState extends State<DetailPage> {
       ],
     );
   }
-
-  // ==========================================
-  // DESKTOP HEADER
-  // ==========================================
 
   Widget _buildDesktopHeader() {
     return Stack(
@@ -494,7 +540,7 @@ class _DetailPageState extends State<DetailPage> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: isFinished || isSoldOut
+                            onPressed: isFinished
                                 ? null
                                 : scrollToTickets,
                             style: ElevatedButton.styleFrom(
@@ -554,10 +600,6 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
-  // ==========================================
-  // TOP BAR
-  // ==========================================
-
   Widget _buildTopBar() {
     return Row(
       children: [
@@ -604,10 +646,6 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
-  // ==========================================
-  // EVENT IMAGE
-  // ==========================================
-
   Widget _buildEventImage() {
     if (eventImage.isEmpty) return _imagePlaceholder();
 
@@ -625,14 +663,10 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
-  // ==========================================
-  // STATUS BADGE
-  // ==========================================
-
   Widget _buildStatusBadge() {
     final badgeColor = isFinished
         ? Colors.grey
-        : isSoldOut
+        : isSoldOut && ticketMaps.isEmpty
         ? Colors.red
         : Colors.green;
 
@@ -653,10 +687,6 @@ class _DetailPageState extends State<DetailPage> {
       ),
     );
   }
-
-  // ==========================================
-  // EVENT INFORMATION
-  // ==========================================
 
   Widget _buildInformationGrid() {
     return Wrap(
@@ -720,10 +750,6 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
-  // ==========================================
-  // MAIN CONTENT
-  // ==========================================
-
   Widget _buildMainContent() {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -755,10 +781,6 @@ class _DetailPageState extends State<DetailPage> {
       },
     );
   }
-
-  // ==========================================
-  // MOBILE INFORMATION
-  // ==========================================
 
   Widget _buildMobileInformation() {
     return Column(
@@ -846,10 +868,6 @@ class _DetailPageState extends State<DetailPage> {
       ),
     );
   }
-
-  // ==========================================
-  // SEATING PLAN
-  // ==========================================
 
   Widget _buildSeatingPlan() {
     final zones = availableZones;
@@ -1008,10 +1026,6 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
-  // ==========================================
-  // TICKET SECTION + ZONE FILTER
-  // ==========================================
-
   Widget _buildTicketSection() {
     final displayedTickets = filteredTickets;
 
@@ -1047,7 +1061,7 @@ class _DetailPageState extends State<DetailPage> {
 
         if (isFinished)
           _unavailableMessage('This concert has already finished.')
-        else if (tickets.isEmpty)
+        else if (ticketMaps.isEmpty)
           _unavailableMessage('No tickets available.')
         else if (displayedTickets.isEmpty)
           _unavailableMessage('No tickets found in this zone.')
@@ -1080,10 +1094,6 @@ class _DetailPageState extends State<DetailPage> {
       ),
     );
   }
-
-  // ==========================================
-  // TICKET CARD
-  // ==========================================
 
   Widget _buildTicketCard(Map<String, dynamic> ticket) {
     final sold = CartService.isTicketSold(ticket);
@@ -1281,10 +1291,6 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
-  // ==========================================
-  // ACTION BUTTON
-  // ==========================================
-
   Widget _actionButton(
     String label,
     VoidCallback onPressed, {
@@ -1307,10 +1313,6 @@ class _DetailPageState extends State<DetailPage> {
       ),
     );
   }
-
-  // ==========================================
-  // EVENT DESCRIPTION
-  // ==========================================
 
   Widget _buildDescription() {
     return Container(
@@ -1344,10 +1346,6 @@ class _DetailPageState extends State<DetailPage> {
       ),
     );
   }
-
-  // ==========================================
-  // EVENT PREVIEW
-  // ==========================================
 
   Widget _buildVideoSection() {
     return Column(

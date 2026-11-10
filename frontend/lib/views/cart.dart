@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'cart_service.dart';
 import 'payment_page.dart';
+import 'historypage.dart';
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -15,6 +16,61 @@ class CartPage extends StatefulWidget {
 
 class _CartPageState extends State<CartPage> {
 
+  // POP-UP DIALOG (แจ้งเตือนรายการค้างชำระ)
+  void _showPendingOrderDialog() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Pending Order',
+                style: TextStyle(
+                  color: darkPink,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'You already have a pending ticket reservation. Please complete payment or cancel your previous order before reserving new tickets.',
+          style: TextStyle(color: Colors.black87, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: pink,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () {
+              Navigator.pop(dialogContext); // ปิด Dialog
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const HistoryPage()),
+              );
+            },
+            child: const Text('Go to My Orders'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Navigate to Payment Page
   Future<void> _checkout() async {
     if (CartService.items.isEmpty) {
@@ -23,6 +79,12 @@ class _CartPageState extends State<CartPage> {
           content: Text('Your cart is empty.'),
         ),
       );
+      return;
+    }
+
+    // ตรวจสอบว่าผู้ใช้มีรายการค้างชำระเดิมอยู่แล้วหรือไม่
+    if (CartService.hasActiveUnpaidOrder()) {
+      _showPendingOrderDialog();
       return;
     }
 
@@ -68,7 +130,6 @@ class _CartPageState extends State<CartPage> {
 
     if (confirm != true || !mounted) return;
 
-    // Copy cart items and send them directly to PaymentPage
     final checkoutItems = CartService.items
         .map((item) => Map<String, dynamic>.from(item))
         .toList();

@@ -15,29 +15,50 @@ class CartService {
   static int _orderCounter = 1;
 
   // ==========================================
+  // UNPAID ORDER CHECK (เช็ครายการค้างชำระ)
+  // ==========================================
+
+  // เช็คว่ามีรายการที่รอชำระเงิน (To Pay) อยู่แล้วหรือไม่
+  static bool hasActiveUnpaidOrder() {
+    refreshExpiredOrders();
+    final unpaid = getOrdersByStatus('To Pay');
+    return unpaid.isNotEmpty;
+  }
+
+  // ==========================================
   // RESALE TICKET MANAGEMENT
   // ==========================================
 
-  // สร้างรายการประกาศขายตั๋วใหม่
   static void createResaleListing(Map<String, dynamic> listingData) {
     final newListing = {
       ...listingData,
       'listingId': 'LIST_${DateTime.now().millisecondsSinceEpoch}',
-      'status': 'Available', // Available, Sold, Shipped, Completed
+      'status': 'Available',
       'createdDate': DateTime.now(),
       'isShippedBySeller': false,
     };
     resaleListings.add(newListing);
   }
 
-  // ผู้ขายกดยืนยันจัดส่งบัตร
+  static List<Map<String, dynamic>> getResaleListingsForConcert(String concertName) {
+    final target = concertName.trim().toLowerCase();
+    
+    return resaleListings.where((item) {
+      final itemConcert = (item['concert'] ?? item['concertName'] ?? '').toString().trim().toLowerCase();
+      final status = (item['status'] ?? 'Available').toString().toLowerCase();
+
+      final isMatch = itemConcert.contains(target) || target.contains(itemConcert);
+      
+      return isMatch && status == 'available';
+    }).toList();
+  }
+
   static bool markTicketAsShipped(String listingId) {
     final index = resaleListings.indexWhere((item) => item['listingId'] == listingId);
     if (index != -1) {
       resaleListings[index]['status'] = 'Shipped';
       resaleListings[index]['isShippedBySeller'] = true;
 
-      // อัปเดตสถานะคำสั่งซื้อในฝั่งผู้ซื้อด้วย (ถ้ามี)
       for (final order in history) {
         final orderItems = order['items'] as List?;
         if (orderItems != null) {
@@ -227,6 +248,11 @@ class CartService {
   ) {
     if (sourceItems.isEmpty) return null;
 
+    // เช็คว่ามีออเดอร์ค้างชำระอยู่ก่อนแล้วหรือไม่
+    if (hasActiveUnpaidOrder()) {
+      return null;
+    }
+
     final now = DateTime.now();
 
     final orderItems = sourceItems
@@ -378,7 +404,6 @@ class CartService {
       'Payment successful. Waiting for seller to ship.',
     );
 
-    // อัปเดตสถานะในตั๋วฝั่งผู้ขายให้เป็น 'Sold'
     final orderItems = order['items'] as List?;
     if (orderItems != null) {
       for (final item in orderItems) {
@@ -415,7 +440,6 @@ class CartService {
       'Seller has shipped your ticket. Tracking: $trackingCode',
     );
 
-    // อัปเดตในฝั่ง Resale
     final orderItems = order['items'] as List?;
     if (orderItems != null) {
       for (final item in orderItems) {
@@ -445,7 +469,6 @@ class CartService {
       'Buyer confirmed that the ticket was received.',
     );
 
-    // อัปเดตในฝั่ง Resale ให้สมบูรณ์
     final orderItems = order['items'] as List?;
     if (orderItems != null) {
       for (final item in orderItems) {

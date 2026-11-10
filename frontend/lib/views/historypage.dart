@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'cart_service.dart';
+import 'payment_page.dart';
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -655,20 +656,20 @@ class _HistoryPageState extends State<HistoryPage>
   }
 
   void _payOrder(Map<String, dynamic> order) {
-    final success = CartService.payOrder(order);
+    // นำทางไปยังหน้า PaymentPage เพื่อชำระเงินและดูเวลานับถอยหลังต่อ
+    final orderItems = (order['items'] as List?)
+            ?.map((item) => Map<String, dynamic>.from(item))
+            .toList() ??
+        [];
 
-    refreshPage();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          success
-              ? 'Payment successful!'
-              : 'Payment failed or payment time expired.',
-        ),
-        backgroundColor: success ? Colors.green : Colors.red,
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PaymentPage(items: orderItems),
       ),
-    );
+    ).then((_) {
+      refreshPage();
+    });
   }
 
   void _cancelOrder(Map<String, dynamic> order) {

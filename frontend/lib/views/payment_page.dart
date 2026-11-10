@@ -21,7 +21,13 @@ class _PaymentPageState extends State<PaymentPage> {
   String delivery = 'Parcel Shipping';
   String payment = 'PromptPay';
 
-  // คำนวณราคารวมตั๋วทั้งหมดจากข้อมูลที่รับเข้ามา
+  Map<String, dynamic>? currentOrder;
+  Timer? timer;
+  int remainingSeconds = 900;
+
+  bool success = false;
+  bool expired = false;
+
   int get price {
     final total = widget.items.fold<double>(
       0,
@@ -30,28 +36,49 @@ class _PaymentPageState extends State<PaymentPage> {
     return total.round();
   }
 
-  int time = 900; // 15 นาที
-  Timer? timer;
-
-  bool success = false;
-  bool expired = false;
-
   @override
   void initState() {
     super.initState();
+    _initOrderAndTimer();
+  }
 
+  void _initOrderAndTimer() {
+    // 1. ตรวจสอบออเดอร์ค้างชำระ (To Pay) ล่าสุด ถ้ามีให้ใช้ดึงเดิม ถ้าไม่มีให้สร้างออเดอร์ใหม่
+    final unpaidOrders = CartService.getOrdersByStatus('To Pay');
+    
+    if (unpaidOrders.isNotEmpty) {
+      currentOrder = unpaidOrders.first;
+    } else {
+      currentOrder = CartService.createOrderFromItems(widget.items);
+    }
+
+    // 2. คำนวณเวลาที่เหลืออยู่และเริ่มนับถอยหลัง
+    _updateTime();
     timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (time > 0) {
-        setState(() {
-          time--;
-        });
-      } else {
-        t.cancel();
+      _updateTime();
+    });
+  }
+
+  void _updateTime() {
+    if (currentOrder == null) return;
+
+    final duration = CartService.remainingPaymentTime(currentOrder!);
+    
+    if (duration <= Duration.zero || currentOrder!['status'] == 'Cancelled') {
+      timer?.cancel();
+      if (mounted) {
         setState(() {
           expired = true;
+          remainingSeconds = 0;
         });
       }
-    });
+    } else {
+      if (mounted) {
+        setState(() {
+          remainingSeconds = duration.inSeconds;
+        });
+      }
+    }
   }
 
   @override
@@ -60,7 +87,6 @@ class _PaymentPageState extends State<PaymentPage> {
     super.dispose();
   }
 
-  // แถวซ้าย-ขวา สำหรับ Order Summary
   Widget row(String a, String b) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(
@@ -71,7 +97,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
   @override
   Widget build(BuildContext context) {
-    int fee = price * 2 ~/ 100; // ค่าคอมมิชชั่น 2%
+    int fee = price * 2 ~/ 100;
     int ship = delivery == 'Parcel Shipping' ? 50 : 0;
     int totalPrice = price + fee + ship;
 
@@ -94,7 +120,13 @@ class _PaymentPageState extends State<PaymentPage> {
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
-                  const Text('Your reservation has expired.'),
+                  const Text('Your reservation has expired and ticket has been released.'),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(backgroundColor: pinkAccent),
+                    child: const Text('Back to Concert Detail', style: TextStyle(color: Colors.white)),
+                  ),
                 ],
               ),
             )
@@ -163,10 +195,10 @@ class _PaymentPageState extends State<PaymentPage> {
                       // Reservation Timer
                       Card(
                         child: ListTile(
-                          title: const Text('Reservation Time'),
+                          title: const Text('Reservation Time Remaining'),
                           subtitle: Text(
-                            '${(time ~/ 60).toString().padLeft(2, '0')}:'
-                            '${(time % 60).toString().padLeft(2, '0')}',
+                            '${(remainingSeconds ~/ 60).toString().padLeft(2, '0')}:'
+                            '${(remainingSeconds % 60).toString().padLeft(2, '0')}',
                             style: TextStyle(
                               fontSize: 30,
                               color: pinkAccent,
@@ -422,12 +454,13 @@ class _PaymentPageState extends State<PaymentPage> {
                                     foregroundColor: Colors.white,
                                   ),
                                   onPressed: () {
-                                    setState(() {
-                                      success = true;
-                                      timer?.cancel();
-                                      // สั่งล้างข้อมูลในตระกร้าและบันทึกคำสั่งซื้อ
-                                      CartService.completePurchase();
-                                    });
+                                    if (currentOrder != null) {
+                                      setState(() {
+                                        CartService.payOrder(currentOrder!);
+                                        success = true;
+                                        timer?.cancel();
+                                      });
+                                    }
                                   },
                                   child: const Text('Pay Now'),
                                 ),
