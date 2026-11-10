@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 
@@ -87,8 +86,8 @@ class _HomePageState extends State<HomePage> {
           'seller': 'LisaFan3',
           'zone': 'Standard Zone',
           'price': 3200,
-          'condition': 'Available',
-          'status': 'available',
+          'condition': 'Sold',
+          'status': 'sold',
           'seats': ['S-A1', 'S-A2', 'S-A3'],
         },
       ],
@@ -202,6 +201,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   void openDetail(Map<String, dynamic> concert) {
+    if (CartService.isConcertFinished(concert)) {
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -381,9 +384,7 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-
           SizedBox(width: isMobile ? 2 : 10),
-
           Stack(
             clipBehavior: Clip.none,
             children: [
@@ -400,7 +401,6 @@ class _HomePageState extends State<HomePage> {
                   size: isMobile ? 23 : 26,
                 ),
               ),
-
               if (CartService.items.isNotEmpty)
                 Positioned(
                   right: 0,
@@ -423,7 +423,6 @@ class _HomePageState extends State<HomePage> {
                 ),
             ],
           ),
-
           IconButton(
             onPressed: openProfile,
             padding: EdgeInsets.zero,
@@ -485,7 +484,6 @@ class _HomePageState extends State<HomePage> {
             width: double.infinity,
             child: Stack(
               children: [
-                // Poster slider
                 PageView.builder(
                   controller: bannerController,
                   itemCount: concertList.length,
@@ -518,8 +516,6 @@ class _HomePageState extends State<HomePage> {
                             );
                           },
                         ),
-
-                        // Dark gradient
                         Container(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
@@ -533,8 +529,6 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                         ),
-
-                        // Concert details
                         Positioned(
                           left: 35,
                           top: 0,
@@ -548,8 +542,6 @@ class _HomePageState extends State<HomePage> {
                     );
                   },
                 ),
-
-                // Previous / Next buttons
                 if (showBannerControls && concertList.length > 1) ...[
                   Positioned(
                     left: 8,
@@ -574,8 +566,6 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ],
-
-                // Slide indicators
                 Positioned(
                   bottom: 20,
                   left: 0,
@@ -610,7 +600,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildBannerInfo(Map<String, dynamic> concert) {
-    final status = CartService.getConcertStatus(concert);
+    final soldOut = CartService.isConcertSoldOut(concert);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -622,19 +612,11 @@ class _HomePageState extends State<HomePage> {
             vertical: 8,
           ),
           decoration: BoxDecoration(
-            color: status == 'Sold Out'
-                ? Colors.red
-                : status == 'No Tickets'
-                    ? Colors.orange
-                    : pink,
+            color: soldOut ? Colors.red : pink,
             borderRadius: BorderRadius.circular(25),
           ),
           child: Text(
-            status == 'Sold Out'
-                ? 'SOLD OUT'
-                : status == 'No Tickets'
-                    ? 'NO TICKETS'
-                    : 'FEATURED EVENT',
+            soldOut ? 'SOLD OUT' : 'FEATURED EVENT',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 13,
@@ -642,9 +624,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-
         const SizedBox(height: 20),
-
         Text(
           concert['name'].toString(),
           maxLines: 2,
@@ -656,9 +636,7 @@ class _HomePageState extends State<HomePage> {
             height: 1.2,
           ),
         ),
-
         const SizedBox(height: 12),
-
         Text(
           '${concert['date']}  •  ${concert['time'] ?? ''}',
           style: const TextStyle(
@@ -666,9 +644,7 @@ class _HomePageState extends State<HomePage> {
             fontSize: 14,
           ),
         ),
-
         const SizedBox(height: 8),
-
         Text(
           concert['location'].toString(),
           maxLines: 2,
@@ -678,13 +654,9 @@ class _HomePageState extends State<HomePage> {
             fontSize: 13,
           ),
         ),
-
         const SizedBox(height: 20),
-
         ElevatedButton(
-          onPressed: status == 'Sold Out' || status == 'No Tickets'
-              ? null
-              : () => openDetail(concert),
+          onPressed: soldOut ? null : () => openDetail(concert),
           style: ElevatedButton.styleFrom(
             backgroundColor: pink,
             foregroundColor: Colors.white,
@@ -807,9 +779,7 @@ class _HomePageState extends State<HomePage> {
               color: darkPink,
             ),
           ),
-
           const SizedBox(height: 6),
-
           const Text(
             'Find your favorite concert tickets',
             style: TextStyle(
@@ -817,9 +787,7 @@ class _HomePageState extends State<HomePage> {
               fontSize: 14,
             ),
           ),
-
           const SizedBox(height: 22),
-
           if (concertList.isEmpty)
             const Center(
               child: Padding(
@@ -865,25 +833,13 @@ class _HomePageState extends State<HomePage> {
   // ==========================================
 
   Widget _buildConcertCard(Map<String, dynamic> concert) {
-    final concertStatus = CartService.getConcertStatus(concert);
+    final soldOut = CartService.isConcertSoldOut(concert);
 
-    final soldOut = concertStatus == 'Sold Out';
-    final noTickets = concertStatus == 'No Tickets';
-
-    final statusText = soldOut
-        ? 'SOLD OUT'
-        : noTickets
-            ? 'NO TICKETS'
-            : 'AVAILABLE';
-
-    final statusColor = soldOut
-        ? Colors.red
-        : noTickets
-            ? Colors.orange
-            : Colors.green;
+    final statusText = soldOut ? 'SOLD OUT' : 'AVAILABLE';
+    final statusColor = soldOut ? Colors.red : Colors.green;
 
     return GestureDetector(
-      onTap: () => openDetail(concert),
+      onTap: soldOut ? null : () => openDetail(concert),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -928,7 +884,6 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
-
                   Positioned(
                     top: 12,
                     left: 12,
@@ -954,7 +909,6 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-
             Expanded(
               flex: 5,
               child: Padding(
@@ -972,9 +926,7 @@ class _HomePageState extends State<HomePage> {
                         color: darkPink,
                       ),
                     ),
-
                     const SizedBox(height: 6),
-
                     Text(
                       concert['artist'].toString(),
                       style: const TextStyle(
@@ -983,9 +935,7 @@ class _HomePageState extends State<HomePage> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-
                     const SizedBox(height: 10),
-
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1008,9 +958,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 7),
-
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1033,9 +981,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ],
                     ),
-
                     const Spacer(),
-
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -1050,9 +996,7 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                         child: Text(
-                          soldOut || noTickets
-                              ? 'View Details'
-                              : 'View Tickets',
+                          soldOut ? 'View Details' : 'View Tickets',
                           style: const TextStyle(fontSize: 12),
                         ),
                       ),
@@ -1086,9 +1030,7 @@ class _HomePageState extends State<HomePage> {
               fontWeight: FontWeight.bold,
             ),
           ),
-
           SizedBox(height: 10),
-
           Text(
             'Your favorite place for concert tickets.',
             style: TextStyle(
@@ -1096,9 +1038,7 @@ class _HomePageState extends State<HomePage> {
               fontSize: 13,
             ),
           ),
-
           SizedBox(height: 15),
-
           Text(
             '© 2026 Ticket Pink. All rights reserved.',
             style: TextStyle(

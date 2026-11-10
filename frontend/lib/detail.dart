@@ -11,10 +11,7 @@ const Color darkPink = Color(0xFF54283D);
 class DetailPage extends StatefulWidget {
   final Map<String, dynamic> concert;
 
-  const DetailPage({
-    super.key,
-    required this.concert,
-  });
+  const DetailPage({super.key, required this.concert});
 
   @override
   State<DetailPage> createState() => _DetailPageState();
@@ -25,17 +22,14 @@ class _DetailPageState extends State<DetailPage> {
 
   Map<String, dynamic> get concert => widget.concert;
 
-  List get tickets => concert['tickets'] is List
-      ? concert['tickets'] as List
-      : [];
+  List get tickets =>
+      concert['tickets'] is List ? concert['tickets'] as List : [];
 
-  String get eventName =>
-      concert['name']?.toString() ?? 'Concert Event';
+  String get eventName => concert['name']?.toString() ?? 'Concert Event';
 
   String get artist => concert['artist']?.toString() ?? '';
 
-  String get eventDate =>
-      concert['date']?.toString() ?? 'Date to be announced';
+  String get eventDate => concert['date']?.toString() ?? 'Date to be announced';
 
   String get eventLocation =>
       concert['location']?.toString() ?? 'Location to be announced';
@@ -77,9 +71,7 @@ class _DetailPageState extends State<DetailPage> {
 
     for (final ticket in ticketMaps) {
       if (!CartService.isTicketSold(ticket)) {
-        zones.add(
-          (ticket['zone'] ?? ticket['seat'] ?? 'General').toString(),
-        );
+        zones.add((ticket['zone'] ?? ticket['seat'] ?? 'General').toString());
       }
     }
 
@@ -88,11 +80,9 @@ class _DetailPageState extends State<DetailPage> {
 
   List<Map<String, dynamic>> get filteredTickets {
     return ticketMaps.where((ticket) {
-      final zone =
-          (ticket['zone'] ?? ticket['seat'] ?? 'General').toString();
+      final zone = (ticket['zone'] ?? ticket['seat'] ?? 'General').toString();
 
-      final matchesZone =
-          selectedZone == 'All' || zone == selectedZone;
+      final matchesZone = selectedZone == 'All' || zone == selectedZone;
 
       return matchesZone;
     }).toList();
@@ -108,9 +98,7 @@ class _DetailPageState extends State<DetailPage> {
     final rawSeatNumbers = ticket['seatNumbers'];
 
     if (rawSeatNumbers is List) {
-      return rawSeatNumbers
-          .map((seat) => seat.toString())
-          .toList();
+      return rawSeatNumbers.map((seat) => seat.toString()).toList();
     }
 
     final singleSeat = ticket['seat']?.toString();
@@ -179,10 +167,7 @@ class _DetailPageState extends State<DetailPage> {
     final number = double.tryParse(price.toString()) ?? 0;
     final value = number.toStringAsFixed(0);
 
-    return '฿${value.replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (match) => ',',
-    )}';
+    return '฿${value.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => ',')}';
   }
 
   // ==========================================
@@ -206,9 +191,7 @@ class _DetailPageState extends State<DetailPage> {
   // CREATE CART ITEM
   // ==========================================
 
-  Map<String, dynamic> createTicketItem(
-    Map<String, dynamic> ticket,
-  ) {
+  Map<String, dynamic> createTicketItem(Map<String, dynamic> ticket) {
     final selectedSeat = getSelectedSeat(ticket);
 
     return {
@@ -220,10 +203,7 @@ class _DetailPageState extends State<DetailPage> {
       'location': eventLocation,
       'image': eventImage,
       'seller': ticket['seller'] ?? 'Ticket Pink',
-      'seat': selectedSeat ??
-          ticket['seat'] ??
-          ticket['zone'] ??
-          'General',
+      'seat': selectedSeat ?? ticket['seat'] ?? ticket['zone'] ?? 'General',
       'zone': ticket['zone'] ?? 'General',
       'price': ticket['price'] ?? 0,
       'condition': ticket['condition'] ?? 'Available',
@@ -280,63 +260,36 @@ class _DetailPageState extends State<DetailPage> {
   // ADD TO CART
   // ==========================================
 
-  void addToCart(Map<String, dynamic> ticket) {
-    if (isFinished || !CartService.canBuy(ticket)) {
-      showUnavailableMessage();
-      setState(() {});
-      return;
-    }
+void addToCart(Map<String, dynamic> ticket) {
+  if (isFinished || !CartService.canBuy(ticket)) {
+    showUnavailableMessage();
+    setState(() {});
+    return;
+  }
 
-    if (!validateSeatSelection(ticket)) return;
+  if (!validateSeatSelection(ticket)) return;
 
-    final cartItem = createTicketItem(ticket);
-    final added = CartService.addToCart(cartItem);
+  final cartItem = createTicketItem(ticket);
+  final added = CartService.addToCart(cartItem);
 
-    if (!added) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            backgroundColor: darkPink,
-            duration: Duration(seconds: 2),
-            content: Text(
-              'This ticket is already in your cart!',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        );
-      return;
-    }
+  final messenger = ScaffoldMessenger.of(context);
 
-    final messenger = ScaffoldMessenger.of(context);
-
-    messenger.hideCurrentSnackBar();
-
-    messenger.showSnackBar(
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
       SnackBar(
         backgroundColor: darkPink,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
-        content: const Text(
-          'Ticket added to your cart!',
-          style: TextStyle(color: Colors.white),
-        ),
-        action: SnackBarAction(
-          label: 'VIEW CART',
-          textColor: Colors.white,
-          onPressed: () {
-            messenger.hideCurrentSnackBar();
-
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const CartPage(),
-              ),
-            );
-          },
+        content: Text(
+          added
+              ? 'Ticket added to your cart!'
+              : 'This ticket is already in your cart!',
+          style: const TextStyle(color: Colors.white),
         ),
       ),
     );
-  }
+}
 
   // ==========================================
   // BUY NOW
@@ -354,11 +307,7 @@ class _DetailPageState extends State<DetailPage> {
     final checkoutItem = createTicketItem(ticket);
 
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => CheckoutPage(
-          items: [checkoutItem],
-        ),
-      ),
+      MaterialPageRoute(builder: (_) => CheckoutPage(items: [checkoutItem])),
     );
   }
 
@@ -381,9 +330,7 @@ class _DetailPageState extends State<DetailPage> {
               },
             ),
           ),
-          SliverToBoxAdapter(
-            child: _buildMainContent(),
-          ),
+          SliverToBoxAdapter(child: _buildMainContent()),
         ],
       ),
     );
@@ -409,10 +356,7 @@ class _DetailPageState extends State<DetailPage> {
                 : null,
           ),
         ),
-        Container(
-          height: 310,
-          color: darkPink.withOpacity(0.86),
-        ),
+        Container(height: 310, color: darkPink.withOpacity(0.86)),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 15, 16, 25),
           child: Column(
@@ -481,8 +425,7 @@ class _DetailPageState extends State<DetailPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed:
-                      isFinished || isSoldOut ? null : scrollToTickets,
+                  onPressed: isFinished || isSoldOut ? null : scrollToTickets,
                   icon: const Icon(Icons.keyboard_arrow_down),
                   label: const Text('Choose Tickets'),
                   style: ElevatedButton.styleFrom(
@@ -522,10 +465,7 @@ class _DetailPageState extends State<DetailPage> {
                 : null,
           ),
         ),
-        Container(
-          height: 480,
-          color: darkPink.withOpacity(0.84),
-        ),
+        Container(height: 480, color: darkPink.withOpacity(0.84)),
         Padding(
           padding: const EdgeInsets.fromLTRB(35, 20, 35, 30),
           child: Column(
@@ -635,9 +575,7 @@ class _DetailPageState extends State<DetailPage> {
         const Spacer(),
         IconButton(
           onPressed: toggleFavorite,
-          tooltip: isFavorite
-              ? 'Remove from Favorites'
-              : 'Add to Favorites',
+          tooltip: isFavorite ? 'Remove from Favorites' : 'Add to Favorites',
           icon: Icon(
             isFavorite ? Icons.favorite : Icons.favorite_border,
             color: isFavorite ? pink : Colors.white,
@@ -653,14 +591,14 @@ class _DetailPageState extends State<DetailPage> {
       crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 8,
       children: [
-        Text('Home',
-            style: TextStyle(color: Colors.white70, fontSize: 13)),
+        Text('Home', style: TextStyle(color: Colors.white70, fontSize: 13)),
         Icon(Icons.chevron_right, color: Colors.white54, size: 16),
-        Text('Concerts',
-            style: TextStyle(color: Colors.white70, fontSize: 13)),
+        Text('Concerts', style: TextStyle(color: Colors.white70, fontSize: 13)),
         Icon(Icons.chevron_right, color: Colors.white54, size: 16),
-        Text('Event Details',
-            style: TextStyle(color: Colors.white, fontSize: 13)),
+        Text(
+          'Event Details',
+          style: TextStyle(color: Colors.white, fontSize: 13),
+        ),
       ],
     );
   }
@@ -682,9 +620,7 @@ class _DetailPageState extends State<DetailPage> {
   Widget _imagePlaceholder() {
     return Container(
       color: lightPink,
-      child: const Center(
-        child: Icon(Icons.music_note, size: 55, color: pink),
-      ),
+      child: const Center(child: Icon(Icons.music_note, size: 55, color: pink)),
     );
   }
 
@@ -693,8 +629,11 @@ class _DetailPageState extends State<DetailPage> {
   // ==========================================
 
   Widget _buildStatusBadge() {
-    final badgeColor =
-        isFinished ? Colors.grey : isSoldOut ? Colors.red : Colors.green;
+    final badgeColor = isFinished
+        ? Colors.grey
+        : isSoldOut
+        ? Colors.red
+        : Colors.green;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -763,13 +702,15 @@ class _DetailPageState extends State<DetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: const TextStyle(
-                        color: Colors.white70, fontSize: 13)),
+                Text(
+                  title,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
                 const SizedBox(height: 5),
-                Text(value,
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 14)),
+                Text(
+                  value,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                ),
               ],
             ),
           ),
@@ -840,14 +781,29 @@ class _DetailPageState extends State<DetailPage> {
               runSpacing: 12,
               children: [
                 _mobileInfoCard(
-                    width, Icons.calendar_month, 'Show Date', eventDate),
-                _mobileInfoCard(width, Icons.location_on_outlined,
-                    'Venue', eventLocation),
-                _mobileInfoCard(width,
-                    Icons.confirmation_number_outlined,
-                    'Ticket Price', _ticketPriceText()),
-                _mobileInfoCard(width, Icons.local_activity_outlined,
-                    'Ticket Status', ticketStatus),
+                  width,
+                  Icons.calendar_month,
+                  'Show Date',
+                  eventDate,
+                ),
+                _mobileInfoCard(
+                  width,
+                  Icons.location_on_outlined,
+                  'Venue',
+                  eventLocation,
+                ),
+                _mobileInfoCard(
+                  width,
+                  Icons.confirmation_number_outlined,
+                  'Ticket Price',
+                  _ticketPriceText(),
+                ),
+                _mobileInfoCard(
+                  width,
+                  Icons.local_activity_outlined,
+                  'Ticket Status',
+                  ticketStatus,
+                ),
               ],
             );
           },
@@ -875,8 +831,7 @@ class _DetailPageState extends State<DetailPage> {
         children: [
           Icon(icon, color: pink, size: 22),
           const SizedBox(height: 8),
-          Text(title,
-              style: const TextStyle(color: Colors.grey, fontSize: 11)),
+          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 11)),
           const SizedBox(height: 4),
           Text(
             value,
@@ -979,11 +934,11 @@ class _DetailPageState extends State<DetailPage> {
                       child: Container(
                         width: 105,
                         padding: const EdgeInsets.symmetric(
-                            vertical: 14, horizontal: 8),
+                          vertical: 14,
+                          horizontal: 8,
+                        ),
                         decoration: BoxDecoration(
-                          color: selectedZone == zone
-                              ? pink
-                              : Colors.white,
+                          color: selectedZone == zone ? pink : Colors.white,
                           border: Border.all(
                             color: selectedZone == zone
                                 ? pink
@@ -1034,10 +989,7 @@ class _DetailPageState extends State<DetailPage> {
               const Text(
                 'Choose a zone above to filter tickets below.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 11,
-                ),
+                style: TextStyle(color: Colors.grey, fontSize: 11),
               ),
             ],
           ),
@@ -1137,8 +1089,7 @@ class _DetailPageState extends State<DetailPage> {
     final seats = getSeats(ticket);
     final selectedSeat = getSelectedSeat(ticket);
 
-    final zone =
-        (ticket['zone'] ?? ticket['seat'] ?? 'General').toString();
+    final zone = (ticket['zone'] ?? ticket['seat'] ?? 'General').toString();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -1169,10 +1120,7 @@ class _DetailPageState extends State<DetailPage> {
                     const SizedBox(height: 5),
                     Text(
                       'Seller: ${ticket['seller'] ?? 'Ticket Pink'}',
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
-                      ),
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
                     const SizedBox(height: 5),
                     Text(
@@ -1263,10 +1211,7 @@ class _DetailPageState extends State<DetailPage> {
               ticket['seat'] != null
                   ? 'Seat: ${ticket['seat']}'
                   : 'Seat details have not been provided by the seller.',
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 12,
-              ),
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ],
 
@@ -1274,10 +1219,7 @@ class _DetailPageState extends State<DetailPage> {
           if (sold)
             const Text(
               'SOLD OUT',
-              style: TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
             )
           else
             LayoutBuilder(
@@ -1294,10 +1236,7 @@ class _DetailPageState extends State<DetailPage> {
                         outlined: true,
                       ),
                       const SizedBox(height: 8),
-                      _actionButton(
-                        'Buy Now',
-                        () => buyNow(ticket),
-                      ),
+                      _actionButton('Buy Now', () => buyNow(ticket)),
                     ],
                   );
                 }
@@ -1313,10 +1252,7 @@ class _DetailPageState extends State<DetailPage> {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: _actionButton(
-                        'Buy Now',
-                        () => buyNow(ticket),
-                      ),
+                      child: _actionButton('Buy Now', () => buyNow(ticket)),
                     ),
                   ],
                 );
@@ -1339,10 +1275,7 @@ class _DetailPageState extends State<DetailPage> {
       child: Text(
         message,
         textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: darkPink,
-          fontWeight: FontWeight.bold,
-        ),
+        style: const TextStyle(color: darkPink, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -1367,14 +1300,9 @@ class _DetailPageState extends State<DetailPage> {
           padding: const EdgeInsets.symmetric(horizontal: 10),
           minimumSize: Size.zero,
           elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
-        child: Text(
-          label,
-          style: const TextStyle(fontSize: 12),
-        ),
+        child: Text(label, style: const TextStyle(fontSize: 12)),
       ),
     );
   }
@@ -1446,10 +1374,7 @@ class _DetailPageState extends State<DetailPage> {
                     Positioned.fill(
                       child: Opacity(
                         opacity: 0.35,
-                        child: Image.network(
-                          eventImage,
-                          fit: BoxFit.cover,
-                        ),
+                        child: Image.network(eventImage, fit: BoxFit.cover),
                       ),
                     ),
                   const Icon(

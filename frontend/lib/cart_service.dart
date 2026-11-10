@@ -25,7 +25,45 @@ class CartService {
       return value;
     }
 
-    return DateTime.tryParse(value.toString());
+    final text = value.toString().trim();
+
+    // Format: 2026-12-15
+    final parsed = DateTime.tryParse(text);
+    if (parsed != null) return parsed;
+
+    // Format: 15 December 2026
+    final match = RegExp(
+      r'^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$',
+    ).firstMatch(text);
+
+    if (match == null) return null;
+
+    final day = int.tryParse(match.group(1)!);
+    final monthName = match.group(2)!.toLowerCase();
+    final year = int.tryParse(match.group(3)!);
+
+    const months = {
+      'january': 1,
+      'february': 2,
+      'march': 3,
+      'april': 4,
+      'may': 5,
+      'june': 6,
+      'july': 7,
+      'august': 8,
+      'september': 9,
+      'october': 10,
+      'november': 11,
+      'december': 12,
+    };
+
+    final month = months[monthName];
+
+    if (day == null || month == null || year == null) {
+      return null;
+    }
+
+    return DateTime(year, month, day);
   }
 
   static bool isConcertFinished(Map<String, dynamic> concert) {
@@ -44,9 +82,14 @@ class CartService {
   }
 
   static bool isTicketSold(Map<String, dynamic> ticket) {
-    final status = ticket['status']?.toString().toLowerCase();
+  final status = ticket['status']
+      ?.toString()
+      .trim()
+      .toLowerCase();
 
-    return status == 'sold' || ticket['isSold'] == true;
+  return ticket['isSold'] == true ||
+      status == 'sold' ||
+      status == 'sold out';
   }
 
   static bool isConcertSoldOut(Map<String, dynamic> concert) {
@@ -220,7 +263,7 @@ class CartService {
 
     history.add(order);
 
-    // ล้างตะกร้าหลังสร้าง Order
+    // Clear cart after creating order
     items.clear();
 
     return order;
@@ -431,7 +474,11 @@ class CartService {
       ];
     }
   }
+
+  // ==========================================
   // FILTER ORDERS BY STATUS
+  // ==========================================
+
   static List<Map<String, dynamic>> getOrdersByStatus(
     String status,
   ) {
@@ -443,6 +490,7 @@ class CartService {
         .reversed
         .toList();
   }
+
   static void completePurchase() {
     final order = createOrder();
 

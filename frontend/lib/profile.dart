@@ -301,8 +301,6 @@ class _ProfilePageState extends State<ProfilePage> {
               const SizedBox(height: 25),
               _buildProfileCard(),
               const SizedBox(height: 20),
-              _buildInformationCard(),
-              const SizedBox(height: 20),
               _buildAccountMenu(),
               const SizedBox(height: 20),
               _buildLogoutButton(),
@@ -439,54 +437,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // MEMBER CARD
-  Widget _buildInformationCard() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: _whiteCard(
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: lightPink,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.confirmation_number_outlined,
-                color: pink,
-                size: 28,
-              ),
-            ),
-            const SizedBox(width: 15),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Ticket Pink Member',
-                    style: TextStyle(
-                      color: darkPink,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Manage your concert tickets here.',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  
 
   // ACCOUNT MENU
   Widget _buildAccountMenu() {
