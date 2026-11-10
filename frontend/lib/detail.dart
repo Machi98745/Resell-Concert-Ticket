@@ -26,15 +26,23 @@ class _DetailPageState extends State<DetailPage> {
 
   Map<String, dynamic> get concert => widget.concert;
 
-  List get tickets => concert['tickets'] ?? [];
+  List get tickets => concert['tickets'] is List
+      ? concert['tickets'] as List
+      : [];
 
-  String get eventName => concert['name']?.toString() ?? 'Concert Event';
+  String get eventName =>
+      concert['name']?.toString() ?? 'Concert Event';
+
   String get artist => concert['artist']?.toString() ?? '';
+
   String get eventDate =>
       concert['date']?.toString() ?? 'Date to be announced';
+
   String get eventLocation =>
       concert['location']?.toString() ?? 'Location to be announced';
+
   String get eventImage => concert['image']?.toString() ?? '';
+
   String get eventDescription =>
       concert['description']?.toString() ??
       'Enjoy an unforgettable concert experience.';
@@ -42,6 +50,7 @@ class _DetailPageState extends State<DetailPage> {
   bool get isFavorite => FavoriteService.isFavorite(concert);
 
   bool get isFinished => CartService.isConcertFinished(concert);
+
   bool get isSoldOut => CartService.isConcertSoldOut(concert);
 
   String get ticketStatus {
@@ -50,7 +59,95 @@ class _DetailPageState extends State<DetailPage> {
     return 'ON SALE NOW';
   }
 
-  // FAVORITE FUNCTION
+  String selectedZone = 'All';
+  final Map<String, String> selectedSeats = {};
+
+  // ==========================================
+  // TICKET DATA
+  // ==========================================
+
+  List<Map<String, dynamic>> get ticketMaps {
+    return tickets
+        .where((ticket) => ticket is Map)
+        .map((ticket) => Map<String, dynamic>.from(ticket))
+        .toList();
+  }
+
+  List<String> get availableZones {
+    final zones = <String>{};
+
+    for (final ticket in ticketMaps) {
+      if (!CartService.isTicketSold(ticket)) {
+        zones.add(
+          (ticket['zone'] ?? ticket['seat'] ?? 'General').toString(),
+        );
+      }
+    }
+
+    return zones.toList();
+  }
+
+  List<Map<String, dynamic>> get filteredTickets {
+    return ticketMaps.where((ticket) {
+      final zone =
+          (ticket['zone'] ?? ticket['seat'] ?? 'General').toString();
+
+      final matchesZone =
+          selectedZone == 'All' || zone == selectedZone;
+
+      return matchesZone;
+    }).toList();
+  }
+
+  List<String> getSeats(Map<String, dynamic> ticket) {
+    final rawSeats = ticket['seats'];
+
+    if (rawSeats is List) {
+      return rawSeats.map((seat) => seat.toString()).toList();
+    }
+
+    final rawSeatNumbers = ticket['seatNumbers'];
+
+    if (rawSeatNumbers is List) {
+      return rawSeatNumbers
+          .map((seat) => seat.toString())
+          .toList();
+    }
+
+    final singleSeat = ticket['seat']?.toString();
+
+    if (singleSeat != null &&
+        singleSeat.isNotEmpty &&
+        singleSeat != (ticket['zone'] ?? '').toString()) {
+      return [singleSeat];
+    }
+
+    return [];
+  }
+
+  String ticketKey(Map<String, dynamic> ticket) {
+    return '${ticket['zone']}_${ticket['seller']}_${ticket['price']}_${ticketMaps.indexOf(ticket)}';
+  }
+
+  String? getSelectedSeat(Map<String, dynamic> ticket) {
+    final key = ticketKey(ticket);
+    final seats = getSeats(ticket);
+
+    if (seats.isEmpty) return null;
+
+    final selected = selectedSeats[key];
+
+    if (selected != null && seats.contains(selected)) {
+      return selected;
+    }
+
+    return null;
+  }
+
+  // ==========================================
+  // FAVORITE
+  // ==========================================
+
   void toggleFavorite() {
     final wasFavorite = isFavorite;
 
@@ -75,14 +172,23 @@ class _DetailPageState extends State<DetailPage> {
       );
   }
 
+  // ==========================================
+  // PRICE
+  // ==========================================
+
   String formatPrice(dynamic price) {
-    final value = (price as num?)?.toStringAsFixed(0) ?? '0';
+    final number = double.tryParse(price.toString()) ?? 0;
+    final value = number.toStringAsFixed(0);
 
     return '฿${value.replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
       (match) => ',',
     )}';
   }
+
+  // ==========================================
+  // SCROLL TO TICKETS
+  // ==========================================
 
   void scrollToTickets() {
     final targetContext = ticketSectionKey.currentContext;
@@ -96,6 +202,68 @@ class _DetailPageState extends State<DetailPage> {
       );
     }
   }
+
+  // ==========================================
+  // CREATE CART ITEM
+  // ==========================================
+
+  Map<String, dynamic> createTicketItem(
+    Map<String, dynamic> ticket,
+  ) {
+    final selectedSeat = getSelectedSeat(ticket);
+
+    return {
+      ...concert,
+      ...ticket,
+      'concertName': eventName,
+      'artist': artist,
+      'date': eventDate,
+      'location': eventLocation,
+      'image': eventImage,
+      'seller': ticket['seller'] ?? 'Ticket Pink',
+      'seat': selectedSeat ??
+          ticket['seat'] ??
+          ticket['zone'] ??
+          'General',
+      'zone': ticket['zone'] ?? 'General',
+      'price': ticket['price'] ?? 0,
+      'condition': ticket['condition'] ?? 'Available',
+    };
+  }
+
+  // ==========================================
+  // CHECK SEAT SELECTION
+  // ==========================================
+
+  bool validateSeatSelection(Map<String, dynamic> ticket) {
+    final seats = getSeats(ticket);
+
+    // ถ้าผู้ขายไม่ได้ระบุรายการที่นั่ง
+    // จะอนุญาตให้ใช้ข้อมูล seat ที่ระบุไว้ในบัตร
+    if (seats.isEmpty) {
+      return true;
+    }
+
+    if (getSelectedSeat(ticket) == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: darkPink,
+          content: Text(
+            'Please select your seat first.',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+      );
+
+      return false;
+    }
+
+    return true;
+  }
+
+  // ==========================================
+  // UNAVAILABLE MESSAGE
+  // ==========================================
 
   void showUnavailableMessage() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -111,17 +279,34 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
+  // ==========================================
+  // ADD TO CART
+  // ==========================================
+
   void addToCart(Map<String, dynamic> ticket) {
-    if (!CartService.canBuy(concert, ticket)) {
+    if (isFinished || !CartService.canBuy(ticket)) {
       showUnavailableMessage();
       setState(() {});
       return;
     }
 
-    final added = CartService.addToCart(concert, ticket);
+    if (!validateSeatSelection(ticket)) return;
+
+    final cartItem = createTicketItem(ticket);
+    final added = CartService.addToCart(cartItem);
 
     if (!added) {
-      showUnavailableMessage();
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            backgroundColor: darkPink,
+            content: Text(
+              'This ticket is already in your cart!',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        );
       return;
     }
 
@@ -151,32 +336,33 @@ class _DetailPageState extends State<DetailPage> {
       );
   }
 
+  // ==========================================
+  // BUY NOW
+  // ==========================================
+
   void buyNow(Map<String, dynamic> ticket) {
-    if (!CartService.canBuy(concert, ticket)) {
+    if (isFinished || !CartService.canBuy(ticket)) {
       showUnavailableMessage();
       setState(() {});
       return;
     }
 
-    final checkoutItem = <String, dynamic>{
-      'concertName': eventName,
-      'artist': artist,
-      'date': eventDate,
-      'location': eventLocation,
-      'image': eventImage,
-      'seller': ticket['seller'] ?? 'Ticket Pink',
-      'seat': ticket['seat'] ?? ticket['zone'] ?? 'General',
-      'zone': ticket['zone'] ?? 'General',
-      'price': ticket['price'] ?? 0,
-      'condition': ticket['condition'] ?? 'Available',
-    };
+    if (!validateSeatSelection(ticket)) return;
+
+    final checkoutItem = createTicketItem(ticket);
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => CheckoutPage(items: [checkoutItem]),
+        builder: (_) => CheckoutPage(
+          items: [checkoutItem],
+        ),
       ),
     );
   }
+
+  // ==========================================
+  // MAIN BUILD
+  // ==========================================
 
   @override
   Widget build(BuildContext context) {
@@ -193,11 +379,17 @@ class _DetailPageState extends State<DetailPage> {
               },
             ),
           ),
-          SliverToBoxAdapter(child: _buildMainContent()),
+          SliverToBoxAdapter(
+            child: _buildMainContent(),
+          ),
         ],
       ),
     );
   }
+
+  // ==========================================
+  // MOBILE HEADER
+  // ==========================================
 
   Widget _buildMobileHeader() {
     return Stack(
@@ -215,7 +407,10 @@ class _DetailPageState extends State<DetailPage> {
                 : null,
           ),
         ),
-        Container(height: 310, color: darkPink.withOpacity(0.86)),
+        Container(
+          height: 310,
+          color: darkPink.withOpacity(0.86),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 15, 16, 25),
           child: Column(
@@ -305,6 +500,10 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
+  // ==========================================
+  // DESKTOP HEADER
+  // ==========================================
+
   Widget _buildDesktopHeader() {
     return Stack(
       children: [
@@ -321,7 +520,10 @@ class _DetailPageState extends State<DetailPage> {
                 : null,
           ),
         ),
-        Container(height: 480, color: darkPink.withOpacity(0.84)),
+        Container(
+          height: 480,
+          color: darkPink.withOpacity(0.84),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(35, 20, 35, 30),
           child: Column(
@@ -349,8 +551,9 @@ class _DetailPageState extends State<DetailPage> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed:
-                                isFinished || isSoldOut ? null : scrollToTickets,
+                            onPressed: isFinished || isSoldOut
+                                ? null
+                                : scrollToTickets,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: pink,
                               foregroundColor: Colors.white,
@@ -408,7 +611,10 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
-  // TOP BAR WITH WORKING FAVORITE BUTTON
+  // ==========================================
+  // TOP BAR
+  // ==========================================
+
   Widget _buildTopBar() {
     return Row(
       children: [
@@ -431,7 +637,9 @@ class _DetailPageState extends State<DetailPage> {
         ),
         IconButton(
           onPressed: toggleFavorite,
-          tooltip: isFavorite ? 'Remove from Favorites' : 'Add to Favorites',
+          tooltip: isFavorite
+              ? 'Remove from Favorites'
+              : 'Add to Favorites',
           icon: Icon(
             isFavorite ? Icons.favorite : Icons.favorite_border,
             color: isFavorite ? pink : Colors.white,
@@ -447,14 +655,21 @@ class _DetailPageState extends State<DetailPage> {
       crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 8,
       children: [
-        Text('Home', style: TextStyle(color: Colors.white70, fontSize: 13)),
+        Text('Home',
+            style: TextStyle(color: Colors.white70, fontSize: 13)),
         Icon(Icons.chevron_right, color: Colors.white54, size: 16),
-        Text('Concerts', style: TextStyle(color: Colors.white70, fontSize: 13)),
+        Text('Concerts',
+            style: TextStyle(color: Colors.white70, fontSize: 13)),
         Icon(Icons.chevron_right, color: Colors.white54, size: 16),
-        Text('Event Details', style: TextStyle(color: Colors.white, fontSize: 13)),
+        Text('Event Details',
+            style: TextStyle(color: Colors.white, fontSize: 13)),
       ],
     );
   }
+
+  // ==========================================
+  // EVENT IMAGE
+  // ==========================================
 
   Widget _buildEventImage() {
     if (eventImage.isEmpty) return _imagePlaceholder();
@@ -475,12 +690,13 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
-  Widget _buildStatusBadge() {
-    final finished = isFinished;
-    final sold = isSoldOut;
+  // ==========================================
+  // STATUS BADGE
+  // ==========================================
 
+  Widget _buildStatusBadge() {
     final badgeColor =
-        finished ? Colors.grey : sold ? Colors.red : Colors.green;
+        isFinished ? Colors.grey : isSoldOut ? Colors.red : Colors.green;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -499,6 +715,10 @@ class _DetailPageState extends State<DetailPage> {
       ),
     );
   }
+
+  // ==========================================
+  // EVENT INFORMATION
+  // ==========================================
 
   Widget _buildInformationGrid() {
     return Wrap(
@@ -522,14 +742,15 @@ class _DetailPageState extends State<DetailPage> {
   }
 
   String _ticketPriceText() {
-    final availableTickets = tickets.where((ticket) {
-      final map = Map<String, dynamic>.from(ticket);
-      return !CartService.isTicketSold(map);
+    final availableTickets = ticketMaps.where((ticket) {
+      return !CartService.isTicketSold(ticket);
     }).toList();
 
     if (availableTickets.isEmpty) return 'Price unavailable';
 
-    return availableTickets.map((t) => formatPrice(t['price'])).join(' / ');
+    return availableTickets
+        .map((ticket) => formatPrice(ticket['price']))
+        .join(' / ');
   }
 
   Widget _desktopInfo(IconData icon, String title, String value) {
@@ -544,15 +765,13 @@ class _DetailPageState extends State<DetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
-                ),
+                Text(title,
+                    style: const TextStyle(
+                        color: Colors.white70, fontSize: 13)),
                 const SizedBox(height: 5),
-                Text(
-                  value,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                ),
+                Text(value,
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 14)),
               ],
             ),
           ),
@@ -560,6 +779,10 @@ class _DetailPageState extends State<DetailPage> {
       ),
     );
   }
+
+  // ==========================================
+  // MAIN CONTENT
+  // ==========================================
 
   Widget _buildMainContent() {
     return LayoutBuilder(
@@ -593,6 +816,10 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
+  // ==========================================
+  // MOBILE INFORMATION
+  // ==========================================
+
   Widget _buildMobileInformation() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -615,29 +842,14 @@ class _DetailPageState extends State<DetailPage> {
               runSpacing: 12,
               children: [
                 _mobileInfoCard(
-                  width,
-                  Icons.calendar_month,
-                  'Show Date',
-                  eventDate,
-                ),
-                _mobileInfoCard(
-                  width,
-                  Icons.location_on_outlined,
-                  'Venue',
-                  eventLocation,
-                ),
-                _mobileInfoCard(
-                  width,
-                  Icons.confirmation_number_outlined,
-                  'Ticket Price',
-                  _ticketPriceText(),
-                ),
-                _mobileInfoCard(
-                  width,
-                  Icons.local_activity_outlined,
-                  'Ticket Status',
-                  ticketStatus,
-                ),
+                    width, Icons.calendar_month, 'Show Date', eventDate),
+                _mobileInfoCard(width, Icons.location_on_outlined,
+                    'Venue', eventLocation),
+                _mobileInfoCard(width,
+                    Icons.confirmation_number_outlined,
+                    'Ticket Price', _ticketPriceText()),
+                _mobileInfoCard(width, Icons.local_activity_outlined,
+                    'Ticket Status', ticketStatus),
               ],
             );
           },
@@ -665,10 +877,8 @@ class _DetailPageState extends State<DetailPage> {
         children: [
           Icon(icon, color: pink, size: 22),
           const SizedBox(height: 8),
-          Text(
-            title,
-            style: const TextStyle(color: Colors.grey, fontSize: 11),
-          ),
+          Text(title,
+              style: const TextStyle(color: Colors.grey, fontSize: 11)),
           const SizedBox(height: 4),
           Text(
             value,
@@ -683,7 +893,13 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
+  // ==========================================
+  // SEATING PLAN
+  // ==========================================
+
   Widget _buildSeatingPlan() {
+    final zones = availableZones;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -697,10 +913,10 @@ class _DetailPageState extends State<DetailPage> {
         ),
         const SizedBox(height: 6),
         const Text(
-          'Choose your preferred seating zone.',
+          'Select a zone to see its available tickets.',
           style: TextStyle(color: Colors.grey, fontSize: 13),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 18),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
@@ -734,75 +950,103 @@ class _DetailPageState extends State<DetailPage> {
                 ),
               ),
               const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(child: _seatZone('A1', Colors.pink)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _seatZone('A2', Colors.red)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _seatZone('A3', Colors.pink)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(child: _seatZone('B1', Colors.orange)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _seatZone('B2', Colors.orange)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _seatZone('B3', Colors.orange)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(child: _seatZone('C1', Colors.lightGreen)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _seatZone('C2', Colors.green)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _seatZone('C3', Colors.lightGreen)),
-                ],
-              ),
+              if (zones.isEmpty)
+                const Text(
+                  'No available seating zones.',
+                  style: TextStyle(color: Colors.grey),
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: zones.map((zone) {
+                    final zoneTickets = ticketMaps.where((ticket) {
+                      final ticketZone =
+                          (ticket['zone'] ?? ticket['seat'] ?? 'General')
+                              .toString();
+
+                      return ticketZone == zone &&
+                          !CartService.isTicketSold(ticket);
+                    }).toList();
+
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          selectedZone = zone;
+                        });
+
+                        scrollToTickets();
+                      },
+                      child: Container(
+                        width: 105,
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 14, horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: selectedZone == zone
+                              ? pink
+                              : Colors.white,
+                          border: Border.all(
+                            color: selectedZone == zone
+                                ? pink
+                                : Colors.grey.shade300,
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.event_seat,
+                              color: selectedZone == zone
+                                  ? Colors.white
+                                  : darkPink,
+                              size: 24,
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              zone,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: selectedZone == zone
+                                    ? Colors.white
+                                    : darkPink,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${zoneTickets.length} tickets',
+                              style: TextStyle(
+                                color: selectedZone == zone
+                                    ? Colors.white70
+                                    : Colors.grey,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
               const SizedBox(height: 18),
+              const Divider(),
+              const SizedBox(height: 8),
               const Text(
-                'BACK SEATING',
+                'Choose a zone above to filter tickets below.',
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.grey,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
+                  fontSize: 11,
                 ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(child: _seatZone('D1', Colors.blue)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _seatZone('D2', Colors.blue)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _seatZone('D3', Colors.blue)),
-                ],
-              ),
-              const SizedBox(height: 20),
-              const Divider(),
-              const SizedBox(height: 10),
-              const Wrap(
-                spacing: 15,
-                runSpacing: 10,
-                alignment: WrapAlignment.center,
-                children: [
-                  _SeatLegend(color: Colors.red, label: 'VIP'),
-                  _SeatLegend(color: Colors.orange, label: 'Premium'),
-                  _SeatLegend(color: Colors.green, label: 'Standard'),
-                  _SeatLegend(color: Colors.blue, label: 'Regular'),
-                ],
               ),
             ],
           ),
         ),
         const SizedBox(height: 10),
         const Text(
-          '* Seating plan is for illustration purposes.',
+          '* Seating plan shows the zones listed by ticket sellers.',
           style: TextStyle(
             color: Colors.grey,
             fontSize: 11,
@@ -813,26 +1057,13 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
-  Widget _seatZone(String zone, Color color) {
-    return Container(
-      height: 55,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(7),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        zone,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          fontSize: 13,
-        ),
-      ),
-    );
-  }
+  // ==========================================
+  // TICKET SECTION + ZONE FILTER
+  // ==========================================
 
   Widget _buildTicketSection() {
+    final displayedTickets = filteredTickets;
+
     return Column(
       key: ticketSectionKey,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -847,137 +1078,255 @@ class _DetailPageState extends State<DetailPage> {
         ),
         const SizedBox(height: 6),
         const Text(
-          'Choose your preferred ticket zone.',
+          'Choose your preferred ticket zone and seat.',
           style: TextStyle(color: Colors.grey),
         ),
         const SizedBox(height: 18),
+
+        // Zone filter
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _zoneFilterChip('All'),
+              ...availableZones.map(_zoneFilterChip),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+
         if (isFinished)
           _unavailableMessage('This concert has already finished.')
         else if (tickets.isEmpty)
           _unavailableMessage('No tickets available.')
-        else if (isSoldOut)
-          _unavailableMessage('SOLD OUT - All tickets have been sold.')
+        else if (displayedTickets.isEmpty)
+          _unavailableMessage('No tickets found in this zone.')
         else
-          ...List.generate(tickets.length, (index) {
-            final ticket = Map<String, dynamic>.from(tickets[index]);
-            final sold = CartService.isTicketSold(ticket);
+          ...displayedTickets.map(_buildTicketCard),
+      ],
+    );
+  }
 
-            return Container(
-              margin: const EdgeInsets.only(bottom: 13),
-              padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 390;
+  Widget _zoneFilterChip(String zone) {
+    final selected = selectedZone == zone;
 
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              (ticket['zone'] ??
-                                      ticket['seat'] ??
-                                      'General')
-                                  .toString(),
-                              style: const TextStyle(
-                                color: darkPink,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              'Seller: ${ticket['seller'] ?? 'Ticket Pink'}',
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              sold
-                                  ? 'SOLD OUT'
-                                  : (ticket['condition'] ?? 'Available')
-                                      .toString(),
-                              style: TextStyle(
-                                color: sold ? Colors.red : Colors.green,
-                                fontSize: 12,
-                                fontWeight: sold
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                              ),
-                            ),
-                          ],
-                        ),
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(zone),
+        selected: selected,
+        onSelected: (_) {
+          setState(() {
+            selectedZone = zone;
+          });
+        },
+        selectedColor: pink,
+        backgroundColor: lightPink,
+        side: BorderSide.none,
+        labelStyle: TextStyle(
+          color: selected ? Colors.white : darkPink,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  // ==========================================
+  // TICKET CARD
+  // ==========================================
+
+  Widget _buildTicketCard(Map<String, dynamic> ticket) {
+    final sold = CartService.isTicketSold(ticket);
+    final seats = getSeats(ticket);
+    final selectedSeat = getSelectedSeat(ticket);
+
+    final zone =
+        (ticket['zone'] ?? ticket['seat'] ?? 'General').toString();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      zone,
+                      style: const TextStyle(
+                        color: darkPink,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 17,
                       ),
-                      const SizedBox(width: 5),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            formatPrice(ticket['price']),
-                            style: const TextStyle(
-                              color: pink,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          if (sold)
-                            const Text(
-                              'SOLD OUT',
-                              style: TextStyle(
-                                color: Colors.red,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11,
-                              ),
-                            )
-                          else if (compact)
-                            Column(
-                              children: [
-                                _actionButton(
-                                  'Add Cart',
-                                  () => addToCart(ticket),
-                                  outlined: true,
-                                ),
-                                const SizedBox(height: 6),
-                                _actionButton(
-                                  'Buy Now',
-                                  () => buyNow(ticket),
-                                ),
-                              ],
-                            )
-                          else
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _actionButton(
-                                  'Add to Cart',
-                                  () => addToCart(ticket),
-                                  outlined: true,
-                                ),
-                                const SizedBox(width: 6),
-                                _actionButton(
-                                  'Buy Now',
-                                  () => buyNow(ticket),
-                                ),
-                              ],
-                            ),
-                        ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Seller: ${ticket['seller'] ?? 'Ticket Pink'}',
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      sold
+                          ? 'SOLD OUT'
+                          : (ticket['condition'] ?? 'Available').toString(),
+                      style: TextStyle(
+                        color: sold ? Colors.red : Colors.green,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                formatPrice(ticket['price']),
+                style: const TextStyle(
+                  color: pink,
+                  fontSize: 19,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+
+          if (!sold && seats.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            const Text(
+              'Select Your Seat',
+              style: TextStyle(
+                color: darkPink,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: seats.map((seat) {
+                final selected = selectedSeat == seat;
+
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      selectedSeats[ticketKey(ticket)] = seat;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 15,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: selected ? pink : lightPink,
+                      border: Border.all(
+                        color: selected ? pink : Colors.pink.shade100,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      seat,
+                      style: TextStyle(
+                        color: selected ? Colors.white : darkPink,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            if (selectedSeat != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Selected seat: $selectedSeat',
+                style: const TextStyle(
+                  color: pink,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ] else if (!sold) ...[
+            const SizedBox(height: 12),
+            Text(
+              ticket['seat'] != null
+                  ? 'Seat: ${ticket['seat']}'
+                  : 'Seat details have not been provided by the seller.',
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 15),
+          if (sold)
+            const Text(
+              'SOLD OUT',
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 360;
+
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _actionButton(
+                        'Add to Cart',
+                        () => addToCart(ticket),
+                        outlined: true,
+                      ),
+                      const SizedBox(height: 8),
+                      _actionButton(
+                        'Buy Now',
+                        () => buyNow(ticket),
                       ),
                     ],
                   );
-                },
-              ),
-            );
-          }),
-      ],
+                }
+
+                return Row(
+                  children: [
+                    Expanded(
+                      child: _actionButton(
+                        'Add to Cart',
+                        () => addToCart(ticket),
+                        outlined: true,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _actionButton(
+                        'Buy Now',
+                        () => buyNow(ticket),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
     );
   }
 
@@ -1001,13 +1350,17 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
+  // ==========================================
+  // ACTION BUTTON
+  // ==========================================
+
   Widget _actionButton(
     String label,
     VoidCallback onPressed, {
     bool outlined = false,
   }) {
     return SizedBox(
-      height: 34,
+      height: 42,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
@@ -1023,11 +1376,15 @@ class _DetailPageState extends State<DetailPage> {
         ),
         child: Text(
           label,
-          style: const TextStyle(fontSize: 11),
+          style: const TextStyle(fontSize: 12),
         ),
       ),
     );
   }
+
+  // ==========================================
+  // EVENT DESCRIPTION
+  // ==========================================
 
   Widget _buildDescription() {
     return Container(
@@ -1061,6 +1418,10 @@ class _DetailPageState extends State<DetailPage> {
       ),
     );
   }
+
+  // ==========================================
+  // EVENT PREVIEW
+  // ==========================================
 
   Widget _buildVideoSection() {
     return Column(
@@ -1113,41 +1474,6 @@ class _DetailPageState extends State<DetailPage> {
                 ],
               ),
             ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SeatLegend extends StatelessWidget {
-  final Color color;
-  final String label;
-
-  const _SeatLegend({
-    required this.color,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-        const SizedBox(width: 5),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Colors.black87,
           ),
         ),
       ],

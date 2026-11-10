@@ -1,6 +1,5 @@
 
 import 'package:flutter/material.dart';
-
 import 'detail.dart';
 import 'favorite_service.dart';
 import 'homepage.dart';

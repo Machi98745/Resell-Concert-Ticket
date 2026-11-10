@@ -1,5 +1,7 @@
+
 import 'package:flutter/material.dart';
 import 'cart_service.dart';
+import 'historypage.dart';
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -13,6 +15,47 @@ class CartPage extends StatefulWidget {
 }
 
 class _CartPageState extends State<CartPage> {
+  Future<void> _checkout() async {
+    if (CartService.items.isEmpty) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Order'),
+        content: const Text(
+          'Do you want to proceed with this order?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: pink,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    CartService.createOrder();
+
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const HistoryPage(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final items = CartService.items;
@@ -28,30 +71,31 @@ class _CartPageState extends State<CartPage> {
           ),
         ),
         backgroundColor: Colors.white,
-        iconTheme: const IconThemeData(color: darkPink),
+        foregroundColor: darkPink,
+        elevation: 0,
       ),
       body: items.isEmpty
           ? const Center(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Icons.shopping_cart_outlined,
                     size: 75,
                     color: pink,
                   ),
-                  SizedBox(height: 15),
+                  SizedBox(height: 12),
                   Text(
                     'Your cart is empty',
                     style: TextStyle(
+                      fontSize: 18,
                       color: darkPink,
-                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(height: 8),
+                  SizedBox(height: 5),
                   Text(
-                    'Add your favorite concert tickets!',
+                    'Add some tickets to get started!',
                     style: TextStyle(color: Colors.grey),
                   ),
                 ],
@@ -66,95 +110,97 @@ class _CartPageState extends State<CartPage> {
                     itemBuilder: (context, index) {
                       final item = items[index];
 
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 15),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
+                      final price =
+                          double.tryParse(
+                            item['price'].toString(),
+                          ) ??
+                          0;
+
+                      return Card(
+                        color: Colors.white,
+                        elevation: 1,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
                         ),
-                        child: Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: Image.network(
-                                item['image'] ?? '',
-                                width: 85,
-                                height: 95,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) {
-                                  return Container(
-                                    width: 85,
-                                    height: 95,
-                                    color: lightPink,
-                                    child: const Icon(
-                                      Icons.music_note,
-                                      color: pink,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: item['image'] != null
+                                    ? Image.network(
+                                        item['image'].toString(),
+                                        width: 85,
+                                        height: 100,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) =>
+                                            _imagePlaceholder(),
+                                      )
+                                    : _imagePlaceholder(),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item['concertName']?.toString() ??
+                                          'Concert',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                        color: darkPink,
+                                      ),
                                     ),
-                                  );
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      'Artist: ${item['artist'] ?? '-'}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    Text(
+                                      'Seller: ${item['seller'] ?? '-'}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    Text(
+                                      'Seat: ${item['seat'] ?? '-'}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      '฿${price.toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                        color: pink,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Remove',
+                                onPressed: () {
+                                  setState(() {
+                                    CartService.removeFromCart(index);
+                                  });
                                 },
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.redAccent,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item['concertName'] ?? '',
-                                    style: const TextStyle(
-                                      color: darkPink,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 5),
-                                  Text(
-                                    'Seller: ${item['seller']}',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Seat: ${item['seat']}',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 5),
-                                  Text(
-                                    '฿${item['price']}',
-                                    style: const TextStyle(
-                                      color: pink,
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  CartService.removeFromCart(index);
-                                });
-                              },
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                color: Colors.red,
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       );
                     },
                   ),
                 ),
-
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                   decoration: const BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.vertical(
@@ -164,22 +210,21 @@ class _CartPageState extends State<CartPage> {
                   child: Column(
                     children: [
                       Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text(
                             'Total',
                             style: TextStyle(
-                              color: darkPink,
-                              fontSize: 18,
+                              fontSize: 17,
                               fontWeight: FontWeight.bold,
+                              color: darkPink,
                             ),
                           ),
                           Text(
                             '฿${CartService.totalPrice.toStringAsFixed(0)}',
                             style: const TextStyle(
+                              fontSize: 21,
                               color: pink,
-                              fontSize: 22,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -188,22 +233,23 @@ class _CartPageState extends State<CartPage> {
                       const SizedBox(height: 15),
                       SizedBox(
                         width: double.infinity,
-                        height: 48,
+                        height: 50,
                         child: ElevatedButton(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Checkout feature coming soon!',
-                                ),
-                              ),
-                            );
-                          },
+                          onPressed: _checkout,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: pink,
                             foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
-                          child: const Text('Proceed to Checkout'),
+                          child: const Text(
+                            'Proceed to Checkout',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -211,6 +257,19 @@ class _CartPageState extends State<CartPage> {
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _imagePlaceholder() {
+    return Container(
+      width: 85,
+      height: 100,
+      color: lightPink,
+      child: const Icon(
+        Icons.music_note,
+        size: 35,
+        color: pink,
+      ),
     );
   }
 }

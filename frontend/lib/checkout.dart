@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'cart_service.dart';
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -18,75 +19,24 @@ class CheckoutPage extends StatefulWidget {
 
 class _CheckoutPageState extends State<CheckoutPage> {
   final _formKey = GlobalKey<FormState>();
-  final nameController = TextEditingController();
-  final emailController = TextEditingController();
-  final phoneController = TextEditingController();
+
+  final TextEditingController nameController =
+      TextEditingController();
+
+  final TextEditingController emailController =
+      TextEditingController();
+
+  final TextEditingController phoneController =
+      TextEditingController();
 
   String paymentMethod = 'Bank Transfer';
 
   double get totalPrice {
     return widget.items.fold<double>(
       0,
-      (sum, item) => sum + ((item['price'] as num?)?.toDouble() ?? 0),
-    );
-  }
-
-  String formatPrice(dynamic price) {
-    final value = (price as num?)?.toStringAsFixed(0) ?? '0';
-    return '฿${value.replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (match) => ',',
-    )}';
-  }
-
-  void confirmPayment() {
-    if (!_formKey.currentState!.validate()) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.check_circle,
-                color: Colors.green,
-                size: 65,
-              ),
-              const SizedBox(height: 15),
-              const Text(
-                'Order Confirmed!',
-                style: TextStyle(
-                  color: darkPink,
-                  fontSize: 21,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Your order has been submitted successfully.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 18),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                  Navigator.pop(context, true);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: pink,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Done'),
-              ),
-            ],
-          ),
-        );
+      (sum, item) {
+        return sum +
+            (double.tryParse(item['price'].toString()) ?? 0);
       },
     );
   }
@@ -97,6 +47,185 @@ class _CheckoutPageState extends State<CheckoutPage> {
     emailController.dispose();
     phoneController.dispose();
     super.dispose();
+  }
+
+  void confirmPayment() {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (widget.items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Your cart is empty.'),
+        ),
+      );
+      return;
+    }
+
+    final order = CartService.createOrderFromItems(
+      widget.items,
+    );
+
+    if (order == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to create order.'),
+        ),
+      );
+      return;
+    }
+
+    order['buyerName'] = nameController.text.trim();
+    order['email'] = emailController.text.trim();
+    order['phone'] = phoneController.text.trim();
+    order['paymentMethod'] = paymentMethod;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Order Created!',
+            style: TextStyle(
+              color: pink,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: const Text(
+            'Your order has been created successfully.\n\n'
+            'Please complete your payment within 15 minutes.',
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: pink,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                Navigator.pop(context, true);
+              },
+              child: const Text('Done'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _field({
+    required String label,
+    required String hint,
+    required TextEditingController controller,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            color: darkPink,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Please enter $label';
+            }
+
+            if (label == 'Email' &&
+                !RegExp(r'^[^@]+@[^@]+\.[^@]+$')
+                    .hasMatch(value.trim())) {
+              return 'Please enter a valid email';
+            }
+
+            return null;
+          },
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixIcon: Icon(
+              icon,
+              color: pink,
+            ),
+            filled: true,
+            fillColor: lightPink,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(
+                color: Colors.red,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(
+                color: pink,
+                width: 1.5,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOrderItem(Map<String, dynamic> item) {
+    final name = item['concertName'] ??
+        item['name'] ??
+        item['concert'] ??
+        'Concert Ticket';
+
+    final price =
+        double.tryParse(item['price'].toString()) ?? 0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: lightPink,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.confirmation_number,
+            color: pink,
+            size: 30,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              name.toString(),
+              style: const TextStyle(
+                color: darkPink,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Text(
+            '฿${price.toStringAsFixed(2)}',
+            style: const TextStyle(
+              color: pink,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -114,6 +243,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         backgroundColor: Colors.white,
         foregroundColor: darkPink,
         elevation: 0,
+        centerTitle: true,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -123,177 +253,132 @@ class _CheckoutPageState extends State<CheckoutPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Order Summary',
-                style: TextStyle(
-                  fontSize: 21,
-                  color: darkPink,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 15),
-
-              ...widget.items.map((item) {
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: lightPink,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.confirmation_number,
-                        color: pink,
-                        size: 30,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item['concertName']?.toString() ?? 'Concert',
-                              style: const TextStyle(
-                                color: darkPink,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              item['seat']?.toString() ??
-                                  item['zone']?.toString() ??
-                                  'General',
-                              style: const TextStyle(color: Colors.grey),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        formatPrice(item['price']),
-                        style: const TextStyle(
-                          color: pink,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-
-              const SizedBox(height: 20),
-              const Text(
                 'Contact Information',
                 style: TextStyle(
-                  fontSize: 21,
-                  color: darkPink,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
+                  color: darkPink,
                 ),
               ),
-              const SizedBox(height: 15),
+              const SizedBox(height: 18),
 
               _field(
-                controller: nameController,
                 label: 'Full Name',
+                hint: 'Enter your full name',
+                controller: nameController,
                 icon: Icons.person_outline,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
+
               _field(
+                label: 'Email',
+                hint: 'Enter your email',
                 controller: emailController,
-                label: 'Email Address',
                 icon: Icons.email_outlined,
-                type: TextInputType.emailAddress,
-                validator: (value) {
-                  if (value == null ||
-                      !RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(value)) {
-                    return 'Please enter a valid email';
-                  }
-                  return null;
-                },
+                keyboardType: TextInputType.emailAddress,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
+
               _field(
-                controller: phoneController,
                 label: 'Phone Number',
+                hint: 'Enter your phone number',
+                controller: phoneController,
                 icon: Icons.phone_outlined,
-                type: TextInputType.phone,
-                validator: (value) {
-                  if (value == null ||
-                      !RegExp(r'^[0-9]{10}$').hasMatch(value)) {
-                    return 'Enter a 10-digit phone number';
-                  }
-                  return null;
-                },
+                keyboardType: TextInputType.phone,
               ),
 
-              const SizedBox(height: 25),
+              const SizedBox(height: 28),
+
+              const Text(
+                'Order Summary',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: darkPink,
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              if (widget.items.isEmpty)
+                const Text('No items in your cart.')
+              else
+                ...widget.items.map(_buildOrderItem),
+
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: lightPink,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisAlignment:
+                      MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Total',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: darkPink,
+                      ),
+                    ),
+                    Text(
+                      '฿${totalPrice.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: pink,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
               const Text(
                 'Payment Method',
                 style: TextStyle(
-                  fontSize: 21,
-                  color: darkPink,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
+                  color: darkPink,
                 ),
               ),
+              const SizedBox(height: 14),
+
+              _paymentOption(
+                title: 'Bank Transfer',
+                subtitle: 'Pay through bank transfer',
+                value: 'Bank Transfer',
+                icon: Icons.account_balance,
+              ),
+
               const SizedBox(height: 10),
 
-              RadioListTile<String>(
-                value: 'Bank Transfer',
-                groupValue: paymentMethod,
-                activeColor: pink,
-                title: const Text('Bank Transfer'),
-                onChanged: (value) {
-                  setState(() => paymentMethod = value!);
-                },
-              ),
-              RadioListTile<String>(
+              _paymentOption(
+                title: 'PromptPay',
+                subtitle: 'Pay using PromptPay',
                 value: 'PromptPay',
-                groupValue: paymentMethod,
-                activeColor: pink,
-                title: const Text('PromptPay'),
-                onChanged: (value) {
-                  setState(() => paymentMethod = value!);
-                },
+                icon: Icons.qr_code,
               ),
 
-              const Divider(height: 30),
+              const SizedBox(height: 30),
 
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Total',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: darkPink,
-                    ),
-                  ),
-                  Text(
-                    formatPrice(totalPrice),
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: pink,
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 25),
               SizedBox(
                 width: double.infinity,
+                height: 52,
                 child: ElevatedButton(
                   onPressed: confirmPayment,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: pink,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                   child: const Text(
-                    'Confirm Payment',
+                    'Confirm Order',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -301,6 +386,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   ),
                 ),
               ),
+
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -308,31 +395,70 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  Widget _field({
-    required TextEditingController controller,
-    required String label,
+  Widget _paymentOption({
+    required String title,
+    required String subtitle,
+    required String value,
     required IconData icon,
-    TextInputType type = TextInputType.text,
-    String? Function(String?)? validator,
   }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: type,
-      validator: validator ??
-          (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'Please enter $label';
-            }
-            return null;
-          },
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: pink),
-        filled: true,
-        fillColor: lightPink,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+    final selected = paymentMethod == value;
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          paymentMethod = value;
+        });
+      },
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: selected ? lightPink : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? pink : Colors.grey.shade300,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: pink, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: darkPink,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Radio<String>(
+              value: value,
+              groupValue: paymentMethod,
+              activeColor: pink,
+              onChanged: (newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    paymentMethod = newValue;
+                  });
+                }
+              },
+            ),
+          ],
         ),
       ),
     );

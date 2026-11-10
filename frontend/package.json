@@ -13,5 +13,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs"
+  "type": "commonjs",
+  "dependencies": {
+    "@node-rs/argon2": "^2.2.2",
+    "json-server": "^1.0.0-beta.15"
+  }
 }

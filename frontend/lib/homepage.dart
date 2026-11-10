@@ -1,7 +1,5 @@
-
 import 'dart:async';
 import 'package:flutter/material.dart';
-
 import 'detail.dart';
 import 'cart.dart';
 import 'cart_service.dart';
@@ -46,18 +44,28 @@ class _HomePageState extends State<HomePage> {
       'description': 'Experience an unforgettable night with BLACKPINK.',
       'tickets': [
         {
-          'seller': 'PinkSeller',
+          'seller': 'LisaFan',
           'zone': 'VIP Zone',
           'price': 6500,
           'condition': 'Available',
           'status': 'available',
+          'seats': ['VIP-A1', 'VIP-A2', 'VIP-A3'],
         },
         {
-          'seller': 'LisaFan',
-          'zone': 'Standing Zone',
-          'price': 4200,
+          'seller': 'LisaFan2',
+          'zone': 'Premium Zone',
+          'price': 4800,
           'condition': 'Available',
           'status': 'available',
+          'seats': ['P-A1', 'P-A2', 'P-A3'],
+        },
+        {
+          'seller': 'LisaFan3',
+          'zone': 'Standard Zone',
+          'price': 3200,
+          'condition': 'Available',
+          'status': 'available',
+          'seats': ['S-A1', 'S-A2', 'S-A3'],
         },
       ],
     },
@@ -171,14 +179,16 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  // แสดงเฉพาะคอนเสิร์ตที่ยังไม่ผ่านวันจัดงาน
+  // ==========================================
+  // CONCERT LIST
+  // ==========================================
+
   List<Map<String, dynamic>> get upcomingConcerts {
     return concerts.where((concert) {
       return !CartService.isConcertFinished(concert);
     }).toList();
   }
 
-  // ค้นหาและกรองหมวดหมู่
   List<Map<String, dynamic>> get filteredConcerts {
     final searchText = searchController.text.toLowerCase();
 
@@ -188,8 +198,7 @@ class _HomePageState extends State<HomePage> {
           concert['artist'].toString().toLowerCase().contains(searchText);
 
       final matchesCategory =
-          selectedCategory == 'All' ||
-          concert['category'] == selectedCategory;
+          selectedCategory == 'All' || concert['category'] == selectedCategory;
 
       return matchesSearch && matchesCategory;
     }).toList();
@@ -198,9 +207,7 @@ class _HomePageState extends State<HomePage> {
   void openDetail(Map<String, dynamic> concert) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => DetailPage(concert: concert),
-      ),
+      MaterialPageRoute(builder: (_) => DetailPage(concert: concert)),
     ).then((_) {
       if (mounted) setState(() {});
     });
@@ -209,9 +216,7 @@ class _HomePageState extends State<HomePage> {
   void openCart() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const CartPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const CartPage()),
     ).then((_) {
       if (mounted) setState(() {});
     });
@@ -220,17 +225,13 @@ class _HomePageState extends State<HomePage> {
   void openProfile() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const ProfilePage(),
-      ),
+      MaterialPageRoute(builder: (_) => const ProfilePage()),
     );
   }
 
   void openSellTickets() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Selling feature coming soon!'),
-      ),
+      const SnackBar(content: Text('Selling feature coming soon!')),
     );
   }
 
@@ -267,12 +268,7 @@ class _HomePageState extends State<HomePage> {
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
 
-        // กลับไปหน้า Login
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/',
-          (route) => false,
-        );
+        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
       },
       child: Scaffold(
         backgroundColor: Colors.white,
@@ -305,7 +301,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Header
+  // ==========================================
+  // HEADER
+  // ==========================================
+
   Widget _buildHeader() {
     final isMobile = MediaQuery.of(context).size.width <= 600;
 
@@ -371,10 +370,7 @@ class _HomePageState extends State<HomePage> {
               IconButton(
                 onPressed: openCart,
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(
-                  minWidth: 38,
-                  minHeight: 40,
-                ),
+                constraints: const BoxConstraints(minWidth: 38, minHeight: 40),
                 icon: Icon(
                   Icons.shopping_bag_outlined,
                   color: darkPink,
@@ -406,10 +402,7 @@ class _HomePageState extends State<HomePage> {
           IconButton(
             onPressed: openProfile,
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(
-              minWidth: 38,
-              minHeight: 40,
-            ),
+            constraints: const BoxConstraints(minWidth: 38, minHeight: 40),
             tooltip: 'My Profile',
             icon: Icon(
               Icons.account_circle_outlined,
@@ -433,7 +426,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Banner: ปุ่มลูกศรแสดงเมื่อเอาเมาส์วางบน Banner เท่านั้น
+  // ==========================================
+  // BANNER
+  // ==========================================
+
   Widget _buildBanner() {
     final featured = upcomingConcerts.first;
     final images = featured['images'] as List;
@@ -495,8 +491,6 @@ class _HomePageState extends State<HomePage> {
                     );
                   },
                 ),
-
-                // Dark gradient
                 IgnorePointer(
                   child: Container(
                     decoration: BoxDecoration(
@@ -511,8 +505,6 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
-
-                // Banner information
                 Positioned(
                   left: 35,
                   top: 0,
@@ -529,19 +521,19 @@ class _HomePageState extends State<HomePage> {
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: concertStatus == 'sold out'
+                            color: concertStatus == 'Sold Out'
                                 ? Colors.red
-                                : concertStatus == 'no tickets'
-                                    ? Colors.orange
-                                    : pink,
+                                : concertStatus == 'No Tickets'
+                                ? Colors.orange
+                                : pink,
                             borderRadius: BorderRadius.circular(25),
                           ),
                           child: Text(
-                            concertStatus == 'sold out'
+                            concertStatus == 'Sold Out'
                                 ? 'SOLD OUT'
-                                : concertStatus == 'no tickets'
-                                    ? 'ยังไม่มีบัตร'
-                                    : 'FEATURED EVENT',
+                                : concertStatus == 'No Tickets'
+                                ? 'NO TICKETS'
+                                : 'FEATURED EVENT',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 13,
@@ -581,8 +573,9 @@ class _HomePageState extends State<HomePage> {
                         ),
                         const SizedBox(height: 20),
                         ElevatedButton(
-                          onPressed: concertStatus == 'sold out' ||
-                                  concertStatus == 'no tickets'
+                          onPressed:
+                              concertStatus == 'Sold Out' ||
+                                  concertStatus == 'No Tickets'
                               ? null
                               : () => openDetail(featured),
                           style: ElevatedButton.styleFrom(
@@ -602,8 +595,6 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
-
-                // Banner controls
                 if (showBannerControls) ...[
                   Positioned(
                     left: 8,
@@ -628,8 +619,6 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ],
-
-                // Slide indicator
                 Positioned(
                   bottom: 20,
                   left: 0,
@@ -671,16 +660,15 @@ class _HomePageState extends State<HomePage> {
       ),
       child: IconButton(
         onPressed: onPressed,
-        icon: Icon(
-          icon,
-          color: Colors.white,
-          size: 40,
-        ),
+        icon: Icon(icon, color: Colors.white, size: 40),
       ),
     );
   }
 
-  // Search
+  // ==========================================
+  // SEARCH
+  // ==========================================
+
   Widget _buildSearch() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 25),
@@ -702,7 +690,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Categories
+  // ==========================================
+  // CATEGORIES
+  // ==========================================
+
   Widget _buildCategories() {
     const categories = ['All', 'K-Pop', 'Pop'];
 
@@ -734,9 +725,12 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Concert section
+  // ==========================================
+  // CONCERT SECTION
+  // ==========================================
+
   Widget _buildConcertSection() {
-    final items = filteredConcerts;
+    final concertList = filteredConcerts;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -754,13 +748,10 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 6),
           const Text(
             'Find your favorite concert tickets',
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 14,
-            ),
+            style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
           const SizedBox(height: 22),
-          if (items.isEmpty)
+          if (concertList.isEmpty)
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(30),
@@ -781,16 +772,15 @@ class _HomePageState extends State<HomePage> {
                 return GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: items.length,
-                  gridDelegate:
-                      SliverGridDelegateWithFixedCrossAxisCount(
+                  itemCount: concertList.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: columns,
                     crossAxisSpacing: 20,
                     mainAxisSpacing: 20,
-                    childAspectRatio: 0.72,
+                    childAspectRatio: 0.65,
                   ),
                   itemBuilder: (context, index) {
-                    return _buildConcertCard(items[index]);
+                    return _buildConcertCard(concertList[index]);
                   },
                 );
               },
@@ -800,24 +790,27 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Concert card
+  // ==========================================
+  // CONCERT CARD
+  // ==========================================
+
   Widget _buildConcertCard(Map<String, dynamic> concert) {
     final concertStatus = CartService.getConcertStatus(concert);
 
-    final soldOut = concertStatus == 'sold out';
-    final noTickets = concertStatus == 'no tickets';
+    final soldOut = concertStatus == 'Sold Out';
+    final noTickets = concertStatus == 'No Tickets';
 
     final statusText = soldOut
         ? 'SOLD OUT'
         : noTickets
-            ? 'ยังไม่มีบัตร'
-            : 'AVAILABLE';
+        ? 'NO TICKETS'
+        : 'AVAILABLE';
 
     final statusColor = soldOut
         ? Colors.red
         : noTickets
-            ? Colors.orange
-            : Colors.green;
+        ? Colors.orange
+        : Colors.green;
 
     return GestureDetector(
       onTap: () => openDetail(concert),
@@ -865,8 +858,6 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
-
-                  // Status label
                   Positioned(
                     top: 12,
                     left: 12,
@@ -893,7 +884,7 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             Expanded(
-              flex: 4,
+              flex: 5,
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
@@ -909,7 +900,7 @@ class _HomePageState extends State<HomePage> {
                         color: darkPink,
                       ),
                     ),
-                    const SizedBox(height: 7),
+                    const SizedBox(height: 6),
                     Text(
                       concert['artist'].toString(),
                       style: const TextStyle(
@@ -918,19 +909,35 @@ class _HomePageState extends State<HomePage> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(
-                          Icons.calendar_month,
-                          size: 13,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(width: 5),
+                        const Icon(Icons.calendar_month, size: 15, color: pink),
+                        const SizedBox(width: 7),
                         Expanded(
                           child: Text(
-                            concert['date'].toString(),
-                            maxLines: 1,
+                            concert['date']?.toString() ?? 'Date TBA',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.location_on, size: 15, color: pink),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text(
+                            concert['location']?.toString() ?? 'Venue TBA',
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 11,
@@ -946,14 +953,10 @@ class _HomePageState extends State<HomePage> {
                       child: ElevatedButton(
                         onPressed: () => openDetail(concert),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: soldOut
-                              ? Colors.grey
-                              : pink,
+                          backgroundColor: soldOut ? Colors.grey : pink,
                           foregroundColor: Colors.white,
                           elevation: 0,
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 10,
-                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -976,7 +979,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Footer
+  // ==========================================
+  // FOOTER
+  // ==========================================
+
   Widget _buildFooter() {
     return Container(
       width: double.infinity,
@@ -995,18 +1001,12 @@ class _HomePageState extends State<HomePage> {
           SizedBox(height: 10),
           Text(
             'Your favorite place for concert tickets.',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: Colors.white70, fontSize: 13),
           ),
           SizedBox(height: 15),
           Text(
             '© 2026 Ticket Pink. All rights reserved.',
-            style: TextStyle(
-              color: Colors.white54,
-              fontSize: 11,
-            ),
+            style: TextStyle(color: Colors.white54, fontSize: 11),
           ),
         ],
       ),

@@ -1,4 +1,5 @@
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'cart_service.dart';
 
@@ -13,60 +14,305 @@ class HistoryPage extends StatefulWidget {
   State<HistoryPage> createState() => _HistoryPageState();
 }
 
-class _HistoryPageState extends State<HistoryPage> {
+class _HistoryPageState extends State<HistoryPage>
+    with SingleTickerProviderStateMixin {
+  late TabController tabController;
+  Timer? refreshTimer;
+
+  final List<String> statuses = [
+    'To Pay',
+    'To Ship',
+    'To Receive',
+    'Completed',
+    'Cancelled',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+
+    tabController = TabController(
+      length: statuses.length,
+      vsync: this,
+    );
+
+    // อัปเดตเวลานับถอยหลังทุก 1 วินาที
+    refreshTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) {
+        if (!mounted) return;
+
+        CartService.refreshExpiredOrders();
+        setState(() {});
+      },
+    );
+
+    CartService.refreshExpiredOrders();
+  }
+
+  @override
+  void dispose() {
+    refreshTimer?.cancel();
+    tabController.dispose();
+    super.dispose();
+  }
+
+  void refreshPage() {
+    CartService.refreshExpiredOrders();
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  String formatDate(dynamic value) {
+    if (value == null) return '-';
+
+    DateTime? date;
+
+    if (value is DateTime) {
+      date = value;
+    } else {
+      date = DateTime.tryParse(value.toString());
+    }
+
+    if (date == null) return '-';
+
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year} '
+        '${date.hour.toString().padLeft(2, '0')}:'
+        '${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  String money(dynamic value) {
+    final price = double.tryParse(value.toString()) ?? 0;
+    return '฿${price.toStringAsFixed(0)}';
+  }
+
+  List<Map<String, dynamic>> ordersFor(String status) {
+    return CartService.getOrdersByStatus(status);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final tickets = CartService.history.reversed.toList();
-
     return Scaffold(
       backgroundColor: lightPink,
       appBar: AppBar(
-        backgroundColor: pink,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: darkPink,
         elevation: 0,
         title: const Text(
-          'Ticket History',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          'My Orders',
+          style: TextStyle(
+            color: darkPink,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        bottom: TabBar(
+          controller: tabController,
+          isScrollable: true,
+          labelColor: pink,
+          unselectedLabelColor: Colors.grey,
+          indicatorColor: pink,
+          indicatorWeight: 3,
+          tabs: const [
+            Tab(text: 'To Pay'),
+            Tab(text: 'To Ship'),
+            Tab(text: 'To Receive'),
+            Tab(text: 'Completed'),
+            Tab(text: 'Cancelled'),
+          ],
         ),
       ),
-      body: tickets.isEmpty
-          ? _buildEmptyState()
-          : ListView.builder(
-              padding: const EdgeInsets.all(20),
-              itemCount: tickets.length,
-              itemBuilder: (context, index) {
-                return _buildTicketCard(tickets[index]);
-              },
-            ),
+      body: TabBarView(
+        controller: tabController,
+        children: statuses.map((status) {
+          return _buildOrderList(status);
+        }).toList(),
+      ),
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(30),
+  Widget _buildOrderList(String status) {
+    final orders = ordersFor(status);
+
+    if (orders.isEmpty) {
+      return Center(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.confirmation_number_outlined,
-              size: 75,
-              color: pink.withOpacity(0.6),
+              Icons.receipt_long_outlined,
+              size: 65,
+              color: pink.withOpacity(0.5),
             ),
             const SizedBox(height: 15),
-            const Text(
-              'No Ticket History',
-              style: TextStyle(
+            Text(
+              'No $status orders',
+              style: const TextStyle(
                 color: darkPink,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 5),
             const Text(
-              'Your purchased tickets will appear here.',
-              textAlign: TextAlign.center,
+              'Your orders will appear here.',
               style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: pink,
+      onRefresh: () async {
+        refreshPage();
+      },
+      child: ListView.builder(
+        padding: const EdgeInsets.all(15),
+        itemCount: orders.length,
+        itemBuilder: (context, index) {
+          return _buildOrderCard(orders[index]);
+        },
+      ),
+    );
+  }
+
+  Widget _buildOrderCard(Map<String, dynamic> order) {
+    final status = order['status']?.toString() ?? '';
+    final orderItems = order['items'] is List
+        ? order['items'] as List
+        : [];
+
+    final statusColor = _statusColor(status);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(15),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Order ID and status
+            Row(
+              children: [
+                const Icon(
+                  Icons.receipt_long,
+                  color: pink,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    order['orderId']?.toString() ?? 'Order',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: darkPink,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                Text(
+                  status,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+
+            const Divider(height: 25),
+
+            // Order items
+            ...orderItems.map((item) {
+              final ticket = Map<String, dynamic>.from(item);
+
+              return _buildTicketItem(ticket);
+            }),
+
+            const Divider(height: 25),
+
+            // Order date
+            _infoRow(
+              Icons.calendar_month,
+              'Order date',
+              formatDate(order['orderDate']),
+            ),
+
+            const SizedBox(height: 8),
+
+            // Total price
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Total payment',
+                  style: TextStyle(
+                    color: darkPink,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  money(order['totalPrice'] ?? 0),
+                  style: const TextStyle(
+                    color: pink,
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 15),
+
+            // Payment countdown
+            if (status == 'To Pay')
+              _buildPaymentCountdown(order),
+
+            // Tracking information
+            if (status == 'To Ship' ||
+                status == 'To Receive' ||
+                status == 'Completed')
+              _buildTrackingInfo(order),
+
+            const SizedBox(height: 15),
+
+            // Action buttons
+            _buildActionButtons(order),
+
+            const SizedBox(height: 5),
+
+            // Order details
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => _showOrderDetails(order),
+                icon: const Icon(
+                  Icons.visibility_outlined,
+                  size: 17,
+                ),
+                label: const Text('Order Details'),
+                style: TextButton.styleFrom(
+                  foregroundColor: darkPink,
+                ),
+              ),
             ),
           ],
         ),
@@ -74,129 +320,70 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _buildTicketCard(Map<String, dynamic> ticket) {
-    final price = (ticket['price'] as num?)?.toDouble() ?? 0;
-    final purchaseDate = ticket['purchaseDate'];
+  Widget _buildTicketItem(Map<String, dynamic> ticket) {
+    final concertName = ticket['concertName'] ??
+        ticket['name'] ??
+        ticket['concert'] ??
+        'Concert Ticket';
 
-    String formattedPurchaseDate = 'Unknown date';
+    final artist = ticket['artist'] ?? '';
+    final zone = ticket['zone'] ?? 'General Zone';
+    final price = ticket['price'] ?? 0;
 
-    if (purchaseDate is DateTime) {
-      formattedPurchaseDate =
-          '${purchaseDate.day}/${purchaseDate.month}/${purchaseDate.year}';
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(18),
+          Container(
+            width: 55,
+            height: 55,
+            decoration: BoxDecoration(
+              color: lightPink,
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Image.network(
-              ticket['image']?.toString() ?? '',
-              height: 160,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                height: 160,
-                color: lightPink,
-                child: const Icon(
-                  Icons.music_note,
-                  size: 50,
-                  color: pink,
-                ),
-              ),
+            child: const Icon(
+              Icons.confirmation_number_outlined,
+              color: pink,
+              size: 28,
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(16),
+          const SizedBox(width: 12),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        ticket['concertName']?.toString() ?? 'Concert',
-                        style: const TextStyle(
-                          color: darkPink,
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8F5E9),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'PURCHASED',
-                        style: TextStyle(
-                          color: Colors.green,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
                 Text(
-                  ticket['artist']?.toString() ?? '',
+                  concertName.toString(),
                   style: const TextStyle(
-                    color: pink,
-                    fontWeight: FontWeight.w600,
+                    color: darkPink,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
                   ),
                 ),
-                const Divider(height: 25),
-                _detailRow(Icons.calendar_today_outlined, 'Concert Date',
-                    ticket['date']?.toString() ?? '-'),
-                _detailRow(Icons.location_on_outlined, 'Location',
-                    ticket['location']?.toString() ?? '-'),
-                _detailRow(Icons.event_seat_outlined, 'Seat / Zone',
-                    ticket['seat']?.toString() ?? '-'),
-                _detailRow(Icons.shopping_bag_outlined, 'Purchased On',
-                    formattedPurchaseDate),
-                const Divider(height: 25),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Total Price',
-                      style: TextStyle(
-                        color: darkPink,
-                        fontWeight: FontWeight.bold,
-                      ),
+                if (artist.toString().isNotEmpty)
+                  Text(
+                    artist.toString(),
+                    style: const TextStyle(
+                      color: pink,
+                      fontSize: 12,
                     ),
-                    Text(
-                      '฿${price.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        color: pink,
-                        fontSize: 19,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+                  ),
+                Text(
+                  zone.toString(),
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                  ),
                 ),
               ],
+            ),
+          ),
+          Text(
+            money(price),
+            style: const TextStyle(
+              color: darkPink,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],
@@ -204,29 +391,431 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _detailRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
+  Widget _buildPaymentCountdown(
+    Map<String, dynamic> order,
+  ) {
+    final remaining =
+        CartService.remainingPaymentTime(order);
+
+    final expired = remaining <= Duration.zero;
+
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: expired
+            ? Colors.red.shade50
+            : const Color(0xFFFFF2E8),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: pink),
-          const SizedBox(width: 10),
-          Text(
-            '$label: ',
-            style: const TextStyle(color: Colors.grey, fontSize: 13),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: darkPink,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+          Row(
+            children: [
+              Icon(
+                Icons.timer_outlined,
+                color: expired ? Colors.red : Colors.orange,
               ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Payment countdown',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: darkPink,
+                  ),
+                ),
+              ),
+              Text(
+                CartService.formatRemainingTime(order),
+                style: TextStyle(
+                  color: expired ? Colors.red : Colors.deepOrange,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            expired
+                ? 'Payment time has expired.'
+                : 'Please complete payment within 15 minutes.',
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 12,
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTrackingInfo(
+    Map<String, dynamic> order,
+  ) {
+    final trackingNumber =
+        order['trackingNumber']?.toString();
+
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: lightPink,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Order tracking',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: darkPink,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            order['shippingStatus']?.toString() ?? '',
+            style: const TextStyle(
+              color: pink,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (trackingNumber != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Text(
+                'Tracking number: $trackingNumber',
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          const SizedBox(height: 10),
+          _buildTimeline(order),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimeline(Map<String, dynamic> order) {
+    final timeline = order['timeline'];
+
+    if (timeline is! List || timeline.isEmpty) {
+      return const Text(
+        'No tracking updates yet.',
+        style: TextStyle(color: Colors.grey),
+      );
+    }
+
+    return Column(
+      children: timeline.map<Widget>((event) {
+        final data = Map<String, dynamic>.from(event);
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.check_circle,
+                size: 17,
+                color: pink,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      data['message']?.toString() ?? '',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: darkPink,
+                      ),
+                    ),
+                    Text(
+                      formatDate(data['date']),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildActionButtons(
+    Map<String, dynamic> order,
+  ) {
+    final status = order['status'];
+
+    if (status == 'To Pay') {
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () => _cancelOrder(order),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+              ),
+              child: const Text('Cancel Order'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () => _payOrder(order),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: pink,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Pay Now'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (status == 'To Ship') {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () => _simulateShipping(order),
+          icon: const Icon(Icons.local_shipping_outlined),
+          label: const Text('Update Shipping (Demo)'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: pink,
+            foregroundColor: Colors.white,
+          ),
+        ),
+      );
+    }
+
+    if (status == 'To Receive') {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: () => _confirmReceived(order),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: pink,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Confirm Received'),
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  Widget _infoRow(
+    IconData icon,
+    String title,
+    String value,
+  ) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.grey),
+        const SizedBox(width: 8),
+        Text(
+          '$title: ',
+          style: const TextStyle(
+            color: Colors.grey,
+            fontSize: 12,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              color: darkPink,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'To Pay':
+        return Colors.orange;
+      case 'To Ship':
+        return Colors.blue;
+      case 'To Receive':
+        return Colors.deepPurple;
+      case 'Completed':
+        return Colors.green;
+      case 'Cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  void _payOrder(Map<String, dynamic> order) {
+    final success = CartService.payOrder(order);
+
+    refreshPage();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? 'Payment successful!'
+              : 'Payment failed or payment time expired.',
+        ),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
+  }
+
+  void _cancelOrder(Map<String, dynamic> order) {
+    final success = CartService.cancelOrder(order);
+
+    refreshPage();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? 'Order cancelled.'
+              : 'Unable to cancel this order.',
+        ),
+      ),
+    );
+  }
+
+  void _simulateShipping(Map<String, dynamic> order) {
+    final success = CartService.shipOrder(order);
+
+    refreshPage();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? 'Ticket shipped successfully.'
+              : 'Unable to update shipping.',
+        ),
+      ),
+    );
+  }
+
+  void _confirmReceived(Map<String, dynamic> order) {
+    final success = CartService.confirmReceived(order);
+
+    refreshPage();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? 'Order completed successfully!'
+              : 'Unable to confirm this order.',
+        ),
+      ),
+    );
+  }
+
+  void _showOrderDetails(Map<String, dynamic> order) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(22),
+        ),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Center(
+                    child: Text(
+                      'Order Details',
+                      style: TextStyle(
+                        color: darkPink,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  _infoRow(
+                    Icons.receipt,
+                    'Order ID',
+                    order['orderId']?.toString() ?? '-',
+                  ),
+                  const SizedBox(height: 12),
+                  _infoRow(
+                    Icons.calendar_month,
+                    'Order date',
+                    formatDate(order['orderDate']),
+                  ),
+                  const SizedBox(height: 12),
+                  _infoRow(
+                    Icons.payment,
+                    'Payment status',
+                    order['paymentStatus']?.toString() ?? '-',
+                  ),
+                  const SizedBox(height: 12),
+                  _infoRow(
+                    Icons.local_shipping,
+                    'Shipping status',
+                    order['shippingStatus']?.toString() ?? '-',
+                  ),
+                  const SizedBox(height: 12),
+                  _infoRow(
+                    Icons.attach_money,
+                    'Total',
+                    money(order['totalPrice'] ?? 0),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Order timeline',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: darkPink,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildTimeline(order),
+                  const SizedBox(height: 15),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: pink,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Close'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
