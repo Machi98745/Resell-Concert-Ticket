@@ -286,7 +286,7 @@ app.post('/api/payments/checkout', verifyToken, async (req, res) => {
 
   if (!listing_id || !payment_method || !delivery_method || !shipping_info) {
     return res.status(400).json({
-      message: 'กรุณาระบุข้อมูลให้ครบ: listing_id, payment_method, delivery_method (delivery/meetup), และ shipping_info (ที่อยู่หรือจุดนัดรับ)'
+      message: 'Please provide the following complete information: listing_id, payment_method, delivery_method (delivery/meetup), and shipping_info (address or meeting point).'
     });
   }
 
@@ -315,7 +315,7 @@ app.post('/api/payments/checkout', verifyToken, async (req, res) => {
     ]);
 
     res.status(201).json({
-      message: 'สร้างรายการสั่งซื้อสำเร็จ กรุณาชำระเงินภายใน 15 นาที',
+      message: 'Order created successfully. Please complete the payment within 15 minutes.',
       payment_id: result.insertId,
       delivery_method,
       shipping_info,
@@ -345,7 +345,7 @@ app.post('/api/payments/:id/confirm', verifyToken, async (req, res) => {
     if (payment.is_expired || payment.status === 'expired') {
       await db.query("UPDATE payments SET status = 'expired' WHERE payment_id = ?", [id]);
       return res.status(400).json({
-        message: 'Payment timeout: หมดเวลาชำระเงิน (เกิน 15 นาที) กรุณาทำรายการใหม่'
+        message: 'Payment timeout: Payment time expired (exceeded 15 minutes). Please create a new order.'
       });
     }
 
