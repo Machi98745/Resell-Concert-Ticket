@@ -10,6 +10,7 @@ const resellController = require('./controllers/resellController');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_KEY = process.env.JWT_SECRET || 'thisisthesecretforjwt_concert_app';
+const PAYMENT_TIMEOUT_MINUTES = 15;
 
 app.use(cors());
 app.use(express.json());
@@ -32,6 +33,20 @@ const verifyToken = (req, res, next) => {
   } catch (err) {
     return res.status(403).json({ message: 'Invalid or expired token.' });
   }
+};
+
+// Middleware แบบ Optional (ถ้าส่ง Token มาจะถอดรหัสให้ ถ้าไม่ส่งก็ผ่านไปเช็ก body ต่อ)
+const optionalVerifyToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (token) {
+    try {
+      req.user = jwt.verify(token, JWT_KEY);
+    } catch (_) {
+      // ignore invalid optional token
+    }
+  }
+  next();
 };
 
 const authorizeRoles = (...allowedRoles) => {
@@ -147,7 +162,38 @@ app.get('/api/auth/me', verifyToken, async (req, res) => {
     if (rows.length === 0) {
       return res.status(404).json({ message: 'User not found' });
     }
+    if (rows[0].is_active === 0) {
+      return res.status(403).json({ message: 'Account disabled: Your account has been suspended.' });
+    }
     res.status(200).json({ message: 'Token is valid', user: rows[0] });
+  } catch (err) {
+    res.status(500).json({ message: 'Database error', error: err.message });
+  }
+});
+
+// รีเซ็ตรหัสผ่านด้วย Email และเบอร์โทรศัพท์ (รองรับ AuthController.resetPassword ของ Frontend)
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { email, phone, new_password } = req.body;
+  if (!email || !phone || !new_password) {
+    return res.status(400).json({ message: 'Please provide email, phone, and new_password' });
+  }
+
+  try {
+    const [users] = await db.query(
+      'SELECT user_id FROM users WHERE email = ? AND phone = ?',
+      [email.trim(), phone.trim()]
+    );
+    if (users.length === 0) {
+      return res.status(404).json({ message: 'No matching account found for this email and phone number' });
+    }
+
+    const password_hash = await argon2.hash(new_password);
+    await db.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [
+      password_hash,
+      users[0].user_id
+    ]);
+
+    res.status(200).json({ message: 'Password reset successfully' });
   } catch (err) {
     res.status(500).json({ message: 'Database error', error: err.message });
   }
@@ -258,7 +304,7 @@ app.get('/api/concerts/:id', async (req, res) => {
 // ==========================================
 // 4. RESELL MODULE (เชื่อมงานของ 6731501049)
 // ==========================================
-app.use('/api/resell', resellRoutes);
+app.use('/api/resell', optionalVerifyToken, resellRoutes);
 app.get('/api/user/my-tickets', verifyToken, resellController.getMyTickets);
 
 // API สำหรับเสก/เพิ่มตั๋วเข้าตัว User (ไว้ใช้ตอนเทสระบบ)
@@ -288,7 +334,11 @@ app.post('/api/payments/checkout', verifyToken, async (req, res) => {
     return res.status(400).json({ message: 'listing_id and payment_method are required' });
   }
 
-  const finalDeliveryMethod = delivery_method === 'meetup' ? 'meetup' : 'delivery';
+  const finalDeliveryMethod = delivery_method || 'delivery';
+  if (finalDeliveryMethod !== 'delivery' && finalDeliveryMethod !== 'meetup') {
+    return res.status(400).json({ message: 'Invalid delivery_method (must be delivery or meetup)' });
+  }
+
   if (!shipping_info || shipping_info.trim() === '') {
     return res.status(400).json({
       message: finalDeliveryMethod === 'meetup'
@@ -319,8 +369,8 @@ app.post('/api/payments/checkout', verifyToken, async (req, res) => {
     // 3. บันทึกรายการรอชำระเงิน พร้อมกำหนดเวลาหมดอายุ 15 นาที
     const [result] = await db.query(
       `INSERT INTO payments (listing_id, buyer_id, amount, payment_method, delivery_method, shipping_info, status, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'pending', DATE_ADD(NOW(), INTERVAL 15 MINUTE))`,
-      [listing_id, buyer_id, amount, payment_method, finalDeliveryMethod, shipping_info.trim()]
+       VALUES (?, ?, ?, ?, ?, ?, 'pending', DATE_ADD(NOW(), INTERVAL ? MINUTE))`,
+      [listing_id, buyer_id, amount, payment_method, finalDeliveryMethod, shipping_info.trim(), PAYMENT_TIMEOUT_MINUTES]
     );
 
     const [newPayment] = await db.query(
@@ -329,7 +379,7 @@ app.post('/api/payments/checkout', verifyToken, async (req, res) => {
     );
 
     res.status(201).json({
-      message: 'Payment created successfully. Please complete the payment within 15 minutes.',
+      message: `Payment created successfully. Please complete the payment within ${PAYMENT_TIMEOUT_MINUTES} minutes.`,
       payment: newPayment[0]
     });
   } catch (err) {
@@ -368,18 +418,25 @@ app.post('/api/payments/:id/confirm', verifyToken, async (req, res) => {
     if (timeCheck[0].is_expired) {
       await db.query("UPDATE payments SET status = 'expired' WHERE payment_id = ?", [id]);
       return res.status(400).json({
-        message: 'Payment expired ( exceeded the payment time of 15 minutes. Please create a new request)'
+        message: `Payment expired (exceeded the payment time of ${PAYMENT_TIMEOUT_MINUTES} minutes. Please create a new request)`
       });
     }
 
-    // 4. ถ้ายังไม่หมดเวลา -> อัปเดตสถานะจ่ายเงินสำเร็จ + เปลี่ยนตั๋วเป็น sold + โอนตั๋วให้ผู้ซื้อ
+    // 4. [Sprint 3 Business Logic] ตรวจสอบว่าประกาศขายใบนี้ยังเป็น 'available' อยู่หรือไม่
+    const [listings] = await db.query(
+      "SELECT status, ticket_id FROM resell_listings WHERE listing_id = ? AND status = 'available'",
+      [payment.listing_id]
+    );
+    if (listings.length === 0) {
+      return res.status(400).json({ message: 'This ticket has already been sold to another buyer' });
+    }
+
+    // 5. อัปเดตสถานะจ่ายเงินสำเร็จ + เปลี่ยนตั๋วเป็น sold + โอนตั๋วให้ผู้ซื้อ
     await db.query("UPDATE payments SET status = 'completed' WHERE payment_id = ?", [id]);
     await db.query("UPDATE resell_listings SET status = 'sold' WHERE listing_id = ?", [payment.listing_id]);
     await db.query(
-      `UPDATE tickets 
-       SET user_id = ? 
-       WHERE ticket_id = (SELECT ticket_id FROM resell_listings WHERE listing_id = ?)`,
-      [payment.buyer_id, payment.listing_id]
+      'UPDATE tickets SET user_id = ? WHERE ticket_id = ?',
+      [payment.buyer_id, listings[0].ticket_id]
     );
 
     res.json({ message: 'Payment successful and ticket ownership transferred to the buyer.' });

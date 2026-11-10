@@ -34,7 +34,7 @@ class AuthController {
       }
     } catch (e) {
       debugPrint('AuthController.login error: $e');
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw Exception(_cleanErrorMessage(e));
     }
   }
 
@@ -77,7 +77,7 @@ class AuthController {
       }
     } catch (e) {
       debugPrint('AuthController.register error: $e');
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw Exception(_cleanErrorMessage(e));
     }
   }
 
@@ -103,25 +103,29 @@ class AuthController {
       }
     } catch (e) {
       debugPrint('AuthController.getMe error: $e');
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw Exception(_cleanErrorMessage(e));
     }
   }
 
   // ==========================================================================
-  // 4. ฟังก์ชันรีเซ็ตรหัสผ่าน (Reset Password)
+  // 4. ฟังก์ชันรีเซ็ตรหัสผ่าน (POST /api/auth/reset-password)
   // ==========================================================================
   Future<void> resetPassword({
     required String email,
     required String phone,
     required String newPassword,
   }) async {
+    if (email.trim().isEmpty || phone.trim().isEmpty || newPassword.isEmpty) {
+      throw Exception('Please provide email, phone number, and new password.');
+    }
+
     try {
       final response = await http.post(
         Uri.parse('$baseURL/reset-password'),
         headers: {'Content-Type': 'application/json; charset=UTF-8'},
         body: jsonEncode({
-          'email': email,
-          'phone': phone,
+          'email': email.trim(),
+          'phone': phone.trim(),
           'new_password': newPassword,
         }),
       );
@@ -132,7 +136,17 @@ class AuthController {
       }
     } catch (e) {
       debugPrint('AuthController.resetPassword error: $e');
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw Exception(_cleanErrorMessage(e));
     }
+  }
+
+  String _cleanErrorMessage(Object error) {
+    final msg = error.toString().replaceAll('Exception: ', '').trim();
+    if (msg.contains('SocketException') ||
+        msg.contains('Failed host lookup') ||
+        msg.contains('ClientException')) {
+      return 'Unable to connect to the server. Please check the Backend service.';
+    }
+    return msg;
   }
 }

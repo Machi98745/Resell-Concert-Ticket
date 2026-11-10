@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 class ResellController {
   // ใช้ localhost:3000 สำหรับ Web / Windows Desktop (หากรันบน Android Emulator เปลี่ยนเป็น 10.0.2.2:3000)
   static const String baseUrl = 'http://localhost:3000/api';
+  static const double maxResellPrice = 1000000;
 
   // ==========================================================================
   // 1. Business Logic: ตรวจสอบความถูกต้องของราคาฝากขาย (Validation)
@@ -27,9 +28,13 @@ class ResellController {
       return 'The selling price must be greater than 0 THB';
     }
 
-    // ป้องกันการตั้งราคาสูงเกินเพดานผิดปกติ (เช่น เกิน 1,000,000 บาท)
-    if (parsedPrice > 1000000) {
+    if (parsedPrice > maxResellPrice) {
       return 'The selling price is too high';
+    }
+
+    // ถ้าระบุราคาหน้าบัตรเดิมมา ป้องกันการตั้งราคาสูงเกิน 5 เท่าของราคาหน้าบัตร
+    if (originalPrice != null && originalPrice > 0 && parsedPrice > originalPrice * 5) {
+      return 'The selling price exceeds the maximum allowed markup';
     }
 
     return null; // ผ่านการตรวจสอบ
@@ -38,11 +43,22 @@ class ResellController {
   // ==========================================================================
   // 2. ดึงรายการบัตรมือสองทั้งหมดที่สถานะเป็น available (GET /api/resell/listings)
   // ==========================================================================
-  Future<List<Map<String, dynamic>>> getResellListings({int? concertId}) async {
+  Future<List<Map<String, dynamic>>> getResellListings({
+    int? concertId,
+    String? search,
+  }) async {
     try {
-      final uri = concertId != null
-          ? Uri.parse('$baseUrl/resell/listings?concert_id=$concertId')
-          : Uri.parse('$baseUrl/resell/listings');
+      final queryParams = <String, String>{};
+      if (concertId != null) {
+        queryParams['concert_id'] = concertId.toString();
+      }
+      if (search != null && search.trim().isNotEmpty) {
+        queryParams['search'] = search.trim();
+      }
+
+      final uri = Uri.parse('$baseUrl/resell/listings').replace(
+        queryParameters: queryParams.isEmpty ? null : queryParams,
+      );
 
       final response = await http.get(
         uri,
@@ -64,12 +80,12 @@ class ResellController {
   }
 
   // ==========================================================================
-  // 3. ดึงรายละเอียดบัตรมือสองรายใบ (GET /api/resell/listings/:id)
+  // 3. ดึงรายละเอียดบัตรมือสองรายใบ (GET /api/resell/:id)
   // ==========================================================================
   Future<Map<String, dynamic>> getResellListingById(int listingId) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/resell/listings/$listingId'),
+        Uri.parse('$baseUrl/resell/$listingId'),
         headers: {'Content-Type': 'application/json; charset=UTF-8'},
       );
 
@@ -128,12 +144,14 @@ class ResellController {
     required String token,
     required int ticketId,
     required double resellPrice,
+    double? originalPrice,
     int? sellerId,
   }) async {
     // ตรวจสอบ Business Logic ก่อนยิง API
     final validationError = validateResellInput(
       ticketId: ticketId,
       priceText: resellPrice.toString(),
+      originalPrice: originalPrice,
     );
     if (validationError != null) {
       throw Exception(validationError);
@@ -169,7 +187,9 @@ class ResellController {
   // ฟังก์ชันช่วยจัดการข้อความ Error ให้สะอาดพร้อมแสดงบน UI
   String _cleanErrorMessage(Object error) {
     final msg = error.toString().replaceAll('Exception: ', '').trim();
-    if (msg.contains('SocketException') || msg.contains('Failed host lookup') || msg.contains('ClientException')) {
+    if (msg.contains('SocketException') ||
+        msg.contains('Failed host lookup') ||
+        msg.contains('ClientException')) {
       return 'Unable to connect to the server. Please check the Backend service.';
     }
     return msg;
