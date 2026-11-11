@@ -11,6 +11,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_KEY = process.env.JWT_SECRET || 'thisisthesecretforjwt_concert_app';
 const PAYMENT_TIMEOUT_MINUTES = 15;
+const COMMISSION_RATE = 0.02;
+const PARCEL_SHIPPING_FEE = 50;
 
 app.use(cors());
 app.use(express.json());
@@ -189,6 +191,9 @@ app.put('/api/auth/profile', verifyToken, async (req, res) => {
     );
     res.status(200).json({ message: 'Profile updated successfully', user: updated[0] });
   } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ message: 'Email is already in use' });
+    }
     res.status(500).json({ message: 'Database error', error: err.message });
   }
 });
@@ -320,7 +325,6 @@ app.patch('/api/admin/users/:id/verify', verifyToken, authorizeRoles('admin'), a
   }
 });
 
-// ลบบัญชีผู้ใช้ (รองรับปุ่ม Delete Account ในหน้า admin_page.dart)
 app.delete('/api/admin/users/:id', verifyToken, authorizeRoles('admin'), async (req, res) => {
   const { id } = req.params;
   try {
@@ -382,7 +386,6 @@ app.get('/api/concerts/:id', async (req, res) => {
 app.use('/api/resell', optionalVerifyToken, resellRoutes);
 app.get('/api/user/my-tickets', verifyToken, resellController.getMyTickets);
 
-// ดึงรายการบัตรที่ผู้ใช้กำลังลงขายอยู่ (รองรับหน้า MyResellingPage ใน profile.dart)
 app.get('/api/user/my-resell-listings', verifyToken, async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -413,7 +416,6 @@ app.get('/api/user/my-resell-listings', verifyToken, async (req, res) => {
   }
 });
 
-// API สำหรับเสก/เพิ่มตั๋วเข้าตัว User (ไว้ใช้ตอนเทสต์ระบบ หรือสร้างตั๋วจากหน้า Sell Page)
 app.post('/api/user/add-ticket', async (req, res) => {
   const { user_id, concert_id, ticket_code, zone_name, seat_number, original_price } = req.body;
   try {
@@ -430,8 +432,6 @@ app.post('/api/user/add-ticket', async (req, res) => {
 // ============================================================================
 // MODULE 5: PAYMENT & ORDER HISTORY (รองรับ payment_page.dart & historypage.dart)
 // ============================================================================
-
-// 1. สร้างรายการชำระเงิน (ล็อกเวลาจ่ายเงิน 15 นาที + รองรับทั้ง delivery/meetup และ Parcel Shipping/Digital Transfer)
 app.post('/api/payments/checkout', verifyToken, async (req, res) => {
   const { listing_id, payment_method, delivery_method, shipping_info } = req.body;
   const buyer_id = req.user.user_id;
@@ -472,8 +472,8 @@ app.post('/api/payments/checkout', verifyToken, async (req, res) => {
     }
 
     const ticketPrice = Number(listing.resell_price);
-    const commissionFee = Math.round(ticketPrice * 0.02); // ค่าธรรมเนียม 2% ตามหน้า UI ของเพื่อน
-    const shippingFee = (finalDeliveryMethod === 'Parcel Shipping' || finalDeliveryMethod === 'delivery') ? 50 : 0;
+    const commissionFee = Math.round(ticketPrice * COMMISSION_RATE);
+    const shippingFee = (finalDeliveryMethod === 'Parcel Shipping' || finalDeliveryMethod === 'delivery') ? PARCEL_SHIPPING_FEE : 0;
     const totalAmount = ticketPrice;
 
     const [result] = await db.query(
@@ -501,7 +501,6 @@ app.post('/api/payments/checkout', verifyToken, async (req, res) => {
   }
 });
 
-// 2. ยืนยันการชำระเงิน (เช็กว่าเกิน 15 นาทีหรือยัง + โอนสิทธิ์ตั๋วให้ผู้ซื้อ)
 app.post('/api/payments/:id/confirm', verifyToken, async (req, res) => {
   const { id } = req.params;
 
@@ -517,12 +516,9 @@ app.post('/api/payments/:id/confirm', verifyToken, async (req, res) => {
       return res.status(403).json({ message: 'You are not the owner of this payment and cannot confirm it' });
     }
 
-    if (payment.status === 'completed') {
-      return res.status(400).json({ message: 'This payment has already been confirmed' });
-    }
-
-    if (payment.status === 'cancelled') {
-      return res.status(400).json({ message: 'This payment was cancelled' });
+    // ตรวจสอบว่าสถานะต้องเป็น 'pending' เท่านั้น (ป้องกันรายการที่จ่ายไปแล้ว ยกเลิกไปแล้ว หรือหมดอายุไปแล้ว)
+    if (payment.status !== 'pending') {
+      return res.status(400).json({ message: `Cannot confirm payment with status: ${payment.status}` });
     }
 
     const [timeCheck] = await db.query(
@@ -558,7 +554,6 @@ app.post('/api/payments/:id/confirm', verifyToken, async (req, res) => {
   }
 });
 
-// 3. ยกเลิกรายการสั่งซื้อที่ยังไม่ชำระเงิน (รองรับปุ่ม Cancel Order ใน historypage.dart)
 app.post('/api/payments/:id/cancel', verifyToken, async (req, res) => {
   const { id } = req.params;
   try {
@@ -580,7 +575,6 @@ app.post('/api/payments/:id/cancel', verifyToken, async (req, res) => {
   }
 });
 
-// 4. ดึงประวัติคำสั่งซื้อของฉัน (รองรับหน้า My Orders / historypage.dart)
 app.get('/api/payments/my-orders', verifyToken, async (req, res) => {
   try {
     const [orders] = await db.query(

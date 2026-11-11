@@ -4,6 +4,12 @@ import 'package:http/http.dart' as http;
 
 class PaymentController {
   static const String baseUrl = 'http://localhost:3000/api/payments';
+  static const List<String> allowedDeliveryMethods = [
+    'delivery',
+    'meetup',
+    'Parcel Shipping',
+    'Digital Transfer',
+  ];
 
   // ==========================================================================
   // 1. Business Logic: ตรวจสอบข้อมูลการชำระเงินและที่อยู่/สถานที่นัดรับ
@@ -22,17 +28,17 @@ class PaymentController {
       return 'Please select a payment method';
     }
 
-    if (deliveryMethod != 'delivery' && deliveryMethod != 'meetup') {
-      return 'Invalid ticket pickup method (must be delivery or meetup)';
+    if (!allowedDeliveryMethods.contains(deliveryMethod)) {
+      return 'Invalid ticket pickup method';
     }
 
     if (shippingInfo.trim().isEmpty) {
       return deliveryMethod == 'meetup'
           ? 'Please specify the location and time for ticket pickup'
-          : 'Please enter the address for ticket delivery';
+          : 'Please enter the address or email for ticket delivery';
     }
 
-    return null; // ผ่านการตรวจสอบ
+    return null;
   }
 
   // ==========================================================================
@@ -60,10 +66,9 @@ class PaymentController {
     required String token,
     required int listingId,
     required String paymentMethod,
-    required String deliveryMethod, // 'delivery' หรือ 'meetup'
-    required String shippingInfo,   // ที่อยู่จัดส่ง หรือ สถานที่นัดรับ
+    required String deliveryMethod,
+    required String shippingInfo,
   }) async {
-    // ตรวจสอบ Business Logic ก่อนยิง API
     final validationError = validateCheckoutInput(
       listingId: listingId,
       paymentMethod: paymentMethod,
@@ -129,7 +134,6 @@ class PaymentController {
       if (response.statusCode == 200) {
         return Map<String, dynamic>.from(body);
       } else {
-        // กรณีเกิน 15 นาที Backend จะส่ง 400 พร้อมข้อความ Payment expired
         throw Exception(body['message'] ?? 'Unable to confirm payment');
       }
     } catch (e) {
@@ -138,9 +142,67 @@ class PaymentController {
     }
   }
 
+  // ==========================================================================
+  // 5. ยกเลิกรายการสั่งซื้อที่ยังไม่ชำระเงิน (POST /api/payments/:id/cancel)
+  // ==========================================================================
+  Future<Map<String, dynamic>> cancelPayment({
+    required String token,
+    required int paymentId,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/$paymentId/cancel'),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final body = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return Map<String, dynamic>.from(body);
+      } else {
+        throw Exception(body['message'] ?? 'Unable to cancel order');
+      }
+    } catch (e) {
+      debugPrint('PaymentController.cancelPayment error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
+  // ==========================================================================
+  // 6. ดึงประวัติคำสั่งซื้อของฉัน (GET /api/payments/my-orders)
+  // ==========================================================================
+  Future<List<Map<String, dynamic>>> getMyOrders(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/my-orders'),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final body = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> rawList = body is List ? body : (body['data'] ?? []);
+        return rawList.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception(body['message'] ?? 'Unable to fetch orders');
+      }
+    } catch (e) {
+      debugPrint('PaymentController.getMyOrders error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
   String _cleanErrorMessage(Object error) {
     final msg = error.toString().replaceAll('Exception: ', '').trim();
-    if (msg.contains('SocketException') || msg.contains('Failed host lookup') || msg.contains('ClientException')) {
+    if (msg.contains('SocketException') ||
+        msg.contains('Failed host lookup') ||
+        msg.contains('ClientException')) {
       return 'Unable to connect to the server. Please check the Backend service.';
     }
     return msg;
