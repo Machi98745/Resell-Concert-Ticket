@@ -1,37 +1,27 @@
-const db = require('../db_config');
+const ConcertModel = require('../models/concertModel');
 
 // ดึงคอนเสิร์ตทั้งหมด
-exports.getAllConcerts = (req, res) => {
-  const { search } = req.query;
-  let sql = 'SELECT * FROM concerts';
-  let params = [];
-
-  if (search && search.trim() !== '') {
-    sql += ' WHERE title LIKE ? OR venue LIKE ?';
-    const keyword = `%${search.trim()}%`;
-    params = [keyword, keyword];
+exports.getAllConcerts = async (req, res) => {
+  try {
+    const { search } = req.query;
+    const concerts = await ConcertModel.getAll(search);
+    res.status(200).json(concerts);
+  } catch (err) {
+    res.status(500).json({ message: 'Database Error', error: err.message });
   }
-
-  db.query(sql, params, (err, results) => {
-    if (err) {
-      return res.status(500).json({ message: 'Database Error', error: err.message });
-    }
-    res.status(200).json(results);
-  });
 };
 
 // ดึงคอนเสิร์ตตาม ID
-exports.getConcertById = (req, res) => {
-  const { id } = req.params;
-  const sql = 'SELECT * FROM concerts WHERE concert_id = ?';
+exports.getConcertById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const concerts = await ConcertModel.getById(id);
 
-  db.query(sql, [id], (err, results) => {
-    if (err) {
-      return res.status(500).json({ message: 'Database Error', error: err.message });
-    }
-    if (results.length === 0) {
+    if (concerts.length === 0) {
       return res.status(404).json({ message: 'Concert not found' });
     }
-    res.status(200).json(results[0]);
-  });
+    res.status(200).json(concerts[0]);
+  } catch (err) {
+    res.status(500).json({ message: 'Database Error', error: err.message });
+  }
 };
