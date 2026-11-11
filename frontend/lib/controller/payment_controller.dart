@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 class PaymentController {
   static const String baseUrl = 'http://localhost:3000/api/payments';
+  static const Duration _timeout = Duration(seconds: 15);
   static const List<String> allowedDeliveryMethods = [
     'delivery',
     'meetup',
@@ -80,30 +81,31 @@ class PaymentController {
     }
 
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/create'),
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'listing_id': listingId,
-          'payment_method': paymentMethod,
-          'receive_method': deliveryMethod,
-          'receive_details': shippingInfo.trim(),
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/create'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'listing_id': listingId,
+              'payment_method': paymentMethod.trim(),
+              'delivery_method': deliveryMethod,
+              'shipping_info': shippingInfo.trim(),
+              'receive_method': deliveryMethod,
+              'receive_details': shippingInfo.trim(),
+            }),
+          )
+          .timeout(_timeout);
 
       final body = jsonDecode(response.body);
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         return Map<String, dynamic>.from(body);
-      } else if (response.statusCode == 404) {
-        throw Exception(
-          'This ticket listing has already been purchased or does not exist in the system',
-        );
       } else {
-        throw Exception(body['message'] ?? 'Unable to create payment request');
+        final msg = body is Map ? body['message'] : null;
+        throw Exception(msg ?? 'Unable to create payment request');
       }
     } catch (e) {
       debugPrint('PaymentController.checkout error: $e');
@@ -123,20 +125,23 @@ class PaymentController {
     }
 
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/$paymentId/confirm'),
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/$paymentId/confirm'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(_timeout);
 
       final body = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
         return Map<String, dynamic>.from(body);
       } else {
-        throw Exception(body['message'] ?? 'Unable to confirm payment');
+        final msg = body is Map ? body['message'] : null;
+        throw Exception(msg ?? 'Unable to confirm payment');
       }
     } catch (e) {
       debugPrint('PaymentController.confirmPayment error: $e');
@@ -152,20 +157,23 @@ class PaymentController {
     required int paymentId,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/$paymentId/cancel'),
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/$paymentId/cancel'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(_timeout);
 
       final body = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
         return Map<String, dynamic>.from(body);
       } else {
-        throw Exception(body['message'] ?? 'Unable to cancel order');
+        final msg = body is Map ? body['message'] : null;
+        throw Exception(msg ?? 'Unable to cancel order');
       }
     } catch (e) {
       debugPrint('PaymentController.cancelPayment error: $e');
@@ -178,13 +186,15 @@ class PaymentController {
   // ==========================================================================
   Future<List<Map<String, dynamic>>> getMyOrders(String token) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/my-orders'),
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/my-orders'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(_timeout);
 
       final body = jsonDecode(response.body);
 
@@ -192,10 +202,43 @@ class PaymentController {
         final List<dynamic> rawList = body is List ? body : (body['data'] ?? []);
         return rawList.cast<Map<String, dynamic>>();
       } else {
-        throw Exception(body['message'] ?? 'Unable to fetch orders');
+        final msg = body is Map ? body['message'] : null;
+        throw Exception(msg ?? 'Unable to fetch orders');
       }
     } catch (e) {
       debugPrint('PaymentController.getMyOrders error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
+  // ==========================================================================
+  // 7. เช็กสถานะคำสั่งซื้อและเวลาที่เหลือตาม ID (GET /api/payments/:id)
+  // ==========================================================================
+  Future<Map<String, dynamic>> getPaymentById({
+    required String token,
+    required int paymentId,
+  }) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/$paymentId'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(_timeout);
+
+      final body = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return Map<String, dynamic>.from(body);
+      } else {
+        final msg = body is Map ? body['message'] : null;
+        throw Exception(msg ?? 'Unable to fetch payment status');
+      }
+    } catch (e) {
+      debugPrint('PaymentController.getPaymentById error: $e');
       throw Exception(_cleanErrorMessage(e));
     }
   }
@@ -204,8 +247,12 @@ class PaymentController {
     final msg = error.toString().replaceAll('Exception: ', '').trim();
     if (msg.contains('SocketException') ||
         msg.contains('Failed host lookup') ||
-        msg.contains('ClientException')) {
+        msg.contains('ClientException') ||
+        msg.contains('TimeoutException')) {
       return 'Unable to connect to the server. Please check the Backend service.';
+    }
+    if (msg.contains('FormatException')) {
+      return 'Invalid response from server.';
     }
     return msg;
   }

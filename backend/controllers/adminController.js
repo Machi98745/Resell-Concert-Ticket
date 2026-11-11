@@ -14,7 +14,7 @@ exports.getAllUsers = async (req, res) => {
       u.is_active,
       u.created_at,
       (SELECT COUNT(*) FROM resell_listings rl WHERE rl.seller_id = u.user_id AND rl.status = 'sold') AS tickets_sold,
-      (SELECT COUNT(*) FROM payments p WHERE p.buyer_id = u.user_id AND p.status = 'paid') AS tickets_bought
+      (SELECT COUNT(*) FROM payments p WHERE p.buyer_id = u.user_id AND p.status IN ('completed', 'paid')) AS tickets_bought
     FROM users u
     ORDER BY u.user_id ASC
   `;
@@ -28,7 +28,7 @@ exports.getAllUsers = async (req, res) => {
 
 // 2. ระงับ / ปลดระงับบัญชีผู้ใช้ (PATCH /api/admin/users/:id/status)
 exports.updateUserStatus = async (req, res) => {
-  const userId = req.params.id;
+  const userId = Number(req.params.id);
   const { is_active } = req.body;
 
   if (is_active === undefined || ![0, 1, true, false].includes(is_active)) {
@@ -38,6 +38,12 @@ exports.updateUserStatus = async (req, res) => {
   }
 
   const activeValue = is_active ? 1 : 0;
+
+  if (req.user.user_id === userId && activeValue === 0) {
+    return res.status(400).json({
+      message: 'Admin cannot suspend their own account.',
+    });
+  }
 
   try {
     const [result] = await db.query(
@@ -54,7 +60,7 @@ exports.updateUserStatus = async (req, res) => {
         activeValue === 1
           ? 'User account activated successfully.'
           : 'User account suspended successfully.',
-      user_id: Number(userId),
+      user_id: userId,
       is_active: activeValue,
     });
   } catch (err) {
@@ -64,7 +70,7 @@ exports.updateUserStatus = async (req, res) => {
 
 // 3. ยืนยันตัวตนผู้ขาย KYC (PATCH /api/admin/users/:id/verify)
 exports.verifySeller = async (req, res) => {
-  const userId = req.params.id;
+  const userId = Number(req.params.id);
   const { is_verified } = req.body;
 
   if (is_verified === undefined || ![0, 1, true, false].includes(is_verified)) {
@@ -90,7 +96,7 @@ exports.verifySeller = async (req, res) => {
         verifiedValue === 1
           ? 'Seller identity verified successfully.'
           : 'Seller verification revoked.',
-      user_id: Number(userId),
+      user_id: userId,
       is_verified: verifiedValue,
     });
   } catch (err) {
@@ -112,12 +118,11 @@ exports.deleteUser = async (req, res) => {
   try {
     await conn.beginTransaction();
 
+    // ยกเลิกประกาศขายที่ยังค้างอยู่ของผู้ใช้นี้ก่อนลบ
     await conn.query(
-      'DELETE FROM payments WHERE buyer_id = ? OR listing_id IN (SELECT listing_id FROM resell_listings WHERE seller_id = ?)',
-      [userId, userId]
+      "UPDATE resell_listings SET status = 'cancelled' WHERE seller_id = ? AND status = 'available'",
+      [userId]
     );
-    await conn.query('DELETE FROM resell_listings WHERE seller_id = ?', [userId]);
-    await conn.query('DELETE FROM tickets WHERE user_id = ?', [userId]);
 
     const [result] = await conn.query('DELETE FROM users WHERE user_id = ?', [userId]);
 

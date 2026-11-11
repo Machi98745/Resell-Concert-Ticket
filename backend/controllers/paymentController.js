@@ -4,122 +4,148 @@ const PAYMENT_TIMEOUT_MINUTES = 15;
 const COMMISSION_RATE = 0.02;
 const PARCEL_SHIPPING_FEE = 50;
 
-// 1. สร้างรายการสั่งซื้อตั๋ว + เริ่มจับเวลา 15 นาที (POST /api/payments/create)
+// ฟังก์ชันแปลงชื่อช่องทางชำระเงินให้ตรงกับ ENUM('promptpay','credit_card','truemoney') ใน Database
+function normalizePaymentMethod(rawMethod) {
+  if (!rawMethod) return 'promptpay';
+  const lower = String(rawMethod).trim().toLowerCase();
+  if (lower.includes('credit') || lower.includes('card')) return 'credit_card';
+  if (lower.includes('true')) return 'truemoney';
+  return 'promptpay';
+}
+
+// 1. สร้างรายการสั่งซื้อตั๋ว + เริ่มจับเวลา 15 นาที (POST /api/payments/create หรือ /checkout)
 exports.createPayment = async (req, res) => {
   const buyerId = req.user.user_id;
   const { listing_id } = req.body;
-  const receive_method = req.body.receive_method || req.body.delivery_method;
-  const receive_details = req.body.receive_details || req.body.shipping_info;
+  const rawDeliveryMethod = req.body.delivery_method || req.body.receive_method;
+  const shippingInfo = req.body.shipping_info || req.body.receive_details;
+  const paymentMethod = normalizePaymentMethod(req.body.payment_method);
 
-  if (!listing_id || !receive_method || !receive_details) {
+  if (!listing_id || !rawDeliveryMethod || !shippingInfo) {
     return res.status(400).json({
-      message: 'Please provide listing_id, receive_method, and receive_details.',
+      message: 'Please provide listing_id, delivery_method (or receive_method), and shipping_info (or receive_details).',
     });
   }
 
-  let normalizedMethod = receive_method;
-  if (receive_method === 'Parcel Shipping') normalizedMethod = 'delivery';
-  if (receive_method === 'Digital Transfer') normalizedMethod = 'meetup';
-
-  if (!['delivery', 'meetup', 'Parcel Shipping', 'Digital Transfer'].includes(receive_method)) {
+  const allowedMethods = ['delivery', 'meetup', 'Parcel Shipping', 'Digital Transfer'];
+  if (!allowedMethods.includes(rawDeliveryMethod)) {
     return res.status(400).json({
-      message: 'receive_method must be "delivery", "meetup", "Parcel Shipping", or "Digital Transfer".',
+      message: 'delivery_method must be "delivery", "meetup", "Parcel Shipping", or "Digital Transfer".',
     });
   }
 
+  const isParcel = rawDeliveryMethod === 'delivery' || rawDeliveryMethod === 'Parcel Shipping';
+
+  const conn = await db.getConnection();
   try {
-    const [listings] = await db.query(
-      'SELECT * FROM resell_listings WHERE listing_id = ?',
+    await conn.beginTransaction();
+
+    // ล็อกแถว resell_listings ป้องกันการแย่งจองพร้อมกัน (Race Condition)
+    const [listings] = await conn.query(
+      'SELECT * FROM resell_listings WHERE listing_id = ? FOR UPDATE',
       [listing_id]
     );
 
     if (listings.length === 0) {
+      await conn.rollback();
       return res.status(404).json({ message: 'Resell ticket listing not found.' });
     }
 
     const listing = listings[0];
 
     if (listing.status !== 'available') {
+      await conn.rollback();
       return res.status(400).json({
         message: 'This ticket has already been sold or cancelled.',
       });
     }
 
     if (listing.seller_id === buyerId) {
+      await conn.rollback();
       return res.status(400).json({
         message: 'You cannot purchase your own resell ticket.',
       });
     }
 
-    const [activePayments] = await db.query(
-      `SELECT * FROM payments
-       WHERE listing_id = ? AND status = 'pending' AND expires_at > NOW()`,
-      [listing_id]
-    );
-
-    if (activePayments.length > 0 && activePayments[0].buyer_id !== buyerId) {
-      return res.status(409).json({
-        message:
-          'Another buyer is currently in the payment process for this ticket. Please wait up to 15 minutes.',
-      });
-    }
-
-    await db.query(
+    // ตัดสถานะออเดอร์เก่าที่หมดเวลาเกิน 15 นาทีแล้วให้เป็น expired
+    await conn.query(
       `UPDATE payments
        SET status = 'expired'
        WHERE listing_id = ? AND status = 'pending' AND expires_at <= NOW()`,
       [listing_id]
     );
 
-    const basePrice = Number(listing.resell_price);
-    const commissionFee = Math.round(basePrice * COMMISSION_RATE);
-    const shippingFee = normalizedMethod === 'delivery' ? PARCEL_SHIPPING_FEE : 0;
-    const totalAmount = basePrice + commissionFee + shippingFee;
+    // เช็กว่ามีออเดอร์ที่กำลังรอชำระเงิน (ยังไม่ครบ 15 นาที) อยู่หรือไม่
+    const [activePayments] = await conn.query(
+      `SELECT *, GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), expires_at)) AS remaining_seconds
+       FROM payments
+       WHERE listing_id = ? AND status = 'pending' AND expires_at > NOW()`,
+      [listing_id]
+    );
 
-    let result;
-    try {
-      [result] = await db.query(
-        `INSERT INTO payments
-          (listing_id, buyer_id, amount, commission_fee, shipping_fee, receive_method, receive_details, status, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', DATE_ADD(NOW(), INTERVAL ? MINUTE))`,
-        [
-          listing_id,
-          buyerId,
-          totalAmount,
-          commissionFee,
-          shippingFee,
-          normalizedMethod,
-          receive_details,
-          PAYMENT_TIMEOUT_MINUTES,
-        ]
-      );
-    } catch (_) {
-      [result] = await db.query(
-        `INSERT INTO payments
-          (listing_id, buyer_id, amount, receive_method, receive_details, status, expires_at)
-         VALUES (?, ?, ?, ?, ?, 'pending', DATE_ADD(NOW(), INTERVAL ? MINUTE))`,
-        [
-          listing_id,
-          buyerId,
-          totalAmount,
-          normalizedMethod,
-          receive_details,
-          PAYMENT_TIMEOUT_MINUTES,
-        ]
-      );
+    if (activePayments.length > 0) {
+      // ถ้าเป็นคนอื่นจองอยู่ ให้แจ้ง 409 Conflict
+      if (activePayments[0].buyer_id !== buyerId) {
+        await conn.rollback();
+        return res.status(409).json({
+          message:
+            'Another buyer is currently in the payment process for this ticket. Please wait up to 15 minutes.',
+        });
+      }
+      // ถ้าเป็นผู้ซื้อคนเดิมกดซ้ำ ให้คืนค่าออเดอร์เดิมที่กำลังเดินเวลาอยู่โดยไม่สร้างแถวซ้ำ
+      await conn.commit();
+      return res.status(200).json({
+        message: 'Active order already exists. Please complete payment within the remaining time.',
+        payment: {
+          ...activePayments[0],
+          receive_method: activePayments[0].delivery_method,
+          receive_details: activePayments[0].shipping_info,
+        },
+      });
     }
 
-    const [createdRows] = await db.query(
-      'SELECT *, TIMESTAMPDIFF(SECOND, NOW(), expires_at) AS remaining_seconds FROM payments WHERE payment_id = ?',
+    const basePrice = Number(listing.resell_price);
+    const commissionFee = Math.round(basePrice * COMMISSION_RATE);
+    const shippingFee = isParcel ? PARCEL_SHIPPING_FEE : 0;
+    const totalAmount = basePrice + commissionFee + shippingFee;
+
+    const [result] = await conn.query(
+      `INSERT INTO payments
+        (listing_id, buyer_id, amount, commission_fee, shipping_fee, payment_method, delivery_method, shipping_info, shipping_status, status, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Waiting for payment', 'pending', DATE_ADD(NOW(), INTERVAL ? MINUTE))`,
+      [
+        listing_id,
+        buyerId,
+        totalAmount,
+        commissionFee,
+        shippingFee,
+        paymentMethod,
+        rawDeliveryMethod,
+        String(shippingInfo).trim(),
+        PAYMENT_TIMEOUT_MINUTES,
+      ]
+    );
+
+    const [createdRows] = await conn.query(
+      'SELECT *, GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), expires_at)) AS remaining_seconds FROM payments WHERE payment_id = ?',
       [result.insertId]
     );
 
+    await conn.commit();
+
     return res.status(201).json({
       message: 'Order created successfully. Please complete payment within 15 minutes.',
-      payment: createdRows[0],
+      payment: {
+        ...createdRows[0],
+        receive_method: createdRows[0].delivery_method,
+        receive_details: createdRows[0].shipping_info,
+      },
     });
   } catch (err) {
+    await conn.rollback();
     return res.status(500).json({ message: 'Database Error', error: err.message });
+  } finally {
+    conn.release();
   }
 };
 
@@ -155,7 +181,7 @@ exports.confirmPayment = async (req, res) => {
       });
     }
 
-    if (payment.status === 'paid') {
+    if (payment.status === 'completed' || payment.status === 'paid') {
       await conn.rollback();
       return res.status(400).json({
         message: 'This payment has already been completed.',
@@ -176,7 +202,7 @@ exports.confirmPayment = async (req, res) => {
 
     if (timeCheck[0].is_expired === 1) {
       await conn.query(
-        'UPDATE payments SET status = "expired" WHERE payment_id = ?',
+        "UPDATE payments SET status = 'expired', shipping_status = 'Expired' WHERE payment_id = ?",
         [paymentId]
       );
       await conn.commit();
@@ -192,13 +218,14 @@ exports.confirmPayment = async (req, res) => {
       });
     }
 
+    // อัปเดตสถานะในตาราง payments เป็น 'completed' (ตรงตาม ENUM ของ concert_ticket_db.sql)
     await conn.query(
-      'UPDATE payments SET status = "paid", paid_at = NOW() WHERE payment_id = ?',
+      "UPDATE payments SET status = 'completed', shipping_status = 'Preparing', paid_at = NOW() WHERE payment_id = ?",
       [paymentId]
     );
 
     await conn.query(
-      'UPDATE resell_listings SET status = "sold" WHERE listing_id = ?',
+      "UPDATE resell_listings SET status = 'sold' WHERE listing_id = ?",
       [payment.listing_id]
     );
 
@@ -214,9 +241,11 @@ exports.confirmPayment = async (req, res) => {
       payment_id: Number(paymentId),
       listing_id: payment.listing_id,
       ticket_id: payment.ticket_id,
-      receive_method: payment.receive_method,
-      receive_details: payment.receive_details,
-      status: 'paid',
+      delivery_method: payment.delivery_method,
+      shipping_info: payment.shipping_info,
+      receive_method: payment.delivery_method,
+      receive_details: payment.shipping_info,
+      status: 'completed',
     });
   } catch (err) {
     await conn.rollback();
@@ -249,23 +278,16 @@ exports.cancelPayment = async (req, res) => {
       });
     }
 
-    if (payment.status === 'paid') {
+    if (payment.status === 'completed' || payment.status === 'paid') {
       return res.status(400).json({
         message: 'Cannot cancel a completed payment.',
       });
     }
 
-    try {
-      await db.query(
-        'UPDATE payments SET status = "cancelled" WHERE payment_id = ?',
-        [paymentId]
-      );
-    } catch (_) {
-      await db.query(
-        'UPDATE payments SET status = "expired" WHERE payment_id = ?',
-        [paymentId]
-      );
-    }
+    await db.query(
+      "UPDATE payments SET status = 'cancelled', shipping_status = 'Cancelled' WHERE payment_id = ?",
+      [paymentId]
+    );
 
     return res.status(200).json({
       message: 'Order cancelled successfully.',
@@ -284,7 +306,7 @@ exports.getMyOrders = async (req, res) => {
   try {
     await db.query(
       `UPDATE payments
-       SET status = 'expired'
+       SET status = 'expired', shipping_status = 'Expired'
        WHERE buyer_id = ? AND status = 'pending' AND expires_at <= NOW()`,
       [buyerId]
     );
@@ -295,11 +317,13 @@ exports.getMyOrders = async (req, res) => {
         GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), p.expires_at)) AS remaining_seconds,
         rl.resell_price,
         t.ticket_id,
-        t.ticket_code,
+        CASE WHEN p.status = 'completed' THEN t.ticket_code ELSE CONCAT(LEFT(t.ticket_code, 4), '-****') END AS ticket_code,
         t.zone_name,
         t.seat_number,
         c.concert_id,
         c.title AS concert_title,
+        c.artist,
+        c.category,
         c.venue,
         c.show_datetime,
         c.poster_url
@@ -308,7 +332,7 @@ exports.getMyOrders = async (req, res) => {
       JOIN tickets t ON rl.ticket_id = t.ticket_id
       JOIN concerts c ON t.concert_id = c.concert_id
       WHERE p.buyer_id = ?
-      ORDER BY p.created_at DESC
+      ORDER BY p.payment_id DESC
     `;
 
     const [orders] = await db.query(sql, [buyerId]);
@@ -346,7 +370,7 @@ exports.getPaymentById = async (req, res) => {
 
     if (payment.status === 'pending' && payment.remaining_seconds === 0) {
       await db.query(
-        'UPDATE payments SET status = "expired" WHERE payment_id = ?',
+        "UPDATE payments SET status = 'expired', shipping_status = 'Expired' WHERE payment_id = ?",
         [paymentId]
       );
       payment.status = 'expired';

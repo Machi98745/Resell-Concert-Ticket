@@ -5,15 +5,20 @@ const { JWT_KEY } = require('../middlewares/authMiddleware');
 
 // 1. สมัครสมาชิก (POST /api/auth/register)
 exports.register = async (req, res) => {
-  const { username, email, password, full_name, phone, role } = req.body;
+  const { username, email, password, full_name, phone } = req.body;
 
   if (!username || !email || !password || !full_name) {
     return res.status(400).json({ message: 'Please provide all the required information.' });
   }
 
+  if (String(password).length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+  }
+
   try {
     const password_hash = await argon2.hash(password);
-    const userRole = role === 'admin' ? 'admin' : 'customer';
+    // บังคับให้การสมัครสมาชิกทั่วไปได้สิทธิ์ 'customer' เสมอเพื่อความปลอดภัย
+    const userRole = 'customer';
 
     const sql = `
       INSERT INTO users (username, email, password_hash, full_name, phone, role, is_verified, is_active)
@@ -21,11 +26,11 @@ exports.register = async (req, res) => {
     `;
 
     const [result] = await db.query(sql, [
-      username,
-      email,
+      username.trim(),
+      email.trim(),
       password_hash,
-      full_name,
-      phone || null,
+      full_name.trim(),
+      phone ? phone.trim() : null,
       userRole,
     ]);
 
@@ -137,7 +142,7 @@ exports.updateProfile = async (req, res) => {
   try {
     await db.query(
       'UPDATE users SET full_name = ?, email = ?, phone = ? WHERE user_id = ?',
-      [full_name, email, phone || null, req.user.user_id]
+      [full_name.trim(), email.trim(), phone ? phone.trim() : null, req.user.user_id]
     );
 
     const [updated] = await db.query(
@@ -169,6 +174,12 @@ exports.changePassword = async (req, res) => {
     });
   }
 
+  if (String(new_password).length < 6) {
+    return res.status(400).json({
+      message: 'New password must be at least 6 characters long.',
+    });
+  }
+
   try {
     const [users] = await db.query(
       'SELECT password_hash FROM users WHERE user_id = ?',
@@ -191,6 +202,48 @@ exports.changePassword = async (req, res) => {
     );
 
     return res.status(200).json({ message: 'Password updated successfully.' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Database Error', error: err.message });
+  }
+};
+
+// 6. รีเซ็ตรหัสผ่านด้วยอีเมลและเบอร์โทรศัพท์ (POST /api/auth/reset-password)
+exports.resetPassword = async (req, res) => {
+  const { email, phone, new_password } = req.body;
+
+  if (!email || !phone || !new_password) {
+    return res.status(400).json({
+      message: 'Please provide email, phone number, and new_password.',
+    });
+  }
+
+  if (String(new_password).length < 6) {
+    return res.status(400).json({
+      message: 'New password must be at least 6 characters long.',
+    });
+  }
+
+  try {
+    const [users] = await db.query(
+      'SELECT user_id FROM users WHERE email = ? AND phone = ?',
+      [email.trim(), phone.trim()]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        message: 'No account found matching the provided email and phone number.',
+      });
+    }
+
+    const newHash = await argon2.hash(new_password);
+    await db.query(
+      'UPDATE users SET password_hash = ? WHERE user_id = ?',
+      [newHash, users[0].user_id]
+    );
+
+    return res.status(200).json({
+      message: 'Password reset successfully.',
+    });
   } catch (err) {
     return res.status(500).json({ message: 'Database Error', error: err.message });
   }

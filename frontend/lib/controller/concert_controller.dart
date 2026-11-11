@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 class ConcertController {
   static const String baseUrl = 'http://localhost:3000/api/concerts';
+  static const Duration _timeout = Duration(seconds: 15);
 
   // ==========================================================================
   // 1. ดึงรายการคอนเสิร์ตทั้งหมด พร้อมรองรับคำค้นหา (search) และหมวดหมู่ (category)
@@ -27,10 +28,12 @@ class ConcertController {
         queryParameters: queryParams.isEmpty ? null : queryParams,
       );
 
-      final response = await http.get(
-        uri,
-        headers: {'Content-Type': 'application/json; charset=UTF-8'},
-      );
+      final response = await http
+          .get(
+            uri,
+            headers: {'Content-Type': 'application/json; charset=UTF-8'},
+          )
+          .timeout(_timeout);
 
       final body = jsonDecode(response.body);
 
@@ -38,7 +41,8 @@ class ConcertController {
         final List<dynamic> rawList = body is List ? body : (body['data'] ?? []);
         return rawList.cast<Map<String, dynamic>>();
       } else {
-        throw Exception(body['message'] ?? 'Unable to retrieve concert information.');
+        final msg = body is Map ? body['message'] : null;
+        throw Exception(msg ?? 'Unable to retrieve concert information.');
       }
     } catch (e) {
       debugPrint('ConcertController.getConcerts error: $e');
@@ -51,10 +55,12 @@ class ConcertController {
   // ==========================================================================
   Future<Map<String, dynamic>> getConcertById(int concertId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/$concertId'),
-        headers: {'Content-Type': 'application/json; charset=UTF-8'},
-      );
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/$concertId'),
+            headers: {'Content-Type': 'application/json; charset=UTF-8'},
+          )
+          .timeout(_timeout);
 
       final body = jsonDecode(response.body);
 
@@ -63,7 +69,10 @@ class ConcertController {
       } else if (response.statusCode == 404) {
         throw Exception('Concert not found');
       } else {
-        throw Exception(body['message'] ?? 'An error occurred while fetching concert details');
+        final msg = body is Map ? body['message'] : null;
+        throw Exception(
+          msg ?? 'An error occurred while fetching concert details',
+        );
       }
     } catch (e) {
       debugPrint('ConcertController.getConcertById error: $e');
@@ -73,8 +82,14 @@ class ConcertController {
 
   String _cleanErrorMessage(Object error) {
     final msg = error.toString().replaceAll('Exception: ', '').trim();
-    if (msg.contains('SocketException') || msg.contains('Failed host lookup') || msg.contains('ClientException')) {
+    if (msg.contains('SocketException') ||
+        msg.contains('Failed host lookup') ||
+        msg.contains('ClientException') ||
+        msg.contains('TimeoutException')) {
       return 'Unable to connect to the server. Please check the Backend service.';
+    }
+    if (msg.contains('FormatException')) {
+      return 'Invalid response from server.';
     }
     return msg;
   }

@@ -8,19 +8,24 @@ exports.getAllResellListings = async (req, res) => {
       SELECT 
         rl.listing_id,
         rl.resell_price,
+        rl.delivery_type,
+        rl.shipping_company,
+        rl.shipping_fee,
+        rl.delivery_note,
         rl.status,
         rl.created_at,
         u.user_id AS seller_id,
         u.full_name AS seller_name,
-        u.phone AS seller_phone,
         u.is_verified AS seller_verified,
         t.ticket_id,
-        t.ticket_code,
+        CONCAT(LEFT(t.ticket_code, 4), '-****') AS ticket_code,
         t.zone_name,
         t.seat_number,
         t.original_price,
         c.concert_id,
         c.title AS concert_title,
+        c.artist,
+        c.category,
         c.venue,
         c.show_datetime,
         c.poster_url
@@ -38,9 +43,9 @@ exports.getAllResellListings = async (req, res) => {
     }
 
     if (search && search.trim() !== '') {
-      sql += ` AND (c.title LIKE ? OR t.zone_name LIKE ? OR c.venue LIKE ?)`;
+      sql += ` AND (c.title LIKE ? OR c.artist LIKE ? OR t.zone_name LIKE ? OR c.venue LIKE ?)`;
       const keyword = `%${search.trim()}%`;
-      params.push(keyword, keyword, keyword);
+      params.push(keyword, keyword, keyword, keyword);
     }
 
     sql += ` ORDER BY rl.created_at DESC`;
@@ -60,19 +65,24 @@ exports.getResellListingById = async (req, res) => {
       SELECT 
         rl.listing_id,
         rl.resell_price,
+        rl.delivery_type,
+        rl.shipping_company,
+        rl.shipping_fee,
+        rl.delivery_note,
         rl.status,
         rl.created_at,
         u.user_id AS seller_id,
         u.full_name AS seller_name,
-        u.phone AS seller_phone,
         u.is_verified AS seller_verified,
         t.ticket_id,
-        t.ticket_code,
+        CONCAT(LEFT(t.ticket_code, 4), '-****') AS ticket_code,
         t.zone_name,
         t.seat_number,
         t.original_price,
         c.concert_id,
         c.title AS concert_title,
+        c.artist,
+        c.category,
         c.venue,
         c.show_datetime,
         c.poster_url
@@ -96,25 +106,32 @@ exports.getResellListingById = async (req, res) => {
 // 3. ฝากขายตั๋วมือสอง (POST /api/resell/create)
 exports.createResellListing = async (req, res) => {
   try {
-    const seller_id = (req.user && req.user.user_id) || req.body.seller_id;
+    const seller_id = req.user.user_id;
     const ticket_id = req.body.ticket_id || req.body.item_id;
-    const {
-      resell_price,
-      delivery_method,
-      shipping_fee,
-      bank_name,
-      bank_account_no,
-      bank_account_name,
-    } = req.body;
+    const { resell_price } = req.body;
+    const delivery_type = req.body.delivery_type || req.body.delivery_method || 'Parcel Shipping';
+    const shipping_company = req.body.shipping_company || null;
+    const shipping_fee = req.body.shipping_fee !== undefined ? Number(req.body.shipping_fee) : 0.0;
+    const delivery_note = req.body.delivery_note || null;
+    const bank_name = req.body.bank_name || null;
+    const bank_account_name = req.body.bank_account_name || null;
+    const bank_account_number = req.body.bank_account_number || req.body.bank_account_no || null;
 
-    if (!seller_id || !ticket_id || !resell_price) {
+    if (!ticket_id || resell_price === undefined || resell_price === null) {
       return res.status(400).json({
-        message: 'Missing required fields: ticket_id (or item_id) and resell_price are required',
+        message: 'Missing required fields: ticket_id and resell_price are required',
+      });
+    }
+
+    const numericPrice = Number(resell_price);
+    if (!Number.isFinite(numericPrice) || numericPrice <= 0 || numericPrice > 1000000) {
+      return res.status(400).json({
+        message: 'Invalid resell_price: must be greater than 0 and not exceed 1,000,000 THB',
       });
     }
 
     const [ticketCheck] = await db.query(
-      'SELECT ticket_id, user_id FROM tickets WHERE ticket_id = ?',
+      'SELECT ticket_id, user_id, original_price FROM tickets WHERE ticket_id = ?',
       [ticket_id]
     );
 
@@ -128,6 +145,13 @@ exports.createResellListing = async (req, res) => {
       });
     }
 
+    const originalPrice = Number(ticketCheck[0].original_price);
+    if (originalPrice > 0 && numericPrice > originalPrice * 5) {
+      return res.status(400).json({
+        message: 'The selling price exceeds the maximum allowed markup (5x original price)',
+      });
+    }
+
     const [existingListing] = await db.query(
       "SELECT listing_id FROM resell_listings WHERE ticket_id = ? AND status = 'available'",
       [ticket_id]
@@ -137,29 +161,23 @@ exports.createResellListing = async (req, res) => {
       return res.status(400).json({ message: 'This ticket is already listed for resale' });
     }
 
-    let result;
-    try {
-      [result] = await db.query(
-        `INSERT INTO resell_listings 
-         (seller_id, ticket_id, resell_price, delivery_method, shipping_fee, bank_name, bank_account_no, bank_account_name, status) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'available')`,
-        [
-          seller_id,
-          ticket_id,
-          resell_price,
-          delivery_method || 'Parcel Shipping',
-          shipping_fee !== undefined ? Number(shipping_fee) : 50.0,
-          bank_name || null,
-          bank_account_no || null,
-          bank_account_name || null,
-        ]
-      );
-    } catch (_) {
-      [result] = await db.query(
-        "INSERT INTO resell_listings (seller_id, ticket_id, resell_price, status) VALUES (?, ?, ?, 'available')",
-        [seller_id, ticket_id, resell_price]
-      );
-    }
+    const [result] = await db.query(
+      `INSERT INTO resell_listings 
+       (ticket_id, seller_id, resell_price, delivery_type, shipping_company, shipping_fee, delivery_note, bank_name, bank_account_name, bank_account_number, status) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'available')`,
+      [
+        ticket_id,
+        seller_id,
+        numericPrice,
+        delivery_type,
+        shipping_company,
+        shipping_fee,
+        delivery_note,
+        bank_name,
+        bank_account_name,
+        bank_account_number,
+      ]
+    );
 
     return res.status(201).json({
       message: 'Resell listing created successfully',
@@ -175,32 +193,46 @@ exports.cancelResellListing = async (req, res) => {
   const listingId = req.params.id;
   const userId = req.user.user_id;
 
+  const conn = await db.getConnection();
   try {
-    const [rows] = await db.query(
-      'SELECT * FROM resell_listings WHERE listing_id = ?',
+    await conn.beginTransaction();
+
+    const [rows] = await conn.query(
+      'SELECT * FROM resell_listings WHERE listing_id = ? FOR UPDATE',
       [listingId]
     );
 
     if (rows.length === 0) {
+      await conn.rollback();
       return res.status(404).json({ message: 'Listing not found.' });
     }
 
     if (rows[0].seller_id !== userId && req.user.role !== 'admin') {
+      await conn.rollback();
       return res.status(403).json({
         message: 'Forbidden: Only the seller can cancel this listing.',
       });
     }
 
     if (rows[0].status === 'sold') {
+      await conn.rollback();
       return res.status(400).json({
         message: 'Cannot cancel a listing that has already been sold.',
       });
     }
 
-    await db.query(
+    await conn.query(
       "UPDATE resell_listings SET status = 'cancelled' WHERE listing_id = ?",
       [listingId]
     );
+
+    // ยกเลิกออเดอร์ที่ยังค้างสถานะ pending ของรายการนี้ด้วย
+    await conn.query(
+      "UPDATE payments SET status = 'cancelled' WHERE listing_id = ? AND status = 'pending'",
+      [listingId]
+    );
+
+    await conn.commit();
 
     return res.status(200).json({
       message: 'Listing cancelled successfully.',
@@ -208,7 +240,10 @@ exports.cancelResellListing = async (req, res) => {
       status: 'cancelled',
     });
   } catch (err) {
+    await conn.rollback();
     return res.status(500).json({ message: 'Database Error', error: err.message });
+  } finally {
+    conn.release();
   }
 };
 
@@ -219,6 +254,13 @@ exports.getMyResellListings = async (req, res) => {
       SELECT 
         rl.listing_id,
         rl.resell_price,
+        rl.delivery_type,
+        rl.shipping_company,
+        rl.shipping_fee,
+        rl.delivery_note,
+        rl.bank_name,
+        rl.bank_account_name,
+        rl.bank_account_number,
         rl.status,
         rl.created_at,
         t.ticket_id,
@@ -228,6 +270,8 @@ exports.getMyResellListings = async (req, res) => {
         t.original_price,
         c.concert_id,
         c.title AS concert_title,
+        c.artist,
+        c.category,
         c.venue,
         c.show_datetime,
         c.poster_url
@@ -257,6 +301,8 @@ exports.getMyTickets = async (req, res) => {
         t.original_price,
         c.concert_id,
         c.title AS concert_title,
+        c.artist,
+        c.category,
         c.venue,
         c.show_datetime,
         c.poster_url
