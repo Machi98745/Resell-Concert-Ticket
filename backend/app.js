@@ -1,68 +1,46 @@
 const express = require('express');
 const cors = require('cors');
-const argon2 = require('@node-rs/argon2');
-const jwt = require('jsonwebtoken');
-const db = require('./db_config');
 
-// นำเข้า Routes ระบบคอนเสิร์ต
+const authRoutes = require('./routes/authRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const concertRoutes = require('./routes/concertRoutes');
+const resellRoutes = require('./routes/resellRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+
+const resellController = require('./controllers/resellController');
+const { verifyToken } = require('./middlewares/authMiddleware');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_KEY = process.env.JWT_SECRET || 'thisisthesecretforjwt_concert_app';
 
 app.use(cors());
 app.use(express.json());
 
-// ==========================================
-// 1. AUTH MODULE (ระบบสมาชิก)
-// ==========================================
+// ============================================================================
+// MOUNT MODULES (แยกตาม Module ชัดเจนตามโครงสร้าง MVC)
+// ============================================================================
 
-// Register
-app.post('/api/auth/register', async (req, res) => {
-  const { username, email, password, full_name, phone, role } = req.body;
+// Module 1: Auth & Profile (/api/auth/*)
+app.use('/api/auth', authRoutes);
 
-  if (!username || !email || !password || !full_name) {
-    return res.status(400).send('Please provide all the required information.');
-  }
+// Module 2: Admin Management (/api/admin/*)
+app.use('/api/admin', adminRoutes);
 
-  try {
-    const password_hash = await argon2.hash(password);
-    const userRole = role || 'customer';
-    const sql = `INSERT INTO users (username, email, password_hash, full_name, phone, role) VALUES (?, ?, ?, ?, ?, ?)`;
+// Module 3: Concerts (/api/concerts/*)
+app.use('/api/concerts', concertRoutes);
 
-    db.query(sql, [username, email, password_hash, full_name, phone, userRole], (err, result) => {
-      if (err) {
-        if (err.code === 'ER_DUP_ENTRY') return res.status(400).send('Username or Email is already in use');
-        return res.status(500).send('Database error');
-      }
-      res.status(201).json({ message: 'Registration successful', userId: result.insertId });
-    });
-  } catch (err) {
-    res.status(500).send('Hashing error');
-  }
-});
+// Module 4: Resell Tickets & User Tickets (/api/resell/* และ /api/user/my-tickets)
+app.use('/api/resell', resellRoutes);
+app.get('/api/user/my-tickets', verifyToken, resellController.getMyTickets);
 
-// Login
-app.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).send('Please provide both Username and Password');
+// Module 5: Payment & Orders (/api/payments/*)
+app.use('/api/payments', paymentRoutes);
 
-  const sql = "SELECT * FROM users WHERE username = ?";
-  db.query(sql, [username], async (err, result) => {
-    if (err || result.length !== 1) return res.status(401).send('Invalid username or password');
-
-    const user = result[0];
-    try {
-      const isMatch = await argon2.verify(user.password_hash, password);
-      if (!isMatch) return res.status(401).send('Invalid username or password');
-
-      const token = jwt.sign({ user_id: user.user_id, username: user.username, role: user.role }, JWT_KEY, { expiresIn: '1d' });
-      res.json({ message: 'Login successful', token, user: { user_id: user.user_id, username: user.username, role: user.role } });
-    } catch (err) {
-      res.status(500).send('Password verification error');
-    }
-  });
+// ============================================================================
+// ROOT HEALTH CHECK & START SERVER
+// ============================================================================
+app.get('/', (req, res) => {
+  res.send('Concert Resell Ticket API is running...');
 });
 module.exports = app;
 // ==========================================
@@ -74,5 +52,5 @@ app.use('/api', concertRoutes);
 // START SERVER
 // ==========================================
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Server is running at http://localhost:${PORT}`);
 });

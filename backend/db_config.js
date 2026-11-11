@@ -1,13 +1,14 @@
-const mysql = require("mysql2");
+require('dotenv').config();
+const mysql = require('mysql2/promise');
 
 const pool = mysql.createPool({
-  host: 'localhost',
-  user: 'root',
-  password: '', // ใส่รหัสผ่าน XAMPP ถ้ามี
-  database: 'concert_ticket_db',
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '', // ใส่รหัสผ่าน XAMPP ถ้ามี
+  database: process.env.DB_NAME || 'concert_ticket_db',
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
 });
 
 module.exports = pool;
