@@ -16,7 +16,7 @@ class PaymentPage extends StatefulWidget {
 }
 
 class _PaymentPageState extends State<PaymentPage> {
-  Color pinkAccent = const Color(0xFFFF4081);
+  final Color pinkAccent = const Color(0xFFFF4081);
 
   String delivery = 'Parcel Shipping';
   String payment = 'PromptPay';
@@ -27,6 +27,23 @@ class _PaymentPageState extends State<PaymentPage> {
 
   bool success = false;
   bool expired = false;
+
+  // Form Key
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  // Delivery Controllers
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _provinceZipController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+
+  // Payment Controllers
+  final TextEditingController _cardNumberController = TextEditingController();
+  final TextEditingController _cardNameController = TextEditingController();
+  final TextEditingController _cardExpiryController = TextEditingController();
+  final TextEditingController _cardCvvController = TextEditingController();
+  final TextEditingController _walletPhoneController = TextEditingController();
 
   int get price {
     final total = widget.items.fold<double>(
@@ -43,7 +60,6 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   void _initOrderAndTimer() {
-    // 1. ตรวจสอบออเดอร์ค้างชำระ (To Pay) ล่าสุด ถ้ามีให้ใช้ดึงเดิม ถ้าไม่มีให้สร้างออเดอร์ใหม่
     final unpaidOrders = CartService.getOrdersByStatus('To Pay');
     
     if (unpaidOrders.isNotEmpty) {
@@ -52,7 +68,6 @@ class _PaymentPageState extends State<PaymentPage> {
       currentOrder = CartService.createOrderFromItems(widget.items);
     }
 
-    // 2. คำนวณเวลาที่เหลืออยู่และเริ่มนับถอยหลัง
     _updateTime();
     timer = Timer.periodic(const Duration(seconds: 1), (t) {
       _updateTime();
@@ -84,7 +99,29 @@ class _PaymentPageState extends State<PaymentPage> {
   @override
   void dispose() {
     timer?.cancel();
+    _nameController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    _provinceZipController.dispose();
+    _emailController.dispose();
+    _cardNumberController.dispose();
+    _cardNameController.dispose();
+    _cardExpiryController.dispose();
+    _cardCvvController.dispose();
+    _walletPhoneController.dispose();
     super.dispose();
+  }
+
+  void _validateAndPay() {
+    if (_formKey.currentState?.validate() ?? false) {
+      if (currentOrder != null) {
+        setState(() {
+          CartService.payOrder(currentOrder!);
+          success = true;
+          timer?.cancel();
+        });
+      }
+    }
   }
 
   Widget row(String a, String b) => Padding(
@@ -187,289 +224,373 @@ class _PaymentPageState extends State<PaymentPage> {
                     ),
                   ),
                 )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Reservation Timer
-                      Card(
-                        child: ListTile(
-                          title: const Text('Reservation Time Remaining'),
-                          subtitle: Text(
-                            '${(remainingSeconds ~/ 60).toString().padLeft(2, '0')}:'
-                            '${(remainingSeconds % 60).toString().padLeft(2, '0')}',
-                            style: TextStyle(
-                              fontSize: 30,
-                              color: pinkAccent,
-                              fontWeight: FontWeight.bold,
+              : Form(
+                  key: _formKey,
+                  autovalidateMode: AutovalidateMode.disabled,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Reservation Timer
+                        Card(
+                          child: ListTile(
+                            title: const Text('Reservation Time Remaining'),
+                            subtitle: Text(
+                              '${(remainingSeconds ~/ 60).toString().padLeft(2, '0')}:'
+                              '${(remainingSeconds % 60).toString().padLeft(2, '0')}',
+                              style: TextStyle(
+                                fontSize: 30,
+                                color: pinkAccent,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),
-                      ),
 
-                      // Order Summary
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: SizedBox(
-                            width: double.infinity,
+                        // Order Summary
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Order Summary',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const Divider(),
+                                  ...widget.items.map((item) {
+                                    final name = item['concertName'] ??
+                                        item['name'] ??
+                                        item['concert'] ??
+                                        'Concert Ticket';
+                                    final seat = item['seat'] ?? item['zone'] ?? '-';
+                                    final itemPrice =
+                                        double.tryParse(item['price'].toString()) ?? 0;
+
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 4),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            name.toString(),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Zone / Seat: $seat',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                          Align(
+                                            alignment: Alignment.centerRight,
+                                            child: Text(
+                                              '฿${itemPrice.toStringAsFixed(0)}',
+                                              style: TextStyle(
+                                                color: pinkAccent,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                  const Divider(),
+                                  row('Ticket Price', '฿$price'),
+                                  row('Commission Fee (2%)', '฿$fee'),
+                                  if (ship > 0) row('Shipping Fee', '฿$ship'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Delivery
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'Order Summary',
+                                  'Delivery Information',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                DropdownButton<String>(
+                                  value: delivery,
+                                  isExpanded: true,
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: 'Parcel Shipping',
+                                      child: Text('Parcel Shipping'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'Digital Transfer',
+                                      child: Text('Digital Transfer'),
+                                    ),
+                                  ],
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() {
+                                        delivery = value;
+                                      });
+                                    }
+                                  },
+                                ),
+                                if (delivery == 'Parcel Shipping') ...[
+                                  TextFormField(
+                                    controller: _nameController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Recipient Name',
+                                      errorStyle: TextStyle(color: Colors.redAccent),
+                                    ),
+                                    validator: (val) {
+                                      if (val == null || val.trim().isEmpty) {
+                                        return 'Please enter recipient name';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  TextFormField(
+                                    controller: _phoneController,
+                                    keyboardType: TextInputType.phone,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Phone Number',
+                                      errorStyle: TextStyle(color: Colors.redAccent),
+                                    ),
+                                    validator: (val) {
+                                      if (val == null || val.trim().isEmpty) {
+                                        return 'Please enter phone number';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  TextFormField(
+                                    controller: _addressController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Shipping Address',
+                                      errorStyle: TextStyle(color: Colors.redAccent),
+                                    ),
+                                    validator: (val) {
+                                      if (val == null || val.trim().isEmpty) {
+                                        return 'Please enter shipping address';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  TextFormField(
+                                    controller: _provinceZipController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Province / Postal Code',
+                                      errorStyle: TextStyle(color: Colors.redAccent),
+                                    ),
+                                    validator: (val) {
+                                      if (val == null || val.trim().isEmpty) {
+                                        return 'Please enter province and postal code';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ] else ...[
+                                  TextFormField(
+                                    controller: _emailController,
+                                    keyboardType: TextInputType.emailAddress,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Email Address',
+                                      errorStyle: TextStyle(color: Colors.redAccent),
+                                    ),
+                                    validator: (val) {
+                                      if (val == null || val.trim().isEmpty) {
+                                        return 'Please enter email address';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Payment Method
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Select Payment Method',
                                   style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
+                                RadioListTile<String>(
+                                  title: const Text('PromptPay'),
+                                  value: 'PromptPay',
+                                  groupValue: payment,
+                                  activeColor: pinkAccent,
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() {
+                                        payment = value;
+                                      });
+                                    }
+                                  },
+                                ),
+                                RadioListTile<String>(
+                                  title: const Text('Credit / Debit Card'),
+                                  value: 'Credit / Debit Card',
+                                  groupValue: payment,
+                                  activeColor: pinkAccent,
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() {
+                                        payment = value;
+                                      });
+                                    }
+                                  },
+                                ),
+                                RadioListTile<String>(
+                                  title: const Text('TrueMoney Wallet'),
+                                  value: 'TrueMoney Wallet',
+                                  groupValue: payment,
+                                  activeColor: pinkAccent,
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() {
+                                        payment = value;
+                                      });
+                                    }
+                                  },
+                                ),
                                 const Divider(),
-                                ...widget.items.map((item) {
-                                  final name = item['concertName'] ??
-                                      item['name'] ??
-                                      item['concert'] ??
-                                      'Concert Ticket';
-                                  final seat = item['seat'] ?? item['zone'] ?? '-';
-                                  final itemPrice =
-                                      double.tryParse(item['price'].toString()) ?? 0;
-
-                                  return Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 4),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          name.toString(),
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Zone / Seat: $seat',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey,
-                                          ),
-                                        ),
-                                        Align(
-                                          alignment: Alignment.centerRight,
-                                          child: Text(
-                                            '฿${itemPrice.toStringAsFixed(0)}',
-                                            style: TextStyle(
-                                              color: pinkAccent,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                      ],
+                                if (payment == 'PromptPay')
+                                  Column(
+                                    children: [
+                                      Icon(
+                                        Icons.qr_code,
+                                        size: 100,
+                                        color: pinkAccent,
+                                      ),
+                                      const Text('Scan QR Code'),
+                                    ],
+                                  ),
+                                if (payment == 'Credit / Debit Card') ...[
+                                  TextFormField(
+                                    controller: _cardNumberController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Card Number',
+                                      errorStyle: TextStyle(color: Colors.redAccent),
                                     ),
-                                  );
-                                }),
-                                const Divider(),
-                                row('Ticket Price', '฿$price'),
-                                row('Commission Fee (2%)', '฿$fee'),
-                                if (ship > 0) row('Shipping Fee', '฿$ship'),
+                                    validator: (val) {
+                                      if (val == null || val.trim().isEmpty) {
+                                        return 'Please enter card number';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  TextFormField(
+                                    controller: _cardNameController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Cardholder Name',
+                                      errorStyle: TextStyle(color: Colors.redAccent),
+                                    ),
+                                    validator: (val) {
+                                      if (val == null || val.trim().isEmpty) {
+                                        return 'Please enter cardholder name';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  TextFormField(
+                                    controller: _cardExpiryController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Expiry Date',
+                                      errorStyle: TextStyle(color: Colors.redAccent),
+                                    ),
+                                    validator: (val) {
+                                      if (val == null || val.trim().isEmpty) {
+                                        return 'Please enter expiry date';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  TextFormField(
+                                    controller: _cardCvvController,
+                                    keyboardType: TextInputType.number,
+                                    obscureText: true,
+                                    decoration: const InputDecoration(
+                                      labelText: 'CVV',
+                                      errorStyle: TextStyle(color: Colors.redAccent),
+                                    ),
+                                    validator: (val) {
+                                      if (val == null || val.trim().isEmpty) {
+                                        return 'Please enter CVV';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ],
+                                if (payment == 'TrueMoney Wallet')
+                                  TextFormField(
+                                    controller: _walletPhoneController,
+                                    keyboardType: TextInputType.phone,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Mobile Number',
+                                      errorStyle: TextStyle(color: Colors.redAccent),
+                                    ),
+                                    validator: (val) {
+                                      if (val == null || val.trim().isEmpty) {
+                                        return 'Please enter mobile number';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                const SizedBox(height: 15),
+                                Text(
+                                  'Total Payment: ฿$totalPrice',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    color: pinkAccent,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 15),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: pinkAccent,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    onPressed: _validateAndPay,
+                                    child: const Text('Pay Now'),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
                         ),
-                      ),
-
-                      // Delivery
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Delivery Information',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              DropdownButton<String>(
-                                value: delivery,
-                                isExpanded: true,
-                                items: const [
-                                  DropdownMenuItem(
-                                    value: 'Parcel Shipping',
-                                    child: Text('Parcel Shipping'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'Digital Transfer',
-                                    child: Text('Digital Transfer'),
-                                  ),
-                                ],
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      delivery = value;
-                                    });
-                                  }
-                                },
-                              ),
-                              if (delivery == 'Parcel Shipping') ...[
-                                const TextField(
-                                  decoration: InputDecoration(
-                                    labelText: 'Recipient Name',
-                                  ),
-                                ),
-                                const TextField(
-                                  decoration: InputDecoration(
-                                    labelText: 'Phone Number',
-                                  ),
-                                ),
-                                const TextField(
-                                  decoration: InputDecoration(
-                                    labelText: 'Shipping Address',
-                                  ),
-                                ),
-                                const TextField(
-                                  decoration: InputDecoration(
-                                    labelText: 'Province / Postal Code',
-                                  ),
-                                ),
-                              ] else ...[
-                                const TextField(
-                                  decoration: InputDecoration(
-                                    labelText: 'Email Address',
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // Payment Method
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Select Payment Method',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              RadioListTile<String>(
-                                title: const Text('PromptPay'),
-                                value: 'PromptPay',
-                                groupValue: payment,
-                                activeColor: pinkAccent,
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      payment = value;
-                                    });
-                                  }
-                                },
-                              ),
-                              RadioListTile<String>(
-                                title: const Text('Credit / Debit Card'),
-                                value: 'Credit / Debit Card',
-                                groupValue: payment,
-                                activeColor: pinkAccent,
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      payment = value;
-                                    });
-                                  }
-                                },
-                              ),
-                              RadioListTile<String>(
-                                title: const Text('TrueMoney Wallet'),
-                                value: 'TrueMoney Wallet',
-                                groupValue: payment,
-                                activeColor: pinkAccent,
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      payment = value;
-                                    });
-                                  }
-                                },
-                              ),
-                              const Divider(),
-                              if (payment == 'PromptPay')
-                                Column(
-                                  children: [
-                                    Icon(
-                                      Icons.qr_code,
-                                      size: 100,
-                                      color: pinkAccent,
-                                    ),
-                                    const Text('Scan QR Code'),
-                                  ],
-                                ),
-                              if (payment == 'Credit / Debit Card') ...[
-                                const TextField(
-                                  decoration: InputDecoration(
-                                    labelText: 'Card Number',
-                                  ),
-                                ),
-                                const TextField(
-                                  decoration: InputDecoration(
-                                    labelText: 'Cardholder Name',
-                                  ),
-                                ),
-                                const TextField(
-                                  decoration: InputDecoration(
-                                    labelText: 'Expiry Date',
-                                  ),
-                                ),
-                                const TextField(
-                                  decoration: InputDecoration(labelText: 'CVV'),
-                                ),
-                              ],
-                              if (payment == 'TrueMoney Wallet')
-                                const TextField(
-                                  decoration: InputDecoration(
-                                    labelText: 'Mobile Number',
-                                  ),
-                                ),
-                              const SizedBox(height: 15),
-                              Text(
-                                'Total Payment: ฿$totalPrice',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  color: pinkAccent,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 15),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: pinkAccent,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  onPressed: () {
-                                    if (currentOrder != null) {
-                                      setState(() {
-                                        CartService.payOrder(currentOrder!);
-                                        success = true;
-                                        timer?.cancel();
-                                      });
-                                    }
-                                  },
-                                  child: const Text('Pay Now'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
     );

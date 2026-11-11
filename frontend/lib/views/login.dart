@@ -81,17 +81,22 @@ class _LoginState extends State<Login> {
                       const SizedBox(height: 16),
 
                       // Email
+                      const Text(
+                        'Email',
+                        style: TextStyle(
+                          color: Colors.pinkAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
                       TextFormField(
                         controller: resetEmailController,
                         keyboardType: TextInputType.emailAddress,
                         style: const TextStyle(color: Colors.black),
                         decoration: InputDecoration(
-                          labelText: 'Registered Email',
-                          labelStyle: const TextStyle(color: Colors.black54),
-                          floatingLabelStyle: const TextStyle(
-                            color: Colors.pinkAccent,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          hintText: 'Enter your email',
+                          hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                           prefixIcon: const Icon(Icons.email_outlined),
                           filled: true,
                           fillColor: Colors.white.withOpacity(0.9),
@@ -104,17 +109,22 @@ class _LoginState extends State<Login> {
                       const SizedBox(height: 12),
 
                       // Phone Number
+                      const Text(
+                        'Phone Number',
+                        style: TextStyle(
+                          color: Colors.pinkAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
                       TextFormField(
                         controller: resetPhoneController,
                         keyboardType: TextInputType.phone,
                         style: const TextStyle(color: Colors.black),
                         decoration: InputDecoration(
-                          labelText: 'Phone Number',
-                          labelStyle: const TextStyle(color: Colors.black54),
-                          floatingLabelStyle: const TextStyle(
-                            color: Colors.pinkAccent,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          hintText: 'Enter your phone number',
+                          hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                           prefixIcon: const Icon(Icons.phone_outlined),
                           filled: true,
                           fillColor: Colors.white.withOpacity(0.9),
@@ -127,17 +137,22 @@ class _LoginState extends State<Login> {
                       const SizedBox(height: 12),
 
                       // New Password
+                      const Text(
+                        'New Password',
+                        style: TextStyle(
+                          color: Colors.pinkAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
                       TextFormField(
                         controller: newPasswordController,
                         obscureText: true,
                         style: const TextStyle(color: Colors.black),
                         decoration: InputDecoration(
-                          labelText: 'New Password',
-                          labelStyle: const TextStyle(color: Colors.black54),
-                          floatingLabelStyle: const TextStyle(
-                            color: Colors.pinkAccent,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          hintText: 'Enter new password',
+                          hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                           prefixIcon: const Icon(Icons.lock_outline),
                           filled: true,
                           fillColor: Colors.white.withOpacity(0.9),
@@ -150,17 +165,22 @@ class _LoginState extends State<Login> {
                       const SizedBox(height: 12),
 
                       // Confirm New Password
+                      const Text(
+                        'Confirm New Password',
+                        style: TextStyle(
+                          color: Colors.pinkAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
                       TextFormField(
                         controller: confirmNewPasswordController,
                         obscureText: true,
                         style: const TextStyle(color: Colors.black),
                         decoration: InputDecoration(
-                          labelText: 'Confirm New Password',
-                          labelStyle: const TextStyle(color: Colors.black54),
-                          floatingLabelStyle: const TextStyle(
-                            color: Colors.pinkAccent,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          hintText: 'Confirm new password',
+                          hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                           prefixIcon: const Icon(Icons.lock_reset),
                           filled: true,
                           fillColor: Colors.white.withOpacity(0.9),
@@ -353,19 +373,23 @@ class _LoginState extends State<Login> {
                         border: Border.all(color: Colors.white12),
                       ),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Username
+                          const Text(
+                            'Username',
+                            style: TextStyle(
+                              color: Colors.pinkAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
                           TextFormField(
                             controller: _usernameController,
                             decoration: InputDecoration(
-                              labelText: 'Username',
-                              labelStyle: const TextStyle(
-                                color: Colors.black54,
-                              ),
-                              floatingLabelStyle: const TextStyle(
-                                color: Colors.pinkAccent,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              hintText: 'Enter your username',
+                              hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                               prefixIcon: const Icon(Icons.person_outline),
                               filled: true,
                               fillColor: Colors.white.withOpacity(0.9),
@@ -378,18 +402,21 @@ class _LoginState extends State<Login> {
                           const SizedBox(height: 16),
 
                           // Password
+                          const Text(
+                            'Password',
+                            style: TextStyle(
+                              color: Colors.pinkAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
                           TextFormField(
                             controller: _passwordController,
                             obscureText: true,
                             decoration: InputDecoration(
-                              labelText: 'Password',
-                              labelStyle: const TextStyle(
-                                color: Colors.black54,
-                              ),
-                              floatingLabelStyle: const TextStyle(
-                                color: Colors.pinkAccent,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              hintText: 'Enter your password',
+                              hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                               prefixIcon: const Icon(Icons.lock_outline),
                               filled: true,
                               fillColor: Colors.white.withOpacity(0.9),

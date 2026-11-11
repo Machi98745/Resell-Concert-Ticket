@@ -63,19 +63,23 @@ class _RegisterState extends State<Register> {
                         border: Border.all(color: Colors.white12),
                       ),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Username
+                          const Text(
+                            'Username',
+                            style: TextStyle(
+                              color: Colors.pinkAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
                           TextFormField(
                             controller: _usernameController,
                             decoration: InputDecoration(
-                              labelText: 'Username',
-                              labelStyle: const TextStyle(
-                                color: Colors.black54,
-                              ),
-                              floatingLabelStyle: const TextStyle(
-                                color: Colors.pinkAccent,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              hintText: 'Enter your username',
+                              hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                               prefixIcon: const Icon(Icons.person_outline),
                               filled: true,
                               fillColor: Colors.white.withOpacity(0.9),
@@ -88,17 +92,20 @@ class _RegisterState extends State<Register> {
                           const SizedBox(height: 14),
 
                           // Fullname
+                          const Text(
+                            'Full Name',
+                            style: TextStyle(
+                              color: Colors.pinkAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
                           TextFormField(
                             controller: _fullnameController,
                             decoration: InputDecoration(
-                              labelText: 'Full Name',
-                              labelStyle: const TextStyle(
-                                color: Colors.black54,
-                              ),
-                              floatingLabelStyle: const TextStyle(
-                                color: Colors.pinkAccent,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              hintText: 'Enter your full name',
+                              hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                               prefixIcon: const Icon(Icons.person),
                               filled: true,
                               fillColor: Colors.white.withOpacity(0.9),
@@ -111,18 +118,21 @@ class _RegisterState extends State<Register> {
                           const SizedBox(height: 14),
 
                           // Email
+                          const Text(
+                            'Email',
+                            style: TextStyle(
+                              color: Colors.pinkAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
                             decoration: InputDecoration(
-                              labelText: 'Email',
-                              labelStyle: const TextStyle(
-                                color: Colors.black54,
-                              ),
-                              floatingLabelStyle: const TextStyle(
-                                color: Colors.pinkAccent,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              hintText: 'Enter your email',
+                              hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                               prefixIcon: const Icon(Icons.email_outlined),
                               filled: true,
                               fillColor: Colors.white.withOpacity(0.9),
@@ -135,18 +145,21 @@ class _RegisterState extends State<Register> {
                           const SizedBox(height: 14),
 
                           // Phone Number
+                          const Text(
+                            'Phone Number',
+                            style: TextStyle(
+                              color: Colors.pinkAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
                           TextFormField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
                             decoration: InputDecoration(
-                              labelText: 'Phone Number',
-                              labelStyle: const TextStyle(
-                                color: Colors.black54,
-                              ),
-                              floatingLabelStyle: const TextStyle(
-                                color: Colors.pinkAccent,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              hintText: 'Enter your phone number',
+                              hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                               prefixIcon: const Icon(Icons.phone_outlined),
                               filled: true,
                               fillColor: Colors.white.withOpacity(0.9),
@@ -159,18 +172,21 @@ class _RegisterState extends State<Register> {
                           const SizedBox(height: 14),
 
                           // Password
+                          const Text(
+                            'Password',
+                            style: TextStyle(
+                              color: Colors.pinkAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
                           TextFormField(
                             controller: _passwordController,
                             obscureText: true,
                             decoration: InputDecoration(
-                              labelText: 'Password',
-                              labelStyle: const TextStyle(
-                                color: Colors.black54,
-                              ),
-                              floatingLabelStyle: const TextStyle(
-                                color: Colors.pinkAccent,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              hintText: 'Enter your password',
+                              hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                               prefixIcon: const Icon(Icons.lock_outline),
                               filled: true,
                               fillColor: Colors.white.withOpacity(0.9),
@@ -183,18 +199,21 @@ class _RegisterState extends State<Register> {
                           const SizedBox(height: 14),
 
                           // Confirm Password
+                          const Text(
+                            'Confirm Password',
+                            style: TextStyle(
+                              color: Colors.pinkAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
                           TextFormField(
                             controller: _confirmPasswordController,
                             obscureText: true,
                             decoration: InputDecoration(
-                              labelText: 'Confirm Password',
-                              labelStyle: const TextStyle(
-                                color: Colors.black54,
-                              ),
-                              floatingLabelStyle: const TextStyle(
-                                color: Colors.pinkAccent,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              hintText: 'Confirm your password',
+                              hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                               prefixIcon: const Icon(Icons.lock_reset),
                               filled: true,
                               fillColor: Colors.white.withOpacity(0.9),
@@ -281,7 +300,6 @@ class _RegisterState extends State<Register> {
                                   return;
                                 }
 
-                                // เปลี่ยนด้านหลังได้ ตอนนี้มันใสส่ตัวอักษรหลังจาก . ได้แค่ 2-4 ตัว
                                 if (!RegExp(
                                   r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
                                 ).hasMatch(email)) {

@@ -19,6 +19,9 @@ class _HistoryPageState extends State<HistoryPage>
   late TabController tabController;
   Timer? refreshTimer;
 
+  // สมมติ Username ผู้ใช้งานปัจจุบัน (สามารถเปลี่ยนเป็นค่าจาก Auth/Profile Service ได้)
+  final String currentUsername = 'cocomint';
+
   final List<String> statuses = [
     'To Pay',
     'To Ship',
@@ -63,6 +66,23 @@ class _HistoryPageState extends State<HistoryPage>
     if (mounted) {
       setState(() {});
     }
+  }
+
+  // เช็คว่าผู้ใช้ปัจจุบันเป็นผู้ขายรายการในออเดอร์นี้หรือไม่
+  bool _isCurrentUserSeller(Map<String, dynamic> order) {
+    final items = order['items'] as List?;
+    if (items == null || items.isEmpty) return false;
+
+    return items.any((item) {
+      final sellerName = (item['seller'] ?? item['accName'] ?? '').toString().trim().toLowerCase();
+      return sellerName == currentUsername.trim().toLowerCase();
+    });
+  }
+
+  // เช็คว่าผู้ใช้ปัจจุบันเป็นผู้ซื้อออเดอร์นี้หรือไม่
+  bool _isCurrentUserBuyer(Map<String, dynamic> order) {
+    final buyerName = (order['buyer'] ?? order['username'] ?? currentUsername).toString().trim().toLowerCase();
+    return buyerName == currentUsername.trim().toLowerCase();
   }
 
   String formatDate(dynamic value) {
@@ -320,6 +340,7 @@ class _HistoryPageState extends State<HistoryPage>
     final artist = ticket['artist'] ?? '';
     final zone = ticket['zone'] ?? 'General Zone';
     final price = ticket['price'] ?? 0;
+    final seller = ticket['seller'] ?? ticket['accName'] ?? '';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -367,6 +388,14 @@ class _HistoryPageState extends State<HistoryPage>
                     fontSize: 12,
                   ),
                 ),
+                if (seller.toString().isNotEmpty)
+                  Text(
+                    'Seller: $seller',
+                    style: const TextStyle(
+                      color: Colors.black54,
+                      fontSize: 11,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -547,8 +576,11 @@ class _HistoryPageState extends State<HistoryPage>
     Map<String, dynamic> order,
   ) {
     final status = order['status'];
+    final isBuyer = _isCurrentUserBuyer(order);
+    final isSeller = _isCurrentUserSeller(order);
 
-    if (status == 'To Pay') {
+    // 1. สถานะ To Pay -> แสดงปุ่มเฉพาะ ผู้ซื้อ
+    if (status == 'To Pay' && isBuyer) {
       return Row(
         children: [
           Expanded(
@@ -576,13 +608,14 @@ class _HistoryPageState extends State<HistoryPage>
       );
     }
 
-    if (status == 'To Ship') {
+    // 2. สถานะ To Ship -> แสดงปุ่มจัดส่งเฉพาะ ผู้ขาย ของบัตรใบนี้
+    if (status == 'To Ship' && isSeller) {
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
           onPressed: () => _simulateShipping(order),
           icon: const Icon(Icons.local_shipping_outlined),
-          label: const Text('Update Shipping (Demo)'),
+          label: const Text('Ship Ticket (Seller)'),
           style: ElevatedButton.styleFrom(
             backgroundColor: pink,
             foregroundColor: Colors.white,
@@ -591,13 +624,14 @@ class _HistoryPageState extends State<HistoryPage>
       );
     }
 
-    if (status == 'To Receive') {
+    // 3. สถานะ To Receive -> แสดงปุ่มยืนยันรับบัตรเฉพาะ ผู้ซื้อ
+    if (status == 'To Receive' && isBuyer) {
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton(
           onPressed: () => _confirmReceived(order),
           style: ElevatedButton.styleFrom(
-            backgroundColor: pink,
+            backgroundColor: Colors.green,
             foregroundColor: Colors.white,
           ),
           child: const Text('Confirm Received Ticket'),
@@ -656,7 +690,6 @@ class _HistoryPageState extends State<HistoryPage>
   }
 
   void _payOrder(Map<String, dynamic> order) {
-    // นำทางไปยังหน้า PaymentPage เพื่อชำระเงินและดูเวลานับถอยหลังต่อ
     final orderItems = (order['items'] as List?)
             ?.map((item) => Map<String, dynamic>.from(item))
             .toList() ??
