@@ -153,7 +153,7 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`user_id`, `username`, `email`, `password_hash`, `full_name`, `phone`, `role`, `is_verified`, `is_active`, `created_at`) VALUES
 (1, 'somchai01', 'somchai@email.com', '$argon2id$v=19$m=19456,t=2,p=1$8Uo8Fmyxnr62TGJ+OV71Wg$DQb+howOx5Lh9+cLShJTcgGnrNf4aNxiW4exYarhWPs', 'Somchai Jaidee (Verified Seller)', '0812345678', 'customer', 1, 1, '2026-11-04 16:04:05'),
-(2, 'admin01', 'admin@tixxa.com', '$argon2id$v=19$m=19456,t=2,p=1$8Uo8Fmyxnr62TGJ+OV71Wg$DQb+howOx5Lh9+cLShJTcgGnrNf4aNxiW4exYarhWPs', 'Tixxa System Admin', '0800000000', 'customer', 1, 1, '2026-11-04 16:04:05'),
+(2, 'admin01', 'admin@tixxa.com', '$argon2id$v=19$m=19456,t=2,p=1$8Uo8Fmyxnr62TGJ+OV71Wg$DQb+howOx5Lh9+cLShJTcgGnrNf4aNxiW4exYarhWPs', 'Tixxa System Admin', '0800000000', 'admin', 1, 1, '2026-11-04 16:04:05'),
 (3, 'somsak_unverified', 'somsak@email.com', '$argon2id$v=19$m=19456,t=2,p=1$8Uo8Fmyxnr62TGJ+OV71Wg$DQb+howOx5Lh9+cLShJTcgGnrNf4aNxiW4exYarhWPs', 'Somsak Newbie', '0891112222', 'customer', 0, 1, '2026-11-04 16:04:05');
 
 --
