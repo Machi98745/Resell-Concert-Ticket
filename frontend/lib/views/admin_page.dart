@@ -1020,7 +1020,7 @@ class _AdminPageState extends State<AdminPage> {
                                           border: Border.all(
                                             color: isSold
                                                 ? Colors.green.shade300
-                                                : primaryPink.withOpacity(0.4),
+                                                : primaryPink.withValues(alpha: 0.4),
                                           ),
                                         ),
                                         child: Text(
@@ -1243,7 +1243,7 @@ class _AdminPageState extends State<AdminPage> {
           border: Border.all(color: Colors.grey.shade200),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -1409,7 +1409,7 @@ class _AdminPageState extends State<AdminPage> {
             border: Border.all(color: Colors.grey.shade200),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.015),
+                color: Colors.black.withValues(alpha: 0.015),
                 blurRadius: 8,
                 offset: const Offset(0, 3),
               ),
@@ -1516,7 +1516,7 @@ class _AdminPageState extends State<AdminPage> {
                       const SizedBox(height: 2),
                       Switch(
                         value: isActive,
-                        activeColor: primaryPink,
+                        activeThumbColor: primaryPink,
                         activeTrackColor: softPink,
                         inactiveThumbColor: Colors.grey.shade400,
                         inactiveTrackColor: Colors.grey.shade200,

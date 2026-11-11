@@ -517,8 +517,8 @@ class _HomePageState extends State<HomePage> {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                Colors.black.withOpacity(0.75),
-                                Colors.black.withOpacity(0.35),
+                                Colors.black.withValues(alpha: 0.75),
+                                Colors.black.withValues(alpha: 0.35),
                                 Colors.transparent,
                               ],
                               begin: Alignment.centerLeft,
@@ -677,7 +677,7 @@ class _HomePageState extends State<HomePage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.35),
+        color: Colors.black.withValues(alpha: 0.35),
         shape: BoxShape.circle,
       ),
       child: IconButton(

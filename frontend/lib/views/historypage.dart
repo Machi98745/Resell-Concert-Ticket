@@ -165,7 +165,7 @@ class _HistoryPageState extends State<HistoryPage>
             Icon(
               Icons.receipt_long_outlined,
               size: 65,
-              color: pink.withOpacity(0.5),
+              color: pink.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 15),
             Text(
@@ -217,7 +217,7 @@ class _HistoryPageState extends State<HistoryPage>
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),

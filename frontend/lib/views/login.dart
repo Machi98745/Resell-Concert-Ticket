@@ -99,7 +99,7 @@ class _LoginState extends State<Login> {
                           hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                           prefixIcon: const Icon(Icons.email_outlined),
                           filled: true,
-                          fillColor: Colors.white.withOpacity(0.9),
+                          fillColor: Colors.white.withValues(alpha: 0.9),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
@@ -127,7 +127,7 @@ class _LoginState extends State<Login> {
                           hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                           prefixIcon: const Icon(Icons.phone_outlined),
                           filled: true,
-                          fillColor: Colors.white.withOpacity(0.9),
+                          fillColor: Colors.white.withValues(alpha: 0.9),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
@@ -155,7 +155,7 @@ class _LoginState extends State<Login> {
                           hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                           prefixIcon: const Icon(Icons.lock_outline),
                           filled: true,
-                          fillColor: Colors.white.withOpacity(0.9),
+                          fillColor: Colors.white.withValues(alpha: 0.9),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
@@ -183,7 +183,7 @@ class _LoginState extends State<Login> {
                           hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                           prefixIcon: const Icon(Icons.lock_reset),
                           filled: true,
-                          fillColor: Colors.white.withOpacity(0.9),
+                          fillColor: Colors.white.withValues(alpha: 0.9),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
@@ -201,7 +201,7 @@ class _LoginState extends State<Login> {
                             horizontal: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.redAccent.withOpacity(0.2),
+                            color: Colors.redAccent.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: Colors.redAccent),
                           ),
@@ -340,7 +340,7 @@ class _LoginState extends State<Login> {
             fit: BoxFit.cover,
           ),
 
-          Container(color: Colors.black.withOpacity(0.55)),
+          Container(color: Colors.black.withValues(alpha: 0.55)),
 
           Center(
             child: SingleChildScrollView(
@@ -368,7 +368,7 @@ class _LoginState extends State<Login> {
                         vertical: 24,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.4),
+                        color: Colors.black.withValues(alpha: 0.4),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(color: Colors.white12),
                       ),
@@ -392,7 +392,7 @@ class _LoginState extends State<Login> {
                               hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                               prefixIcon: const Icon(Icons.person_outline),
                               filled: true,
-                              fillColor: Colors.white.withOpacity(0.9),
+                              fillColor: Colors.white.withValues(alpha: 0.9),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide.none,
@@ -419,7 +419,7 @@ class _LoginState extends State<Login> {
                               hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                               prefixIcon: const Icon(Icons.lock_outline),
                               filled: true,
-                              fillColor: Colors.white.withOpacity(0.9),
+                              fillColor: Colors.white.withValues(alpha: 0.9),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide.none,
@@ -518,8 +518,8 @@ class _LoginState extends State<Login> {
                     const SizedBox(height: 20),
 
                     // เส้นคั่น
-                    Row(
-                      children: const [
+                    const Row(
+                      children: [
                         Expanded(child: Divider(color: Colors.white24)),
                         Padding(
                           padding: EdgeInsets.symmetric(horizontal: 10),
@@ -545,11 +545,11 @@ class _LoginState extends State<Login> {
                           ),
                         );
                       },
-                      child: Text.rich(
+                      child: const Text.rich(
                         TextSpan(
                           text: "Don't have an account? ",
-                          style: const TextStyle(color: Colors.white70),
-                          children: const [
+                          style: TextStyle(color: Colors.white70),
+                          children: [
                             TextSpan(
                               text: 'Register here',
                               style: TextStyle(

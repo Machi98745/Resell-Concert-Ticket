@@ -650,7 +650,7 @@ class _MyResellingPageState extends State<MyResellingPage> {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: getStatusColor().withOpacity(0.15),
+                                color: getStatusColor().withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -837,7 +837,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _sectionTitle('Notifications'),
           _settingsCard([
             SwitchListTile(
-              activeColor: pink,
+              activeThumbColor: pink,
               secondary: const Icon(Icons.notifications_outlined, color: pink),
               title: const Text('Push Notifications'),
               subtitle: const Text('Receive app notifications'),
@@ -846,7 +846,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const Divider(height: 1),
             SwitchListTile(
-              activeColor: pink,
+              activeThumbColor: pink,
               secondary: const Icon(Icons.email_outlined, color: pink),
               title: const Text('Email Notifications'),
               subtitle: const Text('Receive updates by email'),
@@ -858,7 +858,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _sectionTitle('Appearance'),
           _settingsCard([
             SwitchListTile(
-              activeColor: pink,
+              activeThumbColor: pink,
               secondary: const Icon(Icons.dark_mode_outlined, color: pink),
               title: const Text('Dark Mode'),
               subtitle: const Text('Change the app appearance'),
@@ -1205,7 +1205,7 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
           inputField('Email Address', emailController),
           const SizedBox(height: 15),
           DropdownButtonFormField<String>(
-            value: selectedTopic,
+            initialValue: selectedTopic,
             decoration: InputDecoration(
               labelText: 'Topic',
               filled: true,
