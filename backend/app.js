@@ -42,7 +42,15 @@ app.use('/api/payments', paymentRoutes);
 app.get('/', (req, res) => {
   res.send('Concert Resell Ticket API is running...');
 });
+module.exports = app;
+// ==========================================
+// 2. CONCERT MODULE (ดึงผ่าน Route อย่างเดียว)
+// ==========================================
+app.use('/api', concertRoutes);
 
+// ==========================================
+// START SERVER
+// ==========================================
 app.listen(PORT, () => {
   console.log(`Server is running at http://localhost:${PORT}`);
 });
