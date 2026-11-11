@@ -1,7 +1,7 @@
 const db = require('../db_config');
 
-// ดึงคอนเสิร์ตทั้งหมด
-exports.getAllConcerts = (req, res) => {
+// 1. ดึงคอนเสิร์ตทั้งหมด (GET /api/concerts)
+exports.getAllConcerts = async (req, res) => {
   const { search } = req.query;
   let sql = 'SELECT * FROM concerts';
   let params = [];
@@ -12,6 +12,13 @@ exports.getAllConcerts = (req, res) => {
     params = [keyword, keyword];
   }
 
+  try {
+    const [results] = await db.query(sql, params);
+    res.status(200).json(results);
+  } catch (err) {
+    res.status(500).json({ message: 'Database Error', error: err.message });
+  }
+
   db.query(sql, params, (err, results) => {
     if (err) {
       return res.status(500).json({ message: 'Database Error', error: err.message });
@@ -20,18 +27,17 @@ exports.getAllConcerts = (req, res) => {
   });
 };
 
-// ดึงคอนเสิร์ตตาม ID
-exports.getConcertById = (req, res) => {
+// 2. ดึงรายละเอียดคอนเสิร์ตตาม ID (GET /api/concerts/:id)
+exports.getConcertById = async (req, res) => {
   const { id } = req.params;
-  const sql = 'SELECT * FROM concerts WHERE concert_id = ?';
 
-  db.query(sql, [id], (err, results) => {
-    if (err) {
-      return res.status(500).json({ message: 'Database Error', error: err.message });
-    }
-    if (results.length === 0) {
+  try {
+    const [concerts] = await db.query('SELECT * FROM concerts WHERE concert_id = ?', [id]);
+    if (concerts.length === 0) {
       return res.status(404).json({ message: 'Concert not found' });
     }
-    res.status(200).json(results[0]);
-  });
+    res.status(200).json(concerts[0]);
+  } catch (err) {
+    res.status(500).json({ message: 'Database Error', error: err.message });
+  }
 };
