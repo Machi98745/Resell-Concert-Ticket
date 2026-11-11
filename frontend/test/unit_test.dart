@@ -215,7 +215,10 @@ void main() {
     });
 
     test('advances order through payment, shipping, and receipt', () {
-      final listing = {'listingId': 'LIST_1', 'status': 'Available'};
+      final listing = <String, dynamic>{
+        'listingId': 'LIST_1',
+        'status': 'Available',
+      };
       CartService.resaleListings.add(listing);
       final order = <String, dynamic>{
         'status': 'To Pay',
@@ -241,6 +244,7 @@ void main() {
         'status': 'To Pay',
         'paymentDeadline': DateTime.now().subtract(const Duration(seconds: 1)),
       };
+      CartService.history.add(order);
 
       expect(CartService.payOrder(order), isFalse);
       expect(order['status'], 'Cancelled');
