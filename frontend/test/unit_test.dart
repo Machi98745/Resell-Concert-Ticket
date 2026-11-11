@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:frontend/controller/login_controller.dart';
 import 'package:frontend/controller/payment_controller.dart';
 import 'package:frontend/controller/resell_controller.dart';
 import 'package:frontend/views/cart_service.dart';
@@ -10,6 +11,75 @@ void main() {
     CartService.history.clear();
     CartService.resaleListings.clear();
     FavoriteService.favorites.clear();
+  });
+
+  group('LoginController', () {
+    test('accepts valid user credentials and trims surrounding spaces', () {
+      final controller = LoginController();
+
+      expect(controller.validateCredentials(' cocomint ', ' 2222 '), isNull);
+    });
+
+    test('requires both username and password', () {
+      final controller = LoginController();
+
+      expect(
+        controller.validateCredentials('   ', '1111'),
+        'Please enter username and password',
+      );
+      expect(
+        controller.validateCredentials('admin', '  '),
+        'Please enter username and password',
+      );
+    });
+
+    test('rejects unknown users and incorrect passwords', () {
+      final controller = LoginController();
+
+      expect(
+        controller.validateCredentials('unknown', '1111'),
+        'Invalid username or password',
+      );
+      expect(
+        controller.validateCredentials('admin', 'wrong'),
+        'Invalid username or password',
+      );
+    });
+
+    test('identifies the admin account', () {
+      final controller = LoginController();
+
+      expect(controller.isAdmin('admin'), isTrue);
+      expect(controller.isAdmin('cocomint'), isFalse);
+    });
+
+    test('resets a password for a matching email and phone', () {
+      final controller = LoginController();
+      final username = controller.findUsernameByEmailAndPhone(
+        ' admin@gmail.com ',
+        '0812345678',
+      );
+
+      expect(username, 'admin');
+      expect(controller.updatePassword(username!, 'newpass'), isTrue);
+      expect(controller.validateCredentials('admin', 'newpass'), isNull);
+      expect(
+        controller.validateCredentials('admin', '1111'),
+        'Invalid username or password',
+      );
+    });
+
+    test('returns no account when recovery details do not match', () {
+      final controller = LoginController();
+
+      expect(
+        controller.findUsernameByEmailAndPhone(
+          'wrong@example.com',
+          '0812345678',
+        ),
+        isNull,
+      );
+    });
   });
 
   group('ResellController.validateResellInput', () {
