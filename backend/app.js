@@ -35,7 +35,6 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-// Middleware แบบ Optional (ถ้าส่ง Token มาจะถอดรหัสให้ ถ้าไม่ส่งก็ผ่านไปเช็ก body ต่อ)
 const optionalVerifyToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -58,9 +57,9 @@ const authorizeRoles = (...allowedRoles) => {
   };
 };
 
-// ==========================================
-// 1. AUTH MODULE (ระบบสมาชิก)
-// ==========================================
+// ============================================================================
+// MODULE 1: AUTH & PROFILE (ระบบสมาชิก, แก้ไขโปรไฟล์, เปลี่ยนรหัสผ่าน)
+// ============================================================================
 app.post('/api/auth/register', async (req, res) => {
   const { username, email, password, full_name, phone, role } = req.body;
 
@@ -78,11 +77,11 @@ app.post('/api/auth/register', async (req, res) => {
     `;
 
     const [result] = await db.query(sql, [
-      username,
-      email,
+      username.trim(),
+      email.trim(),
       password_hash,
-      full_name,
-      phone || null,
+      full_name.trim(),
+      phone ? phone.trim() : null,
       userRole
     ]);
 
@@ -105,8 +104,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 
   try {
-    const sql = 'SELECT * FROM users WHERE username = ?';
-    const [result] = await db.query(sql, [username]);
+    const [result] = await db.query('SELECT * FROM users WHERE username = ?', [username.trim()]);
 
     if (result.length !== 1) {
       return res.status(401).json({ message: 'Invalid username or password' });
@@ -142,7 +140,9 @@ app.post('/api/auth/login', async (req, res) => {
       user: {
         user_id: user.user_id,
         username: user.username,
+        email: user.email,
         full_name: user.full_name,
+        phone: user.phone,
         role: user.role,
         is_verified: user.is_verified,
         is_active: user.is_active
@@ -171,7 +171,55 @@ app.get('/api/auth/me', verifyToken, async (req, res) => {
   }
 });
 
-// รีเซ็ตรหัสผ่านด้วย Email และเบอร์โทรศัพท์ (รองรับ AuthController.resetPassword ของ Frontend)
+// แก้ไขโปรไฟล์ (รองรับหน้า profile.dart -> Edit Profile)
+app.put('/api/auth/profile', verifyToken, async (req, res) => {
+  const { full_name, email, phone } = req.body;
+  if (!full_name || !email) {
+    return res.status(400).json({ message: 'full_name and email are required' });
+  }
+
+  try {
+    await db.query(
+      'UPDATE users SET full_name = ?, email = ?, phone = ? WHERE user_id = ?',
+      [full_name.trim(), email.trim(), phone ? phone.trim() : null, req.user.user_id]
+    );
+    const [updated] = await db.query(
+      'SELECT user_id, username, email, full_name, phone, role, is_verified, is_active FROM users WHERE user_id = ?',
+      [req.user.user_id]
+    );
+    res.status(200).json({ message: 'Profile updated successfully', user: updated[0] });
+  } catch (err) {
+    res.status(500).json({ message: 'Database error', error: err.message });
+  }
+});
+
+// เปลี่ยนรหัสผ่านขณะล็อกอินอยู่ (รองรับหน้า profile.dart -> Settings -> Change Password)
+app.post('/api/auth/change-password', verifyToken, async (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password) {
+    return res.status(400).json({ message: 'Please provide current_password and new_password' });
+  }
+
+  try {
+    const [users] = await db.query('SELECT password_hash FROM users WHERE user_id = ?', [req.user.user_id]);
+    if (users.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const isMatch = await argon2.verify(users[0].password_hash, current_password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+
+    const newHash = await argon2.hash(new_password);
+    await db.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [newHash, req.user.user_id]);
+    res.status(200).json({ message: 'Password updated successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Database error', error: err.message });
+  }
+});
+
+// รีเซ็ตรหัสผ่านกรณีลืมรหัสผ่าน (รองรับหน้า login.dart -> Forgot Password)
 app.post('/api/auth/reset-password', async (req, res) => {
   const { email, phone, new_password } = req.body;
   if (!email || !phone || !new_password) {
@@ -180,7 +228,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
   try {
     const [users] = await db.query(
-      'SELECT user_id FROM users WHERE email = ? AND phone = ?',
+      'SELECT user_id, username FROM users WHERE email = ? AND phone = ?',
       [email.trim(), phone.trim()]
     );
     if (users.length === 0) {
@@ -193,20 +241,33 @@ app.post('/api/auth/reset-password', async (req, res) => {
       users[0].user_id
     ]);
 
-    res.status(200).json({ message: 'Password reset successfully' });
+    res.status(200).json({ message: 'Password reset successfully', username: users[0].username });
   } catch (err) {
     res.status(500).json({ message: 'Database error', error: err.message });
   }
 });
 
-// ==========================================
-// 2. ADMIN MODULE (จัดการผู้ใช้ & ยืนยันตัวตนผู้ขาย)
-// ==========================================
+// ============================================================================
+// MODULE 2: ADMIN MODULE (รองรับหน้า admin_page.dart ครบทุกปุ่ม)
+// ============================================================================
 app.get('/api/admin/users', verifyToken, authorizeRoles('admin'), async (req, res) => {
   try {
-    const [users] = await db.query(
-      'SELECT user_id, username, email, full_name, phone, role, is_verified, is_active, created_at FROM users ORDER BY user_id ASC'
-    );
+    const [users] = await db.query(`
+      SELECT 
+        u.user_id,
+        u.username,
+        u.email,
+        u.full_name,
+        u.phone,
+        u.role,
+        u.is_verified,
+        u.is_active,
+        u.created_at,
+        (SELECT COUNT(*) FROM resell_listings rl WHERE rl.seller_id = u.user_id AND rl.status = 'sold') AS ticketsSold,
+        (SELECT COUNT(*) FROM payments p WHERE p.buyer_id = u.user_id AND p.status = 'completed') AS ticketsBought
+      FROM users u
+      ORDER BY u.user_id ASC
+    `);
     res.status(200).json(users);
   } catch (err) {
     res.status(500).json({ message: 'Database Error', error: err.message });
@@ -259,9 +320,23 @@ app.patch('/api/admin/users/:id/verify', verifyToken, authorizeRoles('admin'), a
   }
 });
 
-// ==========================================
-// 3. CONCERT MODULE (ระบบคอนเสิร์ต)
-// ==========================================
+// ลบบัญชีผู้ใช้ (รองรับปุ่ม Delete Account ในหน้า admin_page.dart)
+app.delete('/api/admin/users/:id', verifyToken, authorizeRoles('admin'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [result] = await db.query('DELETE FROM users WHERE user_id = ?', [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.status(200).json({ message: 'User account deleted successfully', user_id: Number(id) });
+  } catch (err) {
+    res.status(500).json({ message: 'Database Error', error: err.message });
+  }
+});
+
+// ============================================================================
+// MODULE 3: CONCERT MODULE (รองรับหน้า homepage.dart และ detail.dart)
+// ============================================================================
 app.get('/api/concerts', async (req, res) => {
   const { search, category } = req.query;
   let sql = 'SELECT * FROM concerts WHERE 1=1';
@@ -301,13 +376,44 @@ app.get('/api/concerts/:id', async (req, res) => {
   }
 });
 
-// ==========================================
-// 4. RESELL MODULE (เชื่อมงานของ 6731501049)
-// ==========================================
+// ============================================================================
+// MODULE 4: RESELL & MY TICKETS MODULE (รองรับ sell_page.dart และ MyResellingPage)
+// ============================================================================
 app.use('/api/resell', optionalVerifyToken, resellRoutes);
 app.get('/api/user/my-tickets', verifyToken, resellController.getMyTickets);
 
-// API สำหรับเสก/เพิ่มตั๋วเข้าตัว User (ไว้ใช้ตอนเทสระบบ)
+// ดึงรายการบัตรที่ผู้ใช้กำลังลงขายอยู่ (รองรับหน้า MyResellingPage ใน profile.dart)
+app.get('/api/user/my-resell-listings', verifyToken, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT 
+         rl.listing_id,
+         rl.ticket_id,
+         rl.resell_price,
+         rl.status,
+         rl.created_at,
+         t.ticket_code,
+         t.zone_name,
+         t.seat_number,
+         t.original_price,
+         c.concert_id,
+         c.title AS concert_title,
+         c.venue,
+         c.show_datetime
+       FROM resell_listings rl
+       JOIN tickets t ON rl.ticket_id = t.ticket_id
+       JOIN concerts c ON t.concert_id = c.concert_id
+       WHERE rl.seller_id = ?
+       ORDER BY rl.created_at DESC`,
+      [req.user.user_id]
+    );
+    res.status(200).json(rows);
+  } catch (err) {
+    res.status(500).json({ message: 'Database Error', error: err.message });
+  }
+});
+
+// API สำหรับเสก/เพิ่มตั๋วเข้าตัว User (ไว้ใช้ตอนเทสต์ระบบ หรือสร้างตั๋วจากหน้า Sell Page)
 app.post('/api/user/add-ticket', async (req, res) => {
   const { user_id, concert_id, ticket_code, zone_name, seat_number, original_price } = req.body;
   try {
@@ -322,10 +428,10 @@ app.post('/api/user/add-ticket', async (req, res) => {
 });
 
 // ============================================================================
-// MODULE 5: PAYMENT (15-Min Timeout + Delivery/Meetup + Ownership Transfer)
+// MODULE 5: PAYMENT & ORDER HISTORY (รองรับ payment_page.dart & historypage.dart)
 // ============================================================================
 
-// 1. สร้างรายการชำระเงิน (ล็อกเวลาจ่ายเงิน 15 นาที + เลือกจัดส่งหรือนัดรับ)
+// 1. สร้างรายการชำระเงิน (ล็อกเวลาจ่ายเงิน 15 นาที + รองรับทั้ง delivery/meetup และ Parcel Shipping/Digital Transfer)
 app.post('/api/payments/checkout', verifyToken, async (req, res) => {
   const { listing_id, payment_method, delivery_method, shipping_info } = req.body;
   const buyer_id = req.user.user_id;
@@ -334,21 +440,23 @@ app.post('/api/payments/checkout', verifyToken, async (req, res) => {
     return res.status(400).json({ message: 'listing_id and payment_method are required' });
   }
 
+  const allowedDelivery = ['delivery', 'meetup', 'Parcel Shipping', 'Digital Transfer'];
   const finalDeliveryMethod = delivery_method || 'delivery';
-  if (finalDeliveryMethod !== 'delivery' && finalDeliveryMethod !== 'meetup') {
-    return res.status(400).json({ message: 'Invalid delivery_method (must be delivery or meetup)' });
+  if (!allowedDelivery.includes(finalDeliveryMethod)) {
+    return res.status(400).json({
+      message: 'Invalid delivery_method (must be delivery, meetup, Parcel Shipping, or Digital Transfer)'
+    });
   }
 
   if (!shipping_info || shipping_info.trim() === '') {
     return res.status(400).json({
       message: finalDeliveryMethod === 'meetup'
         ? 'Please specify the location and time for ticket pickup (shipping_info).'
-        : 'Please fill in the address for ticket delivery (shipping_info).'
+        : 'Please fill in the address or email for ticket delivery (shipping_info).'
     });
   }
 
   try {
-    // 1. เช็กว่าตั๋วมือสองใบนี้ยังว่างอยู่ไหม
     const [listings] = await db.query(
       "SELECT * FROM resell_listings WHERE listing_id = ? AND status = 'available'",
       [listing_id]
@@ -359,28 +467,34 @@ app.post('/api/payments/checkout', verifyToken, async (req, res) => {
 
     const listing = listings[0];
 
-    // 2. [Sprint 3 Business Logic] ห้ามผู้ขายกดซื้อตั๋วที่ตัวเองลงขาย
     if (listing.seller_id === buyer_id) {
       return res.status(400).json({ message: 'You cannot purchase a ticket that you are listing for resale' });
     }
 
-    const amount = listing.resell_price;
+    const ticketPrice = Number(listing.resell_price);
+    const commissionFee = Math.round(ticketPrice * 0.02); // ค่าธรรมเนียม 2% ตามหน้า UI ของเพื่อน
+    const shippingFee = (finalDeliveryMethod === 'Parcel Shipping' || finalDeliveryMethod === 'delivery') ? 50 : 0;
+    const totalAmount = ticketPrice;
 
-    // 3. บันทึกรายการรอชำระเงิน พร้อมกำหนดเวลาหมดอายุ 15 นาที
     const [result] = await db.query(
       `INSERT INTO payments (listing_id, buyer_id, amount, payment_method, delivery_method, shipping_info, status, expires_at)
        VALUES (?, ?, ?, ?, ?, ?, 'pending', DATE_ADD(NOW(), INTERVAL ? MINUTE))`,
-      [listing_id, buyer_id, amount, payment_method, finalDeliveryMethod, shipping_info.trim(), PAYMENT_TIMEOUT_MINUTES]
+      [listing_id, buyer_id, totalAmount, payment_method, finalDeliveryMethod, shipping_info.trim(), PAYMENT_TIMEOUT_MINUTES]
     );
 
     const [newPayment] = await db.query(
-      'SELECT payment_id, listing_id, amount, delivery_method, shipping_info, status, expires_at FROM payments WHERE payment_id = ?',
+      'SELECT * FROM payments WHERE payment_id = ?',
       [result.insertId]
     );
 
     res.status(201).json({
       message: `Payment created successfully. Please complete the payment within ${PAYMENT_TIMEOUT_MINUTES} minutes.`,
-      payment: newPayment[0]
+      payment: {
+        ...newPayment[0],
+        commission_fee: commissionFee,
+        shipping_fee: shippingFee,
+        total_buyer_payment: ticketPrice + commissionFee + shippingFee
+      }
     });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -399,17 +513,18 @@ app.post('/api/payments/:id/confirm', verifyToken, async (req, res) => {
 
     const payment = payments[0];
 
-    // 1. [Sprint 3 Business Logic] ตรวจสอบว่าผู้กดยืนยันคือผู้ซื้อตัวจริง
     if (payment.buyer_id !== req.user.user_id && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'You are not the owner of this payment and cannot confirm it' });
     }
 
-    // 2. [Sprint 3 Business Logic] ตรวจสอบว่ารายการชำระเงินเสร็จสมบูรณ์ไปแล้วหรือยัง
     if (payment.status === 'completed') {
       return res.status(400).json({ message: 'This payment has already been confirmed' });
     }
 
-    // 3. ตรวจสอบว่าเวลาปัจจุบัน (NOW) เลยเวลา expires_at ไปหรือยัง
+    if (payment.status === 'cancelled') {
+      return res.status(400).json({ message: 'This payment was cancelled' });
+    }
+
     const [timeCheck] = await db.query(
       'SELECT (NOW() > expires_at) AS is_expired FROM payments WHERE payment_id = ?',
       [id]
@@ -422,7 +537,6 @@ app.post('/api/payments/:id/confirm', verifyToken, async (req, res) => {
       });
     }
 
-    // 4. [Sprint 3 Business Logic] ตรวจสอบว่าประกาศขายใบนี้ยังเป็น 'available' อยู่หรือไม่
     const [listings] = await db.query(
       "SELECT status, ticket_id FROM resell_listings WHERE listing_id = ? AND status = 'available'",
       [payment.listing_id]
@@ -431,7 +545,6 @@ app.post('/api/payments/:id/confirm', verifyToken, async (req, res) => {
       return res.status(400).json({ message: 'This ticket has already been sold to another buyer' });
     }
 
-    // 5. อัปเดตสถานะจ่ายเงินสำเร็จ + เปลี่ยนตั๋วเป็น sold + โอนตั๋วให้ผู้ซื้อ
     await db.query("UPDATE payments SET status = 'completed' WHERE payment_id = ?", [id]);
     await db.query("UPDATE resell_listings SET status = 'sold' WHERE listing_id = ?", [payment.listing_id]);
     await db.query(
@@ -440,6 +553,56 @@ app.post('/api/payments/:id/confirm', verifyToken, async (req, res) => {
     );
 
     res.json({ message: 'Payment successful and ticket ownership transferred to the buyer.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// 3. ยกเลิกรายการสั่งซื้อที่ยังไม่ชำระเงิน (รองรับปุ่ม Cancel Order ใน historypage.dart)
+app.post('/api/payments/:id/cancel', verifyToken, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [payments] = await db.query('SELECT * FROM payments WHERE payment_id = ?', [id]);
+    if (payments.length === 0) {
+      return res.status(404).json({ message: 'Payment not found' });
+    }
+    if (payments[0].buyer_id !== req.user.user_id && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+    if (payments[0].status !== 'pending') {
+      return res.status(400).json({ message: 'Only pending orders can be cancelled' });
+    }
+
+    await db.query("UPDATE payments SET status = 'failed' WHERE payment_id = ?", [id]);
+    res.status(200).json({ message: 'Order cancelled successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// 4. ดึงประวัติคำสั่งซื้อของฉัน (รองรับหน้า My Orders / historypage.dart)
+app.get('/api/payments/my-orders', verifyToken, async (req, res) => {
+  try {
+    const [orders] = await db.query(
+      `SELECT 
+         p.*,
+         rl.resell_price,
+         t.ticket_code,
+         t.zone_name,
+         t.seat_number,
+         c.title AS concert_title,
+         c.artist,
+         c.venue,
+         c.show_datetime
+       FROM payments p
+       JOIN resell_listings rl ON p.listing_id = rl.listing_id
+       JOIN tickets t ON rl.ticket_id = t.ticket_id
+       JOIN concerts c ON t.concert_id = c.concert_id
+       WHERE p.buyer_id = ?
+       ORDER BY p.paid_at DESC`,
+      [req.user.user_id]
+    );
+    res.status(200).json(orders);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
