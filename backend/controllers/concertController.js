@@ -12,19 +12,14 @@ exports.getAllConcerts = async (req, res) => {
     params = [keyword, keyword];
   }
 
+  sql += ' ORDER BY show_datetime ASC';
+
   try {
     const [results] = await db.query(sql, params);
-    res.status(200).json(results);
+    return res.status(200).json(results);
   } catch (err) {
-    res.status(500).json({ message: 'Database Error', error: err.message });
+    return res.status(500).json({ message: 'Database Error', error: err.message });
   }
-
-  db.query(sql, params, (err, results) => {
-    if (err) {
-      return res.status(500).json({ message: 'Database Error', error: err.message });
-    }
-    res.status(200).json(results);
-  });
 };
 
 // 2. ดึงรายละเอียดคอนเสิร์ตตาม ID (GET /api/concerts/:id)
@@ -34,10 +29,10 @@ exports.getConcertById = async (req, res) => {
   try {
     const [concerts] = await db.query('SELECT * FROM concerts WHERE concert_id = ?', [id]);
     if (concerts.length === 0) {
-      return res.status(404).json({ message: 'Concert not found' });
+      return res.status(404).json({ message: 'Concert not found.' });
     }
-    res.status(200).json(concerts[0]);
+    return res.status(200).json(concerts[0]);
   } catch (err) {
-    res.status(500).json({ message: 'Database Error', error: err.message });
+    return res.status(500).json({ message: 'Database Error', error: err.message });
   }
 };

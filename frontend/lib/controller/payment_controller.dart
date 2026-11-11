@@ -33,9 +33,9 @@ class PaymentController {
     }
 
     if (shippingInfo.trim().isEmpty) {
-      return deliveryMethod == 'meetup'
-          ? 'Please specify the location and time for ticket pickup'
-          : 'Please enter the address or email for ticket delivery';
+      return (deliveryMethod == 'meetup' || deliveryMethod == 'Digital Transfer')
+          ? 'Please specify the location/time or email for ticket pickup'
+          : 'Please enter the shipping address for ticket delivery';
     }
 
     return null;
@@ -60,7 +60,7 @@ class PaymentController {
   }
 
   // ==========================================================================
-  // 3. สร้างรายการจองและรอชำระเงิน 15 นาที (POST /api/payments/checkout)
+  // 3. สร้างรายการจองและรอชำระเงิน 15 นาที (POST /api/payments/create)
   // ==========================================================================
   Future<Map<String, dynamic>> checkout({
     required String token,
@@ -81,7 +81,7 @@ class PaymentController {
 
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/checkout'),
+        Uri.parse('$baseUrl/create'),
         headers: {
           'Content-Type': 'application/json; charset=UTF-8',
           'Authorization': 'Bearer $token',
@@ -89,8 +89,8 @@ class PaymentController {
         body: jsonEncode({
           'listing_id': listingId,
           'payment_method': paymentMethod,
-          'delivery_method': deliveryMethod,
-          'shipping_info': shippingInfo.trim(),
+          'receive_method': deliveryMethod,
+          'receive_details': shippingInfo.trim(),
         }),
       );
 
@@ -99,7 +99,9 @@ class PaymentController {
       if (response.statusCode == 201 || response.statusCode == 200) {
         return Map<String, dynamic>.from(body);
       } else if (response.statusCode == 404) {
-        throw Exception('This ticket listing has already been purchased or does not exist in the system');
+        throw Exception(
+          'This ticket listing has already been purchased or does not exist in the system',
+        );
       } else {
         throw Exception(body['message'] ?? 'Unable to create payment request');
       }
