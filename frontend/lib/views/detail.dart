@@ -1133,17 +1133,17 @@ class _DetailPageState extends State<DetailPage> {
                       'Seller: ${ticket['seller'] ?? 'Ticket Pink'}',
                       style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      sold
-                          ? 'SOLD OUT'
-                          : (ticket['condition'] ?? 'Available').toString(),
-                      style: TextStyle(
-                        color: sold ? Colors.red : Colors.green,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                    if (!sold) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        (ticket['condition'] ?? 'Available').toString(),
+                        style: const TextStyle(
+                          color: Colors.green,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
