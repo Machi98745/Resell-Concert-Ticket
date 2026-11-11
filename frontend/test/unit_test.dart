@@ -1,4 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/testing.dart';
+import 'package:http/http.dart' as http;
+import 'package:frontend/controller/auth_controller.dart';
+import 'package:frontend/controller/concert_controller.dart';
 import 'package:frontend/controller/login_controller.dart';
 import 'package:frontend/controller/payment_controller.dart';
 import 'package:frontend/controller/resell_controller.dart';
@@ -6,6 +12,18 @@ import 'package:frontend/views/cart_service.dart';
 import 'package:frontend/views/favorite_service.dart';
 
 void main() {
+  Future<void> expectExceptionMessage(
+    Future<dynamic> future,
+    String message,
+  ) async {
+    await expectLater(
+      future,
+      throwsA(
+        predicate((error) => error.toString().contains(message)),
+      ),
+    );
+  }
+
   setUp(() {
     CartService.items.clear();
     CartService.history.clear();
@@ -82,6 +100,124 @@ void main() {
     });
   });
 
+  group('AuthController input validation', () {
+    final controller = AuthController();
+
+    test('login requires username and password', () async {
+      await expectExceptionMessage(
+        controller.login(' ', 'password'),
+        'Please enter your username and password.',
+      );
+      await expectExceptionMessage(
+        controller.login('username', ''),
+        'Please enter your username and password.',
+      );
+    });
+
+    test('register requires fields and a six-character password', () async {
+      await expectExceptionMessage(
+        controller.register(
+          fullName: '',
+          username: 'user',
+          email: 'user@example.com',
+          password: '123456',
+        ),
+        'Please fill in all required fields.',
+      );
+      await expectExceptionMessage(
+        controller.register(
+          fullName: 'User',
+          username: 'user',
+          email: 'user@example.com',
+          password: '12345',
+        ),
+        'Password must be at least 6 characters long.',
+      );
+    });
+
+    test('profile update requires a name and email', () async {
+      await expectExceptionMessage(
+        controller.updateProfile(
+          token: 'token',
+          fullName: ' ',
+          email: 'user@example.com',
+        ),
+        'Full name and email are required.',
+      );
+      await expectExceptionMessage(
+        controller.updateProfile(token: 'token', fullName: 'User', email: ' '),
+        'Full name and email are required.',
+      );
+    });
+
+    test('password changes require both values and a six-character new password', () async {
+      await expectExceptionMessage(
+        controller.changePassword(
+          token: 'token',
+          currentPassword: '',
+          newPassword: 'newpass',
+        ),
+        'Please provide both current and new password.',
+      );
+      await expectExceptionMessage(
+        controller.changePassword(
+          token: 'token',
+          currentPassword: 'oldpass',
+          newPassword: '12345',
+        ),
+        'New password must be at least 6 characters long.',
+      );
+    });
+
+    test('password reset requires contact details and a six-character password', () async {
+      await expectExceptionMessage(
+        controller.resetPassword(email: '', phone: '1234567890', newPassword: 'newpass'),
+        'Please provide email, phone number, and new password.',
+      );
+      await expectExceptionMessage(
+        controller.resetPassword(
+          email: 'user@example.com',
+          phone: '1234567890',
+          newPassword: '12345',
+        ),
+        'New password must be at least 6 characters long.',
+      );
+    });
+  });
+
+  group('ConcertController', () {
+    test('returns concerts and trims search filters into query parameters', () async {
+      final client = MockClient((request) async {
+        expect(request.url.path, '/api/concerts');
+        expect(request.url.queryParameters, {'search': 'aurora', 'category': 'Pop'});
+        return http.Response(jsonEncode([
+          {'concert_id': 1, 'name': 'Aurora'}
+        ]), 200);
+      });
+
+      final concerts = await ConcertController(client: client).getConcerts(
+        search: ' aurora ',
+        category: ' Pop ',
+      );
+
+      expect(concerts, hasLength(1));
+      expect(concerts.single['name'], 'Aurora');
+      client.close();
+    });
+
+    test('returns a concert by id', () async {
+      final client = MockClient((request) async {
+        expect(request.url.path, '/api/concerts/7');
+        return http.Response(jsonEncode({'concert_id': 7, 'name': 'Aurora'}), 200);
+      });
+
+      final concert = await ConcertController(client: client).getConcertById(7);
+
+      expect(concert['concert_id'], 7);
+      client.close();
+    });
+  });
+
   group('ResellController.validateResellInput', () {
     test('accepts a valid ticket and price', () {
       expect(
@@ -146,6 +282,35 @@ void main() {
           originalPrice: 1000,
         ),
         isNull,
+      );
+    });
+
+    test('requires a login token before creating a listing', () async {
+      await expectExceptionMessage(
+        ResellController().createResellListing(
+          token: ' ',
+          ticketId: 12,
+          resellPrice: 1500,
+        ),
+        'Please log in before listing a ticket for resale',
+      );
+    });
+
+    test('rejects invalid listing input before sending a request', () async {
+      await expectExceptionMessage(
+        ResellController().createResellListing(
+          token: 'token',
+          ticketId: 12,
+          resellPrice: 0,
+        ),
+        'The selling price must be greater than 0 THB',
+      );
+    });
+
+    test('requires a token to load owned tickets', () async {
+      await expectExceptionMessage(
+        ResellController().getMyTickets('  '),
+        'Please log in to view your tickets',
       );
     });
   });
@@ -215,6 +380,26 @@ void main() {
       final future = DateTime.now().add(const Duration(minutes: 5));
       expect(PaymentController.getRemainingSeconds(future.toIso8601String()), greaterThan(0));
       expect(PaymentController.isPaymentExpired(future.toIso8601String()), isFalse);
+    });
+
+    test('rejects incomplete checkout before sending a request', () async {
+      await expectExceptionMessage(
+        PaymentController().checkout(
+          token: 'token',
+          listingId: 0,
+          paymentMethod: 'Bank Transfer',
+          deliveryMethod: 'Parcel Shipping',
+          shippingInfo: 'Address',
+        ),
+        'Unable to find the requested ticket listing',
+      );
+    });
+
+    test('rejects a nonpositive payment id before confirming', () async {
+      await expectExceptionMessage(
+        PaymentController().confirmPayment(token: 'token', paymentId: 0),
+        'Invalid payment ID',
+      );
     });
   });
 
