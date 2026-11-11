@@ -12,6 +12,7 @@ import 'package:frontend/views/cart_service.dart';
 import 'package:frontend/views/favorite_service.dart';
 
 void main() {
+  // ตัวช่วยตรวจว่าฟังก์ชัน async โยน error พร้อมข้อความที่คาดหวัง
   Future<void> expectExceptionMessage(
     Future<dynamic> future,
     String message,
@@ -24,6 +25,7 @@ void main() {
     );
   }
 
+  // ล้างข้อมูลแบบ static ก่อนเริ่มแต่ละ test เพื่อไม่ให้ข้อมูลปนกัน
   setUp(() {
     CartService.items.clear();
     CartService.history.clear();
@@ -32,12 +34,14 @@ void main() {
   });
 
   group('LoginController', () {
+    // ตรวจว่าล็อกอินด้วยบัญชีที่ถูกต้องได้ และตัดช่องว่างหัวท้าย
     test('accepts valid user credentials and trims surrounding spaces', () {
       final controller = LoginController();
 
       expect(controller.validateCredentials(' cocomint ', ' 2222 '), isNull);
     });
 
+    // ตรวจว่าต้องกรอกทั้งชื่อผู้ใช้และรหัสผ่าน
     test('requires both username and password', () {
       final controller = LoginController();
 
@@ -51,6 +55,7 @@ void main() {
       );
     });
 
+    // ตรวจว่าปฏิเสธชื่อผู้ใช้ที่ไม่มีอยู่และรหัสผ่านที่ไม่ตรง
     test('rejects unknown users and incorrect passwords', () {
       final controller = LoginController();
 
@@ -64,6 +69,7 @@ void main() {
       );
     });
 
+    // ตรวจว่าระบุบัญชีผู้ดูแลระบบได้ถูกต้อง
     test('identifies the admin account', () {
       final controller = LoginController();
 
@@ -71,6 +77,7 @@ void main() {
       expect(controller.isAdmin('cocomint'), isFalse);
     });
 
+    // ตรวจว่ากู้คืนรหัสผ่านได้เมื่ออีเมลและเบอร์โทรตรงกับบัญชี
     test('resets a password for a matching email and phone', () {
       final controller = LoginController();
       final username = controller.findUsernameByEmailAndPhone(
@@ -87,6 +94,7 @@ void main() {
       );
     });
 
+    // ตรวจว่ารายละเอียดกู้คืนที่ไม่ตรงจะไม่พบบัญชี
     test('returns no account when recovery details do not match', () {
       final controller = LoginController();
 
@@ -103,6 +111,7 @@ void main() {
   group('AuthController input validation', () {
     final controller = AuthController();
 
+    // ตรวจว่าการเข้าสู่ระบบต้องมีชื่อผู้ใช้และรหัสผ่าน
     test('login requires username and password', () async {
       await expectExceptionMessage(
         controller.login(' ', 'password'),
@@ -114,6 +123,7 @@ void main() {
       );
     });
 
+    // ตรวจว่าการสมัครต้องกรอกข้อมูลจำเป็นและรหัสผ่านอย่างน้อย 6 ตัว
     test('register requires fields and a six-character password', () async {
       await expectExceptionMessage(
         controller.register(
@@ -135,6 +145,7 @@ void main() {
       );
     });
 
+    // ตรวจว่าการแก้โปรไฟล์ต้องระบุชื่อและอีเมล
     test('profile update requires a name and email', () async {
       await expectExceptionMessage(
         controller.updateProfile(
@@ -150,6 +161,7 @@ void main() {
       );
     });
 
+    // ตรวจว่าการเปลี่ยนรหัสผ่านต้องมีรหัสเดิมและรหัสใหม่ยาวอย่างน้อย 6 ตัว
     test('password changes require both values and a six-character new password', () async {
       await expectExceptionMessage(
         controller.changePassword(
@@ -169,6 +181,7 @@ void main() {
       );
     });
 
+    // ตรวจว่าการรีเซ็ตรหัสผ่านต้องมีอีเมล เบอร์โทร และรหัสใหม่ยาวอย่างน้อย 6 ตัว
     test('password reset requires contact details and a six-character password', () async {
       await expectExceptionMessage(
         controller.resetPassword(email: '', phone: '1234567890', newPassword: 'newpass'),
@@ -186,6 +199,7 @@ void main() {
   });
 
   group('ConcertController', () {
+    // ตรวจการตัดช่องว่างคำค้น/หมวดหมู่และแปลงเป็น query parameters
     test('returns concerts and trims search filters into query parameters', () async {
       final client = MockClient((request) async {
         expect(request.url.path, '/api/concerts');
@@ -205,6 +219,7 @@ void main() {
       client.close();
     });
 
+    // ตรวจว่าเรียก endpoint ตาม concert id และแปลงข้อมูลตอบกลับได้
     test('returns a concert by id', () async {
       final client = MockClient((request) async {
         expect(request.url.path, '/api/concerts/7');
@@ -219,6 +234,7 @@ void main() {
   });
 
   group('ResellController.validateResellInput', () {
+    // ตรวจว่ารับ ticket และราคาขายต่อที่ถูกต้อง
     test('accepts a valid ticket and price', () {
       expect(
         ResellController.validateResellInput(
@@ -230,6 +246,7 @@ void main() {
       );
     });
 
+    // ตรวจว่าปฏิเสธ ticket id ที่หายไปหรือไม่เป็นจำนวนบวก
     test('rejects a missing or invalid ticket id', () {
       for (final ticketId in <int?>[null, 0, -1]) {
         expect(
@@ -242,6 +259,7 @@ void main() {
       }
     });
 
+    // ตรวจว่าปฏิเสธราคาที่ไม่ใช่ตัวเลข ศูนย์ หรือติดลบ
     test('rejects invalid, zero, and negative prices', () {
       for (final price in ['abc', '0', '-1']) {
         expect(
@@ -253,6 +271,7 @@ void main() {
       }
     });
 
+    // ตรวจเพดานราคาขายต่อสูงสุดที่ระบบกำหนด
     test('rejects prices above the global maximum', () {
       expect(
         ResellController.validateResellInput(
@@ -263,6 +282,7 @@ void main() {
       );
     });
 
+    // ตรวจว่าปฏิเสธราคาที่สูงเกิน 5 เท่าของราคาต้นทาง
     test('rejects markup above five times the original price', () {
       expect(
         ResellController.validateResellInput(
@@ -274,6 +294,7 @@ void main() {
       );
     });
 
+    // ตรวจว่าราคาที่เท่ากับเพดาน 5 เท่ายังขายได้
     test('accepts the exact five-times markup boundary', () {
       expect(
         ResellController.validateResellInput(
@@ -285,6 +306,7 @@ void main() {
       );
     });
 
+    // ตรวจว่าต้องล็อกอินก่อนสร้างประกาศขาย
     test('requires a login token before creating a listing', () async {
       await expectExceptionMessage(
         ResellController().createResellListing(
@@ -296,6 +318,7 @@ void main() {
       );
     });
 
+    // ตรวจว่าข้อมูลประกาศที่ผิดถูกปฏิเสธก่อนเรียก API
     test('rejects invalid listing input before sending a request', () async {
       await expectExceptionMessage(
         ResellController().createResellListing(
@@ -307,6 +330,7 @@ void main() {
       );
     });
 
+    // ตรวจว่าต้องล็อกอินก่อนโหลดตั๋วของผู้ใช้
     test('requires a token to load owned tickets', () async {
       await expectExceptionMessage(
         ResellController().getMyTickets('  '),
@@ -329,23 +353,28 @@ void main() {
           shippingInfo: shippingInfo,
         );
 
+    // ตรวจว่ารายละเอียด checkout ที่ครบถ้วนผ่าน validation
     test('accepts complete checkout details', () {
       expect(validate(), isNull);
     });
 
+    // ตรวจว่าต้องมี listing id ที่เป็นจำนวนบวก
     test('requires a valid listing id', () {
       expect(validate(listingId: null), 'Unable to find the requested ticket listing');
       expect(validate(listingId: 0), 'Unable to find the requested ticket listing');
     });
 
+    // ตรวจว่าต้องเลือกวิธีชำระเงิน
     test('requires a payment method', () {
       expect(validate(paymentMethod: '  '), 'Please select a payment method');
     });
 
+    // ตรวจว่าปฏิเสธวิธีรับตั๋วที่ระบบไม่รองรับ
     test('rejects unsupported delivery methods', () {
       expect(validate(deliveryMethod: 'Teleportation'), 'Invalid ticket pickup method');
     });
 
+    // ตรวจว่าการส่งพัสดุต้องมีที่อยู่จัดส่ง
     test('asks for delivery address when parcel shipping info is blank', () {
       expect(
         validate(shippingInfo: '  '),
@@ -353,6 +382,7 @@ void main() {
       );
     });
 
+    // ตรวจว่า meetup และ digital transfer ต้องมีรายละเอียดนัดรับ/อีเมล
     test('asks for pickup details for meetup or digital transfer', () {
       for (final method in ['meetup', 'Digital Transfer']) {
         expect(
@@ -364,24 +394,28 @@ void main() {
   });
 
   group('PaymentController payment expiry helpers', () {
+    // ตรวจว่าค่าว่างหรือวันเวลาที่อ่านไม่ได้มีเวลาคงเหลือเป็นศูนย์
     test('returns zero for missing and invalid expiry values', () {
       expect(PaymentController.getRemainingSeconds(null), 0);
       expect(PaymentController.getRemainingSeconds('not a date'), 0);
       expect(PaymentController.isPaymentExpired(null), isTrue);
     });
 
+    // ตรวจว่าเวลาที่หมดอายุแล้วถูกลดเหลือศูนย์และถือว่าหมดอายุ
     test('clamps expired timestamps to zero', () {
       final expired = DateTime.now().subtract(const Duration(minutes: 1));
       expect(PaymentController.getRemainingSeconds(expired.toIso8601String()), 0);
       expect(PaymentController.isPaymentExpired(expired.toIso8601String()), isTrue);
     });
 
+    // ตรวจว่าเวลาหมดอายุในอนาคตยังเหลือเวลาและยังไม่หมดอายุ
     test('reports a future payment as not expired', () {
       final future = DateTime.now().add(const Duration(minutes: 5));
       expect(PaymentController.getRemainingSeconds(future.toIso8601String()), greaterThan(0));
       expect(PaymentController.isPaymentExpired(future.toIso8601String()), isFalse);
     });
 
+    // ตรวจว่าปฏิเสธ checkout ที่ไม่มี listing ก่อนเรียก API
     test('rejects incomplete checkout before sending a request', () async {
       await expectExceptionMessage(
         PaymentController().checkout(
@@ -395,6 +429,7 @@ void main() {
       );
     });
 
+    // ตรวจว่าปฏิเสธ payment id ที่ไม่เป็นจำนวนบวกก่อนยืนยัน
     test('rejects a nonpositive payment id before confirming', () async {
       await expectExceptionMessage(
         PaymentController().confirmPayment(token: 'token', paymentId: 0),
@@ -404,6 +439,7 @@ void main() {
   });
 
   group('CartService ticket and cart behavior', () {
+    // ตรวจว่าตั๋วที่ขายแล้วซื้อไม่ได้และเพิ่มลงตะกร้าไม่ได้
     test('detects sold tickets and prevents adding them to cart', () {
       final ticket = {'ticketId': 1, 'status': ' Sold '};
       expect(CartService.isTicketSold(ticket), isTrue);
@@ -412,6 +448,7 @@ void main() {
       expect(CartService.items, isEmpty);
     });
 
+    // ตรวจว่าเพิ่มตั๋วซ้ำไม่ได้และรวมราคาตั๋วในตะกร้าได้
     test('adds available tickets only once and totals prices', () {
       final first = {'ticketId': 1, 'price': '1200'};
       expect(CartService.addToCart(first), isTrue);
@@ -420,6 +457,7 @@ void main() {
       expect(CartService.totalPrice, 2000);
     });
 
+    // ตรวจว่าการลบด้วย index ที่ผิดไม่ทำให้ตะกร้าเสียหาย
     test('ignores invalid remove indexes', () {
       CartService.addToCart({'id': 1, 'price': 10});
       CartService.removeFromCart(-1);
@@ -429,12 +467,14 @@ void main() {
       expect(CartService.items, isEmpty);
     });
 
+    // ตรวจสถานะคอนเสิร์ตเมื่อไม่มีตั๋ว มีตั๋วขายได้ หรือขายหมด
     test('classifies sold out, available, and empty concerts', () {
       expect(CartService.getConcertStatus({'tickets': []}), 'No Tickets');
       expect(CartService.getConcertStatus({'tickets': [{'status': 'available'}]}), 'Available');
       expect(CartService.getConcertStatus({'tickets': [{'isSold': true}]}), 'Sold Out');
     });
 
+    // ตรวจการสร้างออเดอร์ unpaid คัดลอกรายการ และล้างตะกร้า
     test('creates an unpaid order, copies items, and clears the cart', () {
       final ticket = {'id': 2, 'price': '250'};
       CartService.addToCart(ticket);
@@ -451,10 +491,12 @@ void main() {
       expect(order['items'], isNot(same(CartService.items)));
     });
 
+    // ตรวจว่าไม่สร้างออเดอร์เมื่อรายการสินค้าเป็นค่าว่าง
     test('does not create an order from an empty list', () {
       expect(CartService.createOrderFromItems([]), isNull);
     });
 
+    // ตรวจว่าระบบยกเลิกออเดอร์ที่เลยกำหนดชำระเงิน
     test('expires unpaid orders after their payment deadline', () {
       final order = <String, dynamic>{
         'status': 'To Pay',
@@ -469,6 +511,7 @@ void main() {
       expect(CartService.hasActiveUnpaidOrder(), isFalse);
     });
 
+    // ตรวจการเปลี่ยนสถานะออเดอร์ตั้งแต่จ่ายเงินจนยืนยันรับสินค้า
     test('advances order through payment, shipping, and receipt', () {
       final listing = <String, dynamic>{
         'listingId': 'LIST_1',
@@ -494,6 +537,7 @@ void main() {
       expect(listing['status'], 'Completed');
     });
 
+    // ตรวจว่าออเดอร์หมดอายุชำระไม่ได้และเปลี่ยนเป็นยกเลิก
     test('cannot pay an expired order', () {
       final order = <String, dynamic>{
         'status': 'To Pay',
@@ -509,6 +553,7 @@ void main() {
   group('FavoriteService', () {
     final concert = {'name': 'Test Concert'};
 
+    // ตรวจการกดเพิ่มและนำคอนเสิร์ตออกจากรายการโปรด
     test('toggles a concert into and out of favorites', () {
       expect(FavoriteService.isFavorite(concert), isFalse);
       FavoriteService.toggleFavorite(concert);
@@ -517,6 +562,7 @@ void main() {
       expect(FavoriteService.isFavorite(concert), isFalse);
     });
 
+    // ตรวจว่าลบคอนเสิร์ตออกจากรายการโปรดได้
     test('removes a favorited concert', () {
       FavoriteService.toggleFavorite(concert);
       FavoriteService.removeFavorite(concert);
