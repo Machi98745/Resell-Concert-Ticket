@@ -3,9 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ResellController {
-  // ใช้ localhost:3000 สำหรับ Web / Windows Desktop (หากรันบน Android Emulator เปลี่ยนเป็น 10.0.2.2:3000)
   static const String baseUrl = 'http://localhost:3000/api';
   static const double maxResellPrice = 1000000;
+  static const Duration _timeout = Duration(seconds: 15);
 
   // ==========================================================================
   // 1. Business Logic: ตรวจสอบความถูกต้องของราคาฝากขาย (Validation)
@@ -32,12 +32,13 @@ class ResellController {
       return 'The selling price is too high';
     }
 
-    // ถ้าระบุราคาหน้าบัตรเดิมมา ป้องกันการตั้งราคาสูงเกิน 5 เท่าของราคาหน้าบัตร
-    if (originalPrice != null && originalPrice > 0 && parsedPrice > originalPrice * 5) {
+    if (originalPrice != null &&
+        originalPrice > 0 &&
+        parsedPrice > originalPrice * 5) {
       return 'The selling price exceeds the maximum allowed markup';
     }
 
-    return null; // ผ่านการตรวจสอบ
+    return null;
   }
 
   // ==========================================================================
@@ -60,10 +61,12 @@ class ResellController {
         queryParameters: queryParams.isEmpty ? null : queryParams,
       );
 
-      final response = await http.get(
-        uri,
-        headers: {'Content-Type': 'application/json; charset=UTF-8'},
-      );
+      final response = await http
+          .get(
+            uri,
+            headers: {'Content-Type': 'application/json; charset=UTF-8'},
+          )
+          .timeout(_timeout);
 
       final body = jsonDecode(response.body);
 
@@ -71,7 +74,8 @@ class ResellController {
         final List<dynamic> rawList = body is List ? body : (body['data'] ?? []);
         return rawList.cast<Map<String, dynamic>>();
       } else {
-        throw Exception(body['message'] ?? 'Unable to fetch resale listings');
+        final msg = body is Map ? body['message'] : null;
+        throw Exception(msg ?? 'Unable to fetch resale listings');
       }
     } catch (e) {
       debugPrint('ResellController.getResellListings error: $e');
@@ -84,10 +88,12 @@ class ResellController {
   // ==========================================================================
   Future<Map<String, dynamic>> getResellListingById(int listingId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/resell/$listingId'),
-        headers: {'Content-Type': 'application/json; charset=UTF-8'},
-      );
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/resell/$listingId'),
+            headers: {'Content-Type': 'application/json; charset=UTF-8'},
+          )
+          .timeout(_timeout);
 
       final body = jsonDecode(response.body);
 
@@ -96,7 +102,8 @@ class ResellController {
             ? Map<String, dynamic>.from(body['data'])
             : Map<String, dynamic>.from(body);
       } else {
-        throw Exception(body['message'] ?? 'Unable to find the resale listing');
+        final msg = body is Map ? body['message'] : null;
+        throw Exception(msg ?? 'Unable to find the resale listing');
       }
     } catch (e) {
       debugPrint('ResellController.getResellListingById error: $e');
@@ -113,13 +120,15 @@ class ResellController {
     }
 
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/user/my-tickets'),
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/user/my-tickets'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(_timeout);
 
       final body = jsonDecode(response.body);
 
@@ -129,7 +138,8 @@ class ResellController {
       } else if (response.statusCode == 401 || response.statusCode == 403) {
         throw Exception('Session expired. Please log in again.');
       } else {
-        throw Exception(body['message'] ?? 'Unable to fetch your tickets.');
+        final msg = body is Map ? body['message'] : null;
+        throw Exception(msg ?? 'Unable to fetch your tickets.');
       }
     } catch (e) {
       debugPrint('ResellController.getMyTickets error: $e');
@@ -145,9 +155,14 @@ class ResellController {
     required int ticketId,
     required double resellPrice,
     double? originalPrice,
-    int? sellerId,
+    String deliveryType = 'Parcel Shipping',
+    String? shippingCompany,
+    double shippingFee = 0.0,
+    String? deliveryNote,
+    String? bankName,
+    String? bankAccountName,
+    String? bankAccountNumber,
   }) async {
-    // ตรวจสอบ Business Logic ก่อนยิง API
     final validationError = validateResellInput(
       ticketId: ticketId,
       priceText: resellPrice.toString(),
@@ -157,26 +172,39 @@ class ResellController {
       throw Exception(validationError);
     }
 
+    if (token.trim().isEmpty) {
+      throw Exception('Please log in before listing a ticket for resale');
+    }
+
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/resell/create'),
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          if (token.isNotEmpty) 'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'ticket_id': ticketId,
-          'resell_price': resellPrice,
-          if (sellerId != null) 'seller_id': sellerId,
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/resell/create'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'ticket_id': ticketId,
+              'resell_price': resellPrice,
+              'delivery_type': deliveryType,
+              'shipping_company': shippingCompany,
+              'shipping_fee': shippingFee,
+              'delivery_note': deliveryNote,
+              'bank_name': bankName,
+              'bank_account_name': bankAccountName,
+              'bank_account_number': bankAccountNumber,
+            }),
+          )
+          .timeout(_timeout);
 
       final body = jsonDecode(response.body);
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         return Map<String, dynamic>.from(body);
       } else {
-        throw Exception(body['message'] ?? 'Unable to list ticket for resale');
+        final msg = body is Map ? body['message'] : null;
+        throw Exception(msg ?? 'Unable to list ticket for resale');
       }
     } catch (e) {
       debugPrint('ResellController.createResellListing error: $e');
@@ -184,13 +212,78 @@ class ResellController {
     }
   }
 
-  // ฟังก์ชันช่วยจัดการข้อความ Error ให้สะอาดพร้อมแสดงบน UI
+  // ==========================================================================
+  // 6. ดึงรายการประกาศขายของตัวเอง (GET /api/resell/my-listings)
+  // ==========================================================================
+  Future<List<Map<String, dynamic>>> getMyResellListings(String token) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/resell/my-listings'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(_timeout);
+
+      final body = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> rawList = body is List ? body : (body['data'] ?? []);
+        return rawList.cast<Map<String, dynamic>>();
+      } else {
+        final msg = body is Map ? body['message'] : null;
+        throw Exception(msg ?? 'Unable to fetch your resale listings');
+      }
+    } catch (e) {
+      debugPrint('ResellController.getMyResellListings error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
+  // ==========================================================================
+  // 7. ยกเลิกประกาศขายตั๋วมือสอง (PATCH /api/resell/:id/cancel)
+  // ==========================================================================
+  Future<Map<String, dynamic>> cancelResellListing({
+    required String token,
+    required int listingId,
+  }) async {
+    try {
+      final response = await http
+          .patch(
+            Uri.parse('$baseUrl/resell/$listingId/cancel'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(_timeout);
+
+      final body = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return Map<String, dynamic>.from(body);
+      } else {
+        final msg = body is Map ? body['message'] : null;
+        throw Exception(msg ?? 'Unable to cancel resale listing');
+      }
+    } catch (e) {
+      debugPrint('ResellController.cancelResellListing error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
   String _cleanErrorMessage(Object error) {
     final msg = error.toString().replaceAll('Exception: ', '').trim();
     if (msg.contains('SocketException') ||
         msg.contains('Failed host lookup') ||
-        msg.contains('ClientException')) {
+        msg.contains('ClientException') ||
+        msg.contains('TimeoutException')) {
       return 'Unable to connect to the server. Please check the Backend service.';
+    }
+    if (msg.contains('FormatException')) {
+      return 'Invalid response from server.';
     }
     return msg;
   }
