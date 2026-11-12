@@ -13,14 +13,14 @@ class ConcertModel {
     }
 
     
-    const [results] = await db.query(sql, params);
+    const [results] = await db.promise().query(sql, params);
     return results;
   }
 
   // ดึงคอนเสิร์ตตาม ID
   static async getById(id) {
     const sql = 'SELECT * FROM concerts WHERE concert_id = ?';
-    const [results] = await db.query(sql, [id]);
+    const [results] = await db.promise().query(sql, [id]);
     return results;
   }
 }

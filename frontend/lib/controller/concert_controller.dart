@@ -6,16 +6,15 @@ class ConcertController {
   static const String baseUrl = 'http://localhost:3000/api/concerts';
   static const Duration _timeout = Duration(seconds: 15);
 
-  final http.Client client;
-
-  ConcertController({http.Client? client}) : client = client ?? http.Client();
-
+  // ==========================================================================
+  // 1. ดึงรายการคอนเสิร์ตทั้งหมด พร้อมรองรับคำค้นหา (search) และหมวดหมู่ (category)
+  // ==========================================================================
   Future<List<Map<String, dynamic>>> getConcerts({
     String? search,
     String? category,
   }) async {
     try {
-      final Map<String, String> queryParams = {};
+      final queryParams = <String, String>{};
       if (search != null && search.trim().isNotEmpty) {
         queryParams['search'] = search.trim();
       }
@@ -25,29 +24,25 @@ class ConcertController {
         queryParams['category'] = category.trim();
       }
 
-      final Uri uri = Uri.parse(baseUrl).replace(
+      final uri = Uri.parse(baseUrl).replace(
         queryParameters: queryParams.isEmpty ? null : queryParams,
       );
 
-      final response = await client
+      final response = await http
           .get(
             uri,
             headers: {'Content-Type': 'application/json; charset=UTF-8'},
           )
           .timeout(_timeout);
 
-      final dynamic body = jsonDecode(response.body);
+      final body = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        if (body is List) {
-          return body.cast<Map<String, dynamic>>();
-        } else if (body is Map && body.containsKey('data') && body['data'] is List) {
-          return (body['data'] as List).cast<Map<String, dynamic>>();
-        }
-        return [];
+        final List<dynamic> rawList = body is List ? body : (body['data'] ?? []);
+        return rawList.cast<Map<String, dynamic>>();
       } else {
-        final dynamic msg = body is Map ? body['message'] : null;
-        throw Exception(msg?.toString() ?? 'Unable to retrieve concert information.');
+        final msg = body is Map ? body['message'] : null;
+        throw Exception(msg ?? 'Unable to retrieve concert information.');
       }
     } catch (e) {
       debugPrint('ConcertController.getConcerts error: $e');
@@ -55,24 +50,29 @@ class ConcertController {
     }
   }
 
+  // ==========================================================================
+  // 2. ดึงรายละเอียดคอนเสิร์ตตาม ID (GET /api/concerts/:id)
+  // ==========================================================================
   Future<Map<String, dynamic>> getConcertById(int concertId) async {
     try {
-      final response = await client
+      final response = await http
           .get(
             Uri.parse('$baseUrl/$concertId'),
             headers: {'Content-Type': 'application/json; charset=UTF-8'},
           )
           .timeout(_timeout);
 
-      final dynamic body = jsonDecode(response.body);
+      final body = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        return Map<String, dynamic>.from(body as Map);
+        return Map<String, dynamic>.from(body);
       } else if (response.statusCode == 404) {
         throw Exception('Concert not found');
       } else {
-        final dynamic msg = body is Map ? body['message'] : null;
-        throw Exception(msg?.toString() ?? 'An error occurred while fetching concert details');
+        final msg = body is Map ? body['message'] : null;
+        throw Exception(
+          msg ?? 'An error occurred while fetching concert details',
+        );
       }
     } catch (e) {
       debugPrint('ConcertController.getConcertById error: $e');
@@ -81,7 +81,7 @@ class ConcertController {
   }
 
   String _cleanErrorMessage(Object error) {
-    final String msg = error.toString().replaceAll('Exception: ', '').trim();
+    final msg = error.toString().replaceAll('Exception: ', '').trim();
     if (msg.contains('SocketException') ||
         msg.contains('Failed host lookup') ||
         msg.contains('ClientException') ||
