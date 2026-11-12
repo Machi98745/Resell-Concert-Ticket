@@ -205,9 +205,191 @@ void main() {
   });
 
   // ============================================================================
-  // 🧑‍💻 [ส่วนที่ 2: รับผิดชอบโดย คนที่ 2 - ระบบ Payment, Resell & Cart]
-  // ครอบคลุม: การลงขายตั๋ว (Resell), การจอง/สั่งซื้อ (Payment), กฎ 15 นาที, และตระกร้าสินค้า (Cart)
-  // จำนวนเคสทดสอบ: 29 ข้อ (Resell 9 ข้อ + Payment Checkout 6 ข้อ + Payment Expiry 5 ข้อ + Cart 9 ข้อ)
+  // 🧑‍💻 [ส่วนที่ 2: รับผิดชอบโดย คนที่ 2 - ระบบ Payment & Order Checkout]
+  // ครอบคลุม: การตรวจสอบข้อมูลสั่งซื้อ (Checkout), การล็อกเวลา 15 นาที (Expiry), และวงจรการชำระเงิน (Order Lifecycle)
+  // จำนวนเคสทดสอบ: 16 ข้อ (Payment Checkout 6 ข้อ + Payment Expiry 5 ข้อ + Order Payment Lifecycle 5 ข้อ)
+  // ============================================================================
+
+  group('PaymentController.validateCheckoutInput', () {
+    String? validate({
+      int? listingId = 10,
+      String paymentMethod = 'Bank Transfer',
+      String deliveryMethod = 'Parcel Shipping',
+      String shippingInfo = '12 Main Street',
+    }) =>
+        PaymentController.validateCheckoutInput(
+          listingId: listingId,
+          paymentMethod: paymentMethod,
+          deliveryMethod: deliveryMethod,
+          shippingInfo: shippingInfo,
+        );
+
+    // ตรวจว่ารายละเอียด checkout ที่ครบถ้วนผ่าน validation
+    test('accepts complete checkout details', () {
+      expect(validate(), isNull);
+    });
+
+    // ตรวจว่าต้องมี listing id ที่เป็นจำนวนบวก
+    test('requires a valid listing id', () {
+      expect(validate(listingId: null), 'Unable to find the requested ticket listing');
+      expect(validate(listingId: 0), 'Unable to find the requested ticket listing');
+    });
+
+    // ตรวจว่าต้องเลือกวิธีชำระเงิน
+    test('requires a payment method', () {
+      expect(validate(paymentMethod: '  '), 'Please select a payment method');
+    });
+
+    // ตรวจว่าปฏิเสธวิธีรับตั๋วที่ระบบไม่รองรับ
+    test('rejects unsupported delivery methods', () {
+      expect(validate(deliveryMethod: 'Teleportation'), 'Invalid ticket pickup method');
+    });
+
+    // ตรวจว่าการส่งพัสดุต้องมีที่อยู่จัดส่ง
+    test('asks for delivery address when parcel shipping info is blank', () {
+      expect(
+        validate(shippingInfo: '  '),
+        'Please enter the shipping address for ticket delivery',
+      );
+    });
+
+    // ตรวจว่า meetup และ digital transfer ต้องมีรายละเอียดนัดรับ/อีเมล
+    test('asks for pickup details for meetup or digital transfer', () {
+      for (final method in ['meetup', 'Digital Transfer']) {
+        expect(
+          validate(deliveryMethod: method, shippingInfo: ''),
+          'Please specify the location/time or email for ticket pickup',
+        );
+      }
+    });
+  });
+
+  group('PaymentController payment expiry helpers', () {
+    // ตรวจว่าค่าว่างหรือวันเวลาที่อ่านไม่ได้มีเวลาคงเหลือเป็นศูนย์
+    test('returns zero for missing and invalid expiry values', () {
+      expect(PaymentController.getRemainingSeconds(null), 0);
+      expect(PaymentController.getRemainingSeconds('not a date'), 0);
+      expect(PaymentController.isPaymentExpired(null), isTrue);
+    });
+
+    // ตรวจว่าเวลาที่หมดอายุแล้วถูกลดเหลือศูนย์และถือว่าหมดอายุ
+    test('clamps expired timestamps to zero', () {
+      final expired = DateTime.now().subtract(const Duration(minutes: 1));
+      expect(PaymentController.getRemainingSeconds(expired.toIso8601String()), 0);
+      expect(PaymentController.isPaymentExpired(expired.toIso8601String()), isTrue);
+    });
+
+    // ตรวจว่าเวลาหมดอายุในอนาคตยังเหลือเวลาและยังไม่หมดอายุ
+    test('reports a future payment as not expired', () {
+      final future = DateTime.now().add(const Duration(minutes: 5));
+      expect(PaymentController.getRemainingSeconds(future.toIso8601String()), greaterThan(0));
+      expect(PaymentController.isPaymentExpired(future.toIso8601String()), isFalse);
+    });
+
+    // ตรวจว่าปฏิเสธ checkout ที่ไม่มี listing ก่อนเรียก API
+    test('rejects incomplete checkout before sending a request', () async {
+      await expectExceptionMessage(
+        PaymentController().checkout(
+          token: 'token',
+          listingId: 0,
+          paymentMethod: 'Bank Transfer',
+          deliveryMethod: 'Parcel Shipping',
+          shippingInfo: 'Address',
+        ),
+        'Unable to find the requested ticket listing',
+      );
+    });
+
+    // ตรวจว่าปฏิเสธ payment id ที่ไม่เป็นจำนวนบวกก่อนยืนยัน
+    test('rejects a nonpositive payment id before confirming', () async {
+      await expectExceptionMessage(
+        PaymentController().confirmPayment(token: 'token', paymentId: 0),
+        'Invalid payment ID',
+      );
+    });
+  });
+
+  group('CartService order checkout and payment lifecycle', () {
+    // ตรวจการสร้างออเดอร์ unpaid คัดลอกรายการ และล้างตะกร้า
+    test('creates an unpaid order, copies items, and clears the cart', () {
+      final ticket = {'id': 2, 'price': '250'};
+      CartService.addToCart(ticket);
+
+      final order = CartService.createOrder();
+
+      expect(order, isNotNull);
+      expect(order!['status'], 'To Pay');
+      expect(order['paymentStatus'], 'Unpaid');
+      expect(order['totalPrice'], 250);
+      expect(order['paymentDeadline'], isA<DateTime>());
+      expect(CartService.items, isEmpty);
+      expect(CartService.history, contains(order));
+      expect(order['items'], isNot(same(CartService.items)));
+    });
+
+    // ตรวจว่าไม่สร้างออเดอร์เมื่อรายการสินค้าเป็นค่าว่าง
+    test('does not create an order from an empty list', () {
+      expect(CartService.createOrderFromItems([]), isNull);
+    });
+
+    // ตรวจว่าระบบยกเลิกออเดอร์ที่เลยกำหนดชำระเงิน
+    test('expires unpaid orders after their payment deadline', () {
+      final order = <String, dynamic>{
+        'status': 'To Pay',
+        'paymentDeadline': DateTime.now().subtract(const Duration(seconds: 1)),
+      };
+      CartService.history.add(order);
+
+      CartService.refreshExpiredOrders();
+
+      expect(order['status'], 'Cancelled');
+      expect(order['paymentStatus'], 'Expired');
+      expect(CartService.hasActiveUnpaidOrder(), isFalse);
+    });
+
+    // ตรวจการเปลี่ยนสถานะออเดอร์ตั้งแต่จ่ายเงินจนยืนยันรับสินค้า
+    test('advances order through payment, shipping, and receipt', () {
+      final listing = <String, dynamic>{
+        'listingId': 'LIST_1',
+        'status': 'Available',
+      };
+      CartService.resaleListings.add(listing);
+      final order = <String, dynamic>{
+        'status': 'To Pay',
+        'paymentDeadline': DateTime.now().add(const Duration(minutes: 5)),
+        'items': [{'listingId': 'LIST_1'}],
+        'timeline': <Map<String, dynamic>>[],
+      };
+
+      expect(CartService.payOrder(order), isTrue);
+      expect(order['status'], 'To Ship');
+      expect(listing['status'], 'Sold');
+      expect(CartService.shipOrder(order), isTrue);
+      expect(order['status'], 'To Receive');
+      expect(order['trackingNumber'], startsWith('TP'));
+      expect(listing['status'], 'Shipped');
+      expect(CartService.confirmReceived(order), isTrue);
+      expect(order['status'], 'Completed');
+      expect(listing['status'], 'Completed');
+    });
+
+    // ตรวจว่าออเดอร์หมดอายุชำระไม่ได้และเปลี่ยนเป็นยกเลิก
+    test('cannot pay an expired order', () {
+      final order = <String, dynamic>{
+        'status': 'To Pay',
+        'paymentDeadline': DateTime.now().subtract(const Duration(seconds: 1)),
+      };
+      CartService.history.add(order);
+
+      expect(CartService.payOrder(order), isFalse);
+      expect(order['status'], 'Cancelled');
+    });
+  });
+
+  // ============================================================================
+  // 🧑‍💻 [ส่วนที่ 3: รับผิดชอบโดย คนที่ 3 - ระบบ Concert, Resell & Ticket Catalog]
+  // ครอบคลุม: การค้นหาคอนเสิร์ต, ลงขายตั๋วต่อ (Resell Markup 5x), การเลือกตั๋วเข้าตะกร้า, และรายการโปรด
+  // จำนวนเคสทดสอบ: 17 ข้อ (Resell 9 ข้อ + Ticket Selection 4 ข้อ + Concert 2 ข้อ + Favorite 2 ข้อ)
   // ============================================================================
 
   group('ResellController.validateResellInput', () {
@@ -316,106 +498,7 @@ void main() {
     });
   });
 
-  group('PaymentController.validateCheckoutInput', () {
-    String? validate({
-      int? listingId = 10,
-      String paymentMethod = 'Bank Transfer',
-      String deliveryMethod = 'Parcel Shipping',
-      String shippingInfo = '12 Main Street',
-    }) =>
-        PaymentController.validateCheckoutInput(
-          listingId: listingId,
-          paymentMethod: paymentMethod,
-          deliveryMethod: deliveryMethod,
-          shippingInfo: shippingInfo,
-        );
-
-    // ตรวจว่ารายละเอียด checkout ที่ครบถ้วนผ่าน validation
-    test('accepts complete checkout details', () {
-      expect(validate(), isNull);
-    });
-
-    // ตรวจว่าต้องมี listing id ที่เป็นจำนวนบวก
-    test('requires a valid listing id', () {
-      expect(validate(listingId: null), 'Unable to find the requested ticket listing');
-      expect(validate(listingId: 0), 'Unable to find the requested ticket listing');
-    });
-
-    // ตรวจว่าต้องเลือกวิธีชำระเงิน
-    test('requires a payment method', () {
-      expect(validate(paymentMethod: '  '), 'Please select a payment method');
-    });
-
-    // ตรวจว่าปฏิเสธวิธีรับตั๋วที่ระบบไม่รองรับ
-    test('rejects unsupported delivery methods', () {
-      expect(validate(deliveryMethod: 'Teleportation'), 'Invalid ticket pickup method');
-    });
-
-    // ตรวจว่าการส่งพัสดุต้องมีที่อยู่จัดส่ง
-    test('asks for delivery address when parcel shipping info is blank', () {
-      expect(
-        validate(shippingInfo: '  '),
-        'Please enter the shipping address for ticket delivery',
-      );
-    });
-
-    // ตรวจว่า meetup และ digital transfer ต้องมีรายละเอียดนัดรับ/อีเมล
-    test('asks for pickup details for meetup or digital transfer', () {
-      for (final method in ['meetup', 'Digital Transfer']) {
-        expect(
-          validate(deliveryMethod: method, shippingInfo: ''),
-          'Please specify the location/time or email for ticket pickup',
-        );
-      }
-    });
-  });
-
-  group('PaymentController payment expiry helpers', () {
-    // ตรวจว่าค่าว่างหรือวันเวลาที่อ่านไม่ได้มีเวลาคงเหลือเป็นศูนย์
-    test('returns zero for missing and invalid expiry values', () {
-      expect(PaymentController.getRemainingSeconds(null), 0);
-      expect(PaymentController.getRemainingSeconds('not a date'), 0);
-      expect(PaymentController.isPaymentExpired(null), isTrue);
-    });
-
-    // ตรวจว่าเวลาที่หมดอายุแล้วถูกลดเหลือศูนย์และถือว่าหมดอายุ
-    test('clamps expired timestamps to zero', () {
-      final expired = DateTime.now().subtract(const Duration(minutes: 1));
-      expect(PaymentController.getRemainingSeconds(expired.toIso8601String()), 0);
-      expect(PaymentController.isPaymentExpired(expired.toIso8601String()), isTrue);
-    });
-
-    // ตรวจว่าเวลาหมดอายุในอนาคตยังเหลือเวลาและยังไม่หมดอายุ
-    test('reports a future payment as not expired', () {
-      final future = DateTime.now().add(const Duration(minutes: 5));
-      expect(PaymentController.getRemainingSeconds(future.toIso8601String()), greaterThan(0));
-      expect(PaymentController.isPaymentExpired(future.toIso8601String()), isFalse);
-    });
-
-    // ตรวจว่าปฏิเสธ checkout ที่ไม่มี listing ก่อนเรียก API
-    test('rejects incomplete checkout before sending a request', () async {
-      await expectExceptionMessage(
-        PaymentController().checkout(
-          token: 'token',
-          listingId: 0,
-          paymentMethod: 'Bank Transfer',
-          deliveryMethod: 'Parcel Shipping',
-          shippingInfo: 'Address',
-        ),
-        'Unable to find the requested ticket listing',
-      );
-    });
-
-    // ตรวจว่าปฏิเสธ payment id ที่ไม่เป็นจำนวนบวกก่อนยืนยัน
-    test('rejects a nonpositive payment id before confirming', () async {
-      await expectExceptionMessage(
-        PaymentController().confirmPayment(token: 'token', paymentId: 0),
-        'Invalid payment ID',
-      );
-    });
-  });
-
-  group('CartService ticket and cart behavior', () {
+  group('CartService ticket selection and cart items', () {
     // ตรวจว่าตั๋วที่ขายแล้วซื้อไม่ได้และเพิ่มลงตะกร้าไม่ได้
     test('detects sold tickets and prevents adding them to cart', () {
       final ticket = {'ticketId': 1, 'status': ' Sold '};
@@ -450,88 +533,7 @@ void main() {
       expect(CartService.getConcertStatus({'tickets': [{'status': 'available'}]}), 'Available');
       expect(CartService.getConcertStatus({'tickets': [{'isSold': true}]}), 'Sold Out');
     });
-
-    // ตรวจการสร้างออเดอร์ unpaid คัดลอกรายการ และล้างตะกร้า
-    test('creates an unpaid order, copies items, and clears the cart', () {
-      final ticket = {'id': 2, 'price': '250'};
-      CartService.addToCart(ticket);
-
-      final order = CartService.createOrder();
-
-      expect(order, isNotNull);
-      expect(order!['status'], 'To Pay');
-      expect(order['paymentStatus'], 'Unpaid');
-      expect(order['totalPrice'], 250);
-      expect(order['paymentDeadline'], isA<DateTime>());
-      expect(CartService.items, isEmpty);
-      expect(CartService.history, contains(order));
-      expect(order['items'], isNot(same(CartService.items)));
-    });
-
-    // ตรวจว่าไม่สร้างออเดอร์เมื่อรายการสินค้าเป็นค่าว่าง
-    test('does not create an order from an empty list', () {
-      expect(CartService.createOrderFromItems([]), isNull);
-    });
-
-    // ตรวจว่าระบบยกเลิกออเดอร์ที่เลยกำหนดชำระเงิน
-    test('expires unpaid orders after their payment deadline', () {
-      final order = <String, dynamic>{
-        'status': 'To Pay',
-        'paymentDeadline': DateTime.now().subtract(const Duration(seconds: 1)),
-      };
-      CartService.history.add(order);
-
-      CartService.refreshExpiredOrders();
-
-      expect(order['status'], 'Cancelled');
-      expect(order['paymentStatus'], 'Expired');
-      expect(CartService.hasActiveUnpaidOrder(), isFalse);
-    });
-
-    // ตรวจการเปลี่ยนสถานะออเดอร์ตั้งแต่จ่ายเงินจนยืนยันรับสินค้า
-    test('advances order through payment, shipping, and receipt', () {
-      final listing = <String, dynamic>{
-        'listingId': 'LIST_1',
-        'status': 'Available',
-      };
-      CartService.resaleListings.add(listing);
-      final order = <String, dynamic>{
-        'status': 'To Pay',
-        'paymentDeadline': DateTime.now().add(const Duration(minutes: 5)),
-        'items': [{'listingId': 'LIST_1'}],
-        'timeline': <Map<String, dynamic>>[],
-      };
-
-      expect(CartService.payOrder(order), isTrue);
-      expect(order['status'], 'To Ship');
-      expect(listing['status'], 'Sold');
-      expect(CartService.shipOrder(order), isTrue);
-      expect(order['status'], 'To Receive');
-      expect(order['trackingNumber'], startsWith('TP'));
-      expect(listing['status'], 'Shipped');
-      expect(CartService.confirmReceived(order), isTrue);
-      expect(order['status'], 'Completed');
-      expect(listing['status'], 'Completed');
-    });
-
-    // ตรวจว่าออเดอร์หมดอายุชำระไม่ได้และเปลี่ยนเป็นยกเลิก
-    test('cannot pay an expired order', () {
-      final order = <String, dynamic>{
-        'status': 'To Pay',
-        'paymentDeadline': DateTime.now().subtract(const Duration(seconds: 1)),
-      };
-      CartService.history.add(order);
-
-      expect(CartService.payOrder(order), isFalse);
-      expect(order['status'], 'Cancelled');
-    });
   });
-
-  // ============================================================================
-  // 🧑‍💻 [ส่วนที่ 3: รับผิดชอบโดย คนที่ 3 - ระบบ Concert & Favorite]
-  // ครอบคลุม: การดึงข้อมูลคอนเสิร์ต, การค้นหา/กรองหมวดหมู่, และระบบ Favorite รายการโปรด
-  // จำนวนเคสทดสอบ: 4 ข้อ (ConcertController 2 ข้อ + FavoriteService 2 ข้อ)
-  // ============================================================================
 
   group('ConcertController', () {
     // ตรวจการตัดช่องว่างคำค้น/หมวดหมู่และแปลงเป็น query parameters
