@@ -33,6 +33,12 @@ void main() {
     FavoriteService.favorites.clear();
   });
 
+  // ============================================================================
+  // 🧑‍💻 [ส่วนที่ 1: รับผิดชอบโดย คนที่ 1 (6731501012) - ระบบ Auth & Login]
+  // ครอบคลุม: การตรวจสอบสิทธิ์, Login Form, Token, Session, และ Input Validation
+  // จำนวนเคสทดสอบ: 11 ข้อ (LoginController 6 ข้อ + AuthController 5 ข้อ)
+  // ============================================================================
+
   group('LoginController', () {
     // ตรวจว่าล็อกอินด้วยบัญชีที่ถูกต้องได้ และตัดช่องว่างหัวท้าย
     test('accepts valid user credentials and trims surrounding spaces', () {
@@ -198,40 +204,11 @@ void main() {
     });
   });
 
-  group('ConcertController', () {
-    // ตรวจการตัดช่องว่างคำค้น/หมวดหมู่และแปลงเป็น query parameters
-    test('returns concerts and trims search filters into query parameters', () async {
-      final client = MockClient((request) async {
-        expect(request.url.path, '/api/concerts');
-        expect(request.url.queryParameters, {'search': 'aurora', 'category': 'Pop'});
-        return http.Response(jsonEncode([
-          {'concert_id': 1, 'name': 'Aurora'}
-        ]), 200);
-      });
-
-      final concerts = await ConcertController(client: client).getConcerts(
-        search: ' aurora ',
-        category: ' Pop ',
-      );
-
-      expect(concerts, hasLength(1));
-      expect(concerts.single['name'], 'Aurora');
-      client.close();
-    });
-
-    // ตรวจว่าเรียก endpoint ตาม concert id และแปลงข้อมูลตอบกลับได้
-    test('returns a concert by id', () async {
-      final client = MockClient((request) async {
-        expect(request.url.path, '/api/concerts/7');
-        return http.Response(jsonEncode({'concert_id': 7, 'name': 'Aurora'}), 200);
-      });
-
-      final concert = await ConcertController(client: client).getConcertById(7);
-
-      expect(concert['concert_id'], 7);
-      client.close();
-    });
-  });
+  // ============================================================================
+  // 🧑‍💻 [ส่วนที่ 2: รับผิดชอบโดย คนที่ 2 - ระบบ Payment, Resell & Cart]
+  // ครอบคลุม: การลงขายตั๋ว (Resell), การจอง/สั่งซื้อ (Payment), กฎ 15 นาที, และตระกร้าสินค้า (Cart)
+  // จำนวนเคสทดสอบ: 29 ข้อ (Resell 9 ข้อ + Payment Checkout 6 ข้อ + Payment Expiry 5 ข้อ + Cart 9 ข้อ)
+  // ============================================================================
 
   group('ResellController.validateResellInput', () {
     // ตรวจว่ารับ ticket และราคาขายต่อที่ถูกต้อง
@@ -547,6 +524,47 @@ void main() {
 
       expect(CartService.payOrder(order), isFalse);
       expect(order['status'], 'Cancelled');
+    });
+  });
+
+  // ============================================================================
+  // 🧑‍💻 [ส่วนที่ 3: รับผิดชอบโดย คนที่ 3 - ระบบ Concert & Favorite]
+  // ครอบคลุม: การดึงข้อมูลคอนเสิร์ต, การค้นหา/กรองหมวดหมู่, และระบบ Favorite รายการโปรด
+  // จำนวนเคสทดสอบ: 4 ข้อ (ConcertController 2 ข้อ + FavoriteService 2 ข้อ)
+  // ============================================================================
+
+  group('ConcertController', () {
+    // ตรวจการตัดช่องว่างคำค้น/หมวดหมู่และแปลงเป็น query parameters
+    test('returns concerts and trims search filters into query parameters', () async {
+      final client = MockClient((request) async {
+        expect(request.url.path, '/api/concerts');
+        expect(request.url.queryParameters, {'search': 'aurora', 'category': 'Pop'});
+        return http.Response(jsonEncode([
+          {'concert_id': 1, 'name': 'Aurora'}
+        ]), 200);
+      });
+
+      final concerts = await ConcertController(client: client).getConcerts(
+        search: ' aurora ',
+        category: ' Pop ',
+      );
+
+      expect(concerts, hasLength(1));
+      expect(concerts.single['name'], 'Aurora');
+      client.close();
+    });
+
+    // ตรวจว่าเรียก endpoint ตาม concert id และแปลงข้อมูลตอบกลับได้
+    test('returns a concert by id', () async {
+      final client = MockClient((request) async {
+        expect(request.url.path, '/api/concerts/7');
+        return http.Response(jsonEncode({'concert_id': 7, 'name': 'Aurora'}), 200);
+      });
+
+      final concert = await ConcertController(client: client).getConcertById(7);
+
+      expect(concert['concert_id'], 7);
+      client.close();
     });
   });
 
