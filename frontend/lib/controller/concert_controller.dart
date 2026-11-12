@@ -9,10 +9,6 @@ class ConcertController {
   static const String baseUrl = 'http://localhost:3000/api/concerts';
   static const Duration _timeout = Duration(seconds: 15);
 
-  final http.Client client;
-
-  ConcertController({http.Client? client}) : client = client ?? http.Client();
-
   Future<List<Map<String, dynamic>>> getConcerts({
     String? search,
     String? category,
