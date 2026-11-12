@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ConcertController {
+  ConcertController({http.Client? client}) : _client = client ?? http.Client();
+
+  final http.Client _client;
   static const String baseUrl = 'http://localhost:3000/api/concerts';
   static const Duration _timeout = Duration(seconds: 15);
 
@@ -29,7 +32,7 @@ class ConcertController {
         queryParameters: queryParams.isEmpty ? null : queryParams,
       );
 
-      final response = await client
+      final response = await _client
           .get(
             uri,
             headers: {'Content-Type': 'application/json; charset=UTF-8'},
@@ -57,7 +60,7 @@ class ConcertController {
 
   Future<Map<String, dynamic>> getConcertById(int concertId) async {
     try {
-      final response = await client
+      final response = await _client
           .get(
             Uri.parse('$baseUrl/$concertId'),
             headers: {'Content-Type': 'application/json; charset=UTF-8'},

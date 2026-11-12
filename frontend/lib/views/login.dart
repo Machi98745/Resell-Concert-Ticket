@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../controller/login_controller.dart';
 import 'admin_page.dart';
 import 'homepage.dart';
 import 'register.dart';
@@ -13,20 +14,7 @@ class Login extends StatefulWidget {
 class _LoginState extends State<Login> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-
-  // Mockup Database
-  final Map<String, Map<String, String>> _userDatabase = {
-    'admin': {
-      'password': '1111',
-      'email': 'admin@gmail.com',
-      'phone': '0812345678',
-    },
-    'cocomint': {
-      'password': '2222',
-      'email': 'cocomint@gmail.com',
-      'phone': '0898765432',
-    },
-  };
+  final LoginController _loginController = LoginController();
 
   // Pop-up Reset Password
   void _showForgotPasswordDialog(BuildContext context) {
@@ -277,20 +265,14 @@ class _LoginState extends State<Login> {
                         return;
                       }
 
-                      String? foundUsername;
-                      _userDatabase.forEach((username, userData) {
-                        if (userData['email'] == email &&
-                            userData['phone'] == phone) {
-                          foundUsername = username;
-                        }
-                      });
+                      final foundUsername = _loginController
+                          .findUsernameByEmailAndPhone(email, phone);
 
                       if (foundUsername != null) {
-                        // newpass
-                        setState(() {
-                          _userDatabase[foundUsername!]!['password'] =
-                              newPassword;
-                        });
+                        _loginController.updatePassword(
+                          foundUsername,
+                          newPassword,
+                        );
 
                         Navigator.of(dialogContext).pop();
                         _showMessage(
@@ -463,24 +445,26 @@ class _LoginState extends State<Login> {
                                 String password = _passwordController.text
                                     .trim();
 
-                                if (username.isEmpty || password.isEmpty) {
+                                final loginError = _loginController
+                                    .validateCredentials(username, password);
+
+                                if (loginError ==
+                                    'Please enter username and password') {
                                   _showMessage(
-                                    'Please enter username and password',
+                                    loginError!,
                                     Colors.redAccent,
                                   );
                                   return;
                                 }
 
-                                if (_userDatabase.containsKey(username) &&
-                                    _userDatabase[username]!['password'] ==
-                                        password) {
+                                if (loginError == null) {
                                   _showMessage(
                                     'Login successful! Welcome $username',
                                     Colors.green,
                                   );
 
                                   // check if user is admin
-                                  if (username == 'admin') {
+                                  if (_loginController.isAdmin(username)) {
                                     Navigator.pushReplacement(
                                       context,
                                       MaterialPageRoute(
@@ -497,7 +481,7 @@ class _LoginState extends State<Login> {
                                   }
                                 } else {
                                   _showMessage(
-                                    'Invalid username or password',
+                                    loginError,
                                     Colors.redAccent,
                                   );
                                 }
