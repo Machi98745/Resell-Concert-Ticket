@@ -26,7 +26,7 @@ class _DetailPageState extends State<DetailPage> {
     final rawTickets = concert['tickets'];
     if (rawTickets is List) {
       return rawTickets
-          .whereType()
+          .whereType<Map>()
           .map((item) => Map<String, dynamic>.from(item))
           .toList();
     }
@@ -80,7 +80,9 @@ class _DetailPageState extends State<DetailPage> {
         'zone': listing['zone'] ?? 'General',
         'seat': listing['seat'] ?? 'General',
         'price': listing['price'] ?? 0,
-        'seller': listing['accName'] != null && listing['accName'].toString().isNotEmpty
+        'seller':
+            listing['accName'] != null &&
+                listing['accName'].toString().isNotEmpty
             ? listing['accName']
             : 'Resell Seller',
         'condition': 'Resell Ticket',
@@ -219,6 +221,57 @@ class _DetailPageState extends State<DetailPage> {
     };
   }
 
+  // ==========================================
+  // SEAT SELECTION POP-UP
+  // ==========================================
+
+  void _showSeatAlert() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: const Icon(Icons.event_seat, color: pink, size: 45),
+        title: const Text(
+          'Please Select Your Seat',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: darkPink,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        content: const Text(
+          'Please choose your preferred seat before adding the ticket to your cart or proceeding to checkout.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.black54, fontSize: 14, height: 1.5),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: pink,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text(
+                'OK, Got it',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   bool validateSeatSelection(Map<String, dynamic> ticket) {
     final seats = getSeats(ticket);
 
@@ -227,16 +280,7 @@ class _DetailPageState extends State<DetailPage> {
     }
 
     if (getSelectedSeat(ticket) == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          backgroundColor: darkPink,
-          content: Text(
-            'Please select your seat first.',
-            style: TextStyle(color: Colors.white),
-          ),
-        ),
-      );
-
+      _showSeatAlert();
       return false;
     }
 
@@ -258,16 +302,14 @@ class _DetailPageState extends State<DetailPage> {
   }
 
   // ==========================================
-  // POP-UP DIALOG (แจ้งเตือนรายการค้างชำระ)
+  // POP-UP DIALOG (PENDING ORDER)
   // ==========================================
 
   void _showPendingOrderDialog() {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Row(
           children: [
             Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
@@ -302,7 +344,7 @@ class _DetailPageState extends State<DetailPage> {
               ),
             ),
             onPressed: () {
-              Navigator.pop(dialogContext); // ปิด Dialog
+              Navigator.pop(dialogContext);
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const HistoryPage()),
@@ -364,9 +406,7 @@ class _DetailPageState extends State<DetailPage> {
     final checkoutItem = createTicketItem(ticket);
 
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PaymentPage(items: [checkoutItem]),
-      ),
+      MaterialPageRoute(builder: (_) => PaymentPage(items: [checkoutItem])),
     );
   }
 
@@ -540,9 +580,7 @@ class _DetailPageState extends State<DetailPage> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: isFinished
-                                ? null
-                                : scrollToTickets,
+                            onPressed: isFinished ? null : scrollToTickets,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: pink,
                               foregroundColor: Colors.white,
@@ -1047,7 +1085,6 @@ class _DetailPageState extends State<DetailPage> {
           style: TextStyle(color: Colors.grey),
         ),
         const SizedBox(height: 18),
-
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -1058,7 +1095,6 @@ class _DetailPageState extends State<DetailPage> {
           ),
         ),
         const SizedBox(height: 18),
-
         if (isFinished)
           _unavailableMessage('This concert has already finished.')
         else if (ticketMaps.isEmpty)
@@ -1157,7 +1193,6 @@ class _DetailPageState extends State<DetailPage> {
               ),
             ],
           ),
-
           if (!sold && seats.isNotEmpty) ...[
             const SizedBox(height: 18),
             const Text(
@@ -1178,7 +1213,15 @@ class _DetailPageState extends State<DetailPage> {
                 return GestureDetector(
                   onTap: () {
                     setState(() {
-                      selectedSeats[ticketKey(ticket)] = seat;
+                      final key = ticketKey(ticket);
+
+                      if (selectedSeats[key] == seat) {
+                        // กดที่นั่งเดิมซ้ำ เพื่อยกเลิกการเลือก
+                        selectedSeats.remove(key);
+                      } else {
+                        // เลือกที่นั่ง
+                        selectedSeats[key] = seat;
+                      }
                     });
                   },
                   child: Container(
@@ -1225,7 +1268,6 @@ class _DetailPageState extends State<DetailPage> {
               style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ],
-
           const SizedBox(height: 15),
           if (sold)
             const Text(

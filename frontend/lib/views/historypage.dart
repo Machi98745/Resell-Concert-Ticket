@@ -331,6 +331,7 @@ class _HistoryPageState extends State<HistoryPage>
     );
   }
 
+  
   Widget _buildTicketItem(Map<String, dynamic> ticket) {
     final concertName = ticket['concertName'] ??
         ticket['name'] ??
@@ -342,68 +343,150 @@ class _HistoryPageState extends State<HistoryPage>
     final price = ticket['price'] ?? 0;
     final seller = ticket['seller'] ?? ticket['accName'] ?? '';
 
+    // Ticket details
+    final seat = ticket['seat'] ??
+        ticket['selectedSeat'] ??
+        ticket['seatNumber'] ??
+        '-';
+
+    final location = ticket['location'] ??
+        ticket['venue'] ??
+        ticket['concertLocation'] ??
+        '-';
+
+    final date = ticket['date'] ??
+        ticket['concertDate'] ??
+        ticket['eventDate'] ??
+        '-';
+
+    final time = ticket['time'] ??
+        ticket['concertTime'] ??
+        ticket['eventTime'] ??
+        '-';
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 55,
+                height: 55,
+                decoration: BoxDecoration(
+                  color: lightPink,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.confirmation_number_outlined,
+                  color: pink,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      concertName.toString(),
+                      style: const TextStyle(
+                        color: darkPink,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    if (artist.toString().isNotEmpty)
+                      Text(
+                        artist.toString(),
+                        style: const TextStyle(
+                          color: pink,
+                          fontSize: 12,
+                        ),
+                      ),
+                    Text(
+                      zone.toString(),
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                      ),
+                    ),
+                    if (seller.toString().isNotEmpty)
+                      Text(
+                        'Seller: $seller',
+                        style: const TextStyle(
+                          color: Colors.black54,
+                          fontSize: 11,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Text(
+                money(price),
+                style: const TextStyle(
+                  color: darkPink,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 15),
+
+          // Ticket Information
           Container(
-            width: 55,
-            height: 55,
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: lightPink,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
-              Icons.confirmation_number_outlined,
-              color: pink,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  concertName.toString(),
-                  style: const TextStyle(
+                const Text(
+                  'Ticket Information',
+                  style: TextStyle(
                     color: darkPink,
                     fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                    fontSize: 13,
                   ),
                 ),
-                if (artist.toString().isNotEmpty)
-                  Text(
-                    artist.toString(),
-                    style: const TextStyle(
-                      color: pink,
-                      fontSize: 12,
-                    ),
-                  ),
-                Text(
-                  zone.toString(),
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 12,
-                  ),
+                const SizedBox(height: 10),
+
+                _ticketInfoRow(
+                  Icons.event_seat_outlined,
+                  'Seat',
+                  seat.toString(),
                 ),
-                if (seller.toString().isNotEmpty)
-                  Text(
-                    'Seller: $seller',
-                    style: const TextStyle(
-                      color: Colors.black54,
-                      fontSize: 11,
-                    ),
-                  ),
+
+                const SizedBox(height: 8),
+
+                _ticketInfoRow(
+                  Icons.location_on_outlined,
+                  'Venue',
+                  location.toString(),
+                ),
+
+                const SizedBox(height: 8),
+
+                _ticketInfoRow(
+                  Icons.calendar_month_outlined,
+                  'Date',
+                  date.toString(),
+                ),
+
+                const SizedBox(height: 8),
+
+                _ticketInfoRow(
+                  Icons.access_time,
+                  'Time',
+                  time.toString(),
+                ),
               ],
-            ),
-          ),
-          Text(
-            money(price),
-            style: const TextStyle(
-              color: darkPink,
-              fontWeight: FontWeight.bold,
             ),
           ),
         ],
@@ -411,6 +494,43 @@ class _HistoryPageState extends State<HistoryPage>
     );
   }
 
+  Widget _ticketInfoRow(
+    IconData icon,
+    String title,
+    String value,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: pink,
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 55,
+          child: Text(
+            title,
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 12,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: darkPink,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
   Widget _buildPaymentCountdown(
     Map<String, dynamic> order,
   ) {

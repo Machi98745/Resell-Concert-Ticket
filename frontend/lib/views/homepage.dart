@@ -70,16 +70,16 @@ class _HomePageState extends State<HomePage> {
           'seller': 'LisaFan',
           'zone': 'VIP Zone',
           'price': 6500,
-          'condition': 'Available',
-          'status': 'available',
+          'condition': 'sold',
+          'status': 'sold',
           'seats': ['VIP-A1', 'VIP-A2', 'VIP-A3'],
         },
         {
           'seller': 'LisaFan2',
           'zone': 'Premium Zone',
           'price': 4800,
-          'condition': 'Available',
-          'status': 'available',
+          'condition': 'sold',
+          'status': 'sold',
           'seats': ['P-A1', 'P-A2', 'P-A3'],
         },
         {
@@ -243,11 +243,11 @@ class _HomePageState extends State<HomePage> {
 
   void openSellTickets() {
     Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SellPage(),
-                          ),
-                        );
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SellPage(),
+      ),
+    );
   }
 
   // ==========================================
@@ -365,7 +365,6 @@ class _HomePageState extends State<HomePage> {
               color: pink,
             ),
           ),
-
           const Spacer(),
           ElevatedButton.icon(
             onPressed: openSellTickets,
@@ -448,9 +447,7 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
     );
-  }
-
-  // ==========================================
+  }  // ==========================================
   // CONCERT BANNER SLIDER
   // ==========================================
 
@@ -754,9 +751,7 @@ class _HomePageState extends State<HomePage> {
         }).toList(),
       ),
     );
-  }
-
-  // ==========================================
+  }  // ==========================================
   // CONCERT SECTION
   // ==========================================
 
@@ -795,12 +790,14 @@ class _HomePageState extends State<HomePage> {
           else
             LayoutBuilder(
               builder: (context, constraints) {
-                int columns = 2;
+                int columns = 1;
 
-                if (constraints.maxWidth >= 1000) {
+                if (constraints.maxWidth >= 1100) {
                   columns = 4;
-                } else if (constraints.maxWidth >= 650) {
+                } else if (constraints.maxWidth >= 850) {
                   columns = 3;
+                } else if (constraints.maxWidth >= 560) {
+                  columns = 2;
                 }
 
                 return GridView.builder(
@@ -812,7 +809,7 @@ class _HomePageState extends State<HomePage> {
                     crossAxisCount: columns,
                     crossAxisSpacing: 20,
                     mainAxisSpacing: 20,
-                    childAspectRatio: 0.65,
+                    mainAxisExtent: 490,
                   ),
                   itemBuilder: (context, index) {
                     return _buildConcertCard(concertList[index]);
