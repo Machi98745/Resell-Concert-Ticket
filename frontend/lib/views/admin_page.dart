@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:frontend/controller/admin_controller.dart';
 import 'package:frontend/views/login.dart';
-
 
 // Palette: White, Pink, Dark Charcoal, Slate Grey
 const Color primaryPink = Color(0xFFE85D9E);
@@ -18,151 +19,77 @@ class AdminPage extends StatefulWidget {
 
 class _AdminPageState extends State<AdminPage> {
   final TextEditingController searchController = TextEditingController();
-  String selectedFilter = 'All';
+  final AdminController _adminController = AdminController();
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
-  // Mock data
-  final List<Map<String, dynamic>> users = [
-    {
-      'id': '1',
-      'full_name': 'PinkSeller',
-      'email': 'pinkseller@gmail.com',
-      'phone': '0812345678',
-      'kycStatus': 'Verified',
-      'ticketsSold': 12,
-      'ticketsBought': 3,
-      'isActive': true,
-      'joinedDate': '10 Jan 2026',
-      'username': 'somchai01',
-      'role': 'customer',
-      'isVerified': 1,
-      'ownedTickets': [
-        {
-          'ticketCode': 'TKT-BS2026-A101',
-          'concert': 'BODYSLAM EVERYBODYSLAM 2026',
-          'venue': 'Impact Arena Muang Thong Thani',
-          'zone': 'VIP A1',
-          'seat': 'A1-01',
-          'originalPrice': 4500.00,
-          'sellerName': 'Seller_RockFan',
-          'sellerPhone': '0899998888',
-          'sellerEmail': 'rockfan@gmail.com',
-          'paidAmount': 4200.00,
-          'paymentMethod': 'Credit Card',
-          'paidAt': '2026-01-10 10:00:00',
-        },
-        {
-          'ticketCode': 'TKT-BS2026-A102',
-          'concert': 'BODYSLAM EVERYBODYSLAM 2026',
-          'venue': 'Impact Arena Muang Thong Thani',
-          'zone': 'VIP A1',
-          'seat': 'A1-02',
-          'originalPrice': 4500.00,
-          'sellerName': 'Seller_RockFan',
-          'sellerPhone': '0899998888',
-          'sellerEmail': 'rockfan@gmail.com',
-          'paidAmount': 4200.00,
-          'paymentMethod': 'Credit Card',
-          'paidAt': '2026-01-10 10:00:00',
-        },
-      ],
-      'resellListings': [
-        {
-          'listingId': 101,
-          'ticketCode': 'TKT-BS2026-A101',
-          'concert': 'BODYSLAM EVERYBODYSLAM 2026',
-          'zone': 'VIP A1',
-          'seat': 'A1-01',
-          'resellPrice': 4200.00,
-          'status': 'sold',
-          'shippingStatus': 'Shipped',
-        },
-        {
-          'listingId': 102,
-          'ticketCode': 'TKT-BS2026-A102',
-          'concert': 'BODYSLAM EVERYBODYSLAM 2026',
-          'zone': 'VIP A1',
-          'seat': 'A1-02',
-          'resellPrice': 4500.00,
-          'status': 'available',
-          'shippingStatus': 'Pending',
-        },
-      ],
-    },
-    {
-      'id': '3',
-      'full_name': 'Scammer101',
-      'email': 'fakeuser@gmail.com',
-      'phone': '0611112222',
-      'kycStatus': 'Pending',
-      'ticketsSold': 0,
-      'ticketsBought': 1,
-      'isActive': false,
-      'joinedDate': '01 Mar 2026',
-      'username': 'somsak_unverified',
-      'role': 'customer',
-      'isVerified': 0,
-      'ownedTickets': [
-        {
-          'ticketCode': 'TKT-TMD2026-S15',
-          'concert': 'THREE MAN DOWN LIVE IN BANGKOK',
-          'venue': 'Rajamangala National Stadium',
-          'zone': 'Zone S1',
-          'seat': 'S1-15',
-          'originalPrice': 3500.00,
-          'sellerName': 'PinkSeller',
-          'sellerPhone': '0812345678',
-          'sellerEmail': 'pinkseller@gmail.com',
-          'paidAmount': 3300.00,
-          'paymentMethod': 'PROMPTPAY',
-          'paidAt': '2026-11-04 17:00:00',
-        },
-      ],
-      'resellListings': [
-        {
-          'listingId': 201,
-          'ticketCode': 'TKT-TMD2026-S15',
-          'concert': 'THREE MAN DOWN LIVE IN BANGKOK',
-          'zone': 'Zone S1',
-          'seat': 'S1-15',
-          'resellPrice': 3300.00,
-          'status': 'available',
-          'shippingStatus': 'Pending',
-        },
-      ],
-    },
-    {
-      'id': '4',
-      'full_name': 'Swiftie Shoppiesss',
-      'email': 'swiftie@gmail.com',
-      'phone': '0824445555',
-      'kycStatus': 'Verified',
-      'ticketsSold': 24,
-      'ticketsBought': 0,
-      'isActive': true,
-      'joinedDate': '20 Nov 2025',
-      'username': 'swiftie_shop',
-      'role': 'customer',
-      'isVerified': 1,
-      'ownedTickets': [],
-      'resellListings': [],
-    },
-    {
-      'id': '5',
-      'full_name': 'Blink Buyer',
-      'email': 'blinkbuyer@gmail.com',
-      'phone': '0953337777',
-      'kycStatus': 'Verified',
-      'ticketsSold': 0,
-      'ticketsBought': 0,
-      'isActive': true,
-      'joinedDate': '05 Mar 2026',
-      'username': 'blink_buyer',
-      'role': 'customer',
-      'isVerified': 1,
-      'ownedTickets': [],
-      'resellListings': [],
-    },
-  ];
+  String selectedFilter = 'All';
+  bool _isLoading = true;
+  List<Map<String, dynamic>> users = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUsers();
+  }
+
+  // ดึงข้อมูลผู้ใช้ทั้งหมดจาก Backend API (กรองเฉพาะบัญชีที่ไม่ใช่ admin และตัดคำว่า (Verified Seller) ออก)
+  Future<void> _fetchUsers() async {
+    setState(() => _isLoading = true);
+    try {
+      final rawUsers = await _adminController.getAllUsers();
+      setState(() {
+        users = rawUsers
+            .where(
+              (u) =>
+                  (u['role'] ?? 'customer').toString().toLowerCase() != 'admin',
+            )
+            .map((u) {
+              final bool active = u['is_active'] == 1 || u['is_active'] == true;
+              final bool verified =
+                  u['is_verified'] == 1 || u['is_verified'] == true;
+              final String createdAt = (u['created_at'] ?? '').toString();
+              final String formattedDate =
+                  createdAt.length >= 10 ? createdAt.substring(0, 10) : 'N/A';
+
+              final String cleanFullName = (u['full_name'] ?? 'Unknown')
+                  .toString()
+                  .replaceAll(
+                    RegExp(r'\s*\(Verified Seller\)', caseSensitive: false),
+                    '',
+                  )
+                  .trim();
+
+              return {
+                'id': u['user_id'].toString(),
+                'full_name': cleanFullName,
+                'email': u['email'] ?? 'N/A',
+                'phone': u['phone'] ?? 'N/A',
+                'kycStatus': verified ? 'Verified' : 'Pending',
+                'ticketsSold': u['tickets_sold'] ?? 0,
+                'ticketsBought': u['tickets_bought'] ?? 0,
+                'isActive': active,
+                'joinedDate': formattedDate,
+                'username': u['username'] ?? '',
+                'role': u['role'] ?? 'customer',
+                'isVerified': verified ? 1 : 0,
+                'ownedTickets': u['ownedTickets'] ?? [],
+                'resellListings': u['resellListings'] ?? [],
+              };
+            })
+            .toList();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar(
+        e.toString().replaceAll('Exception: ', ''),
+        Colors.redAccent,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   // filter bar
   List<Map<String, dynamic>> get filteredUsers {
@@ -182,15 +109,41 @@ class _AdminPageState extends State<AdminPage> {
     }).toList();
   }
 
-  // method
   @override
   void dispose() {
     searchController.dispose();
     super.dispose();
   }
 
+  void _showSnackBar(String message, Color bgColor) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: bgColor,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  // เช็กว่าเป็นการจัดส่งแบบไปรษณีย์ (Parcel Shipping) หรือไม่
+  bool _isParcelShipping(Map<String, dynamic> item) {
+    final String method = (item['deliveryType'] ??
+            item['delivery_type'] ??
+            item['delivery_method'] ??
+            'Parcel Shipping')
+        .toString()
+        .toLowerCase();
+
+    return method.contains('parcel') ||
+        method.contains('delivery') ||
+        method.contains('post') ||
+        method.contains('mail');
+  }
+
   // =============================== logic ======================================
-  /// logout
+  /// logout + ลบ JWT Token ออกจากเครื่อง
   void _logout() {
     showDialog(
       context: context,
@@ -214,11 +167,15 @@ class _AdminPageState extends State<AdminPage> {
               child: const Text('Cancel', style: TextStyle(color: slateGrey)),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context);
-                Navigator.push(
+                await _storage.delete(key: 'jwt_token');
+                await _storage.delete(key: 'user_role');
+                if (!mounted) return;
+                Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (context) => const Login()),
+                  (route) => false,
                 );
               },
               style: ElevatedButton.styleFrom(
@@ -237,66 +194,80 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  /// คำนวณ Success Rate
+  /// คำนวณ Success Rate (ถ้ายังไม่เคยขายเลยแสดง 0%)
   String _calculateSuccessRate(Map<String, dynamic> user) {
     final int sold = (user['ticketsSold'] as num?)?.toInt() ?? 0;
     final List listings = (user['resellListings'] as List?) ?? [];
     final int uncompleted = listings.where((l) => l['status'] != 'sold').length;
     final int totalAttempts = sold + uncompleted;
 
-    if (totalAttempts == 0) return 'N/A';
+    if (totalAttempts == 0) return '0%';
 
     final double rate = (sold / totalAttempts) * 100;
     return '${rate.toStringAsFixed(0)}%';
   }
 
-  /// disable / enable user account
-  void _toggleUserStatusDirectly(String userId) {
+  /// disable / enable user account (ยิง API จริง)
+  Future<void> _toggleUserStatusDirectly(String userId) async {
     final index = users.indexWhere((user) => user['id'].toString() == userId);
     if (index == -1) return;
 
-    final bool newStatus = !users[index]['isActive'];
+    final bool oldStatus = users[index]['isActive'];
+    final bool newStatus = !oldStatus;
+    final String name = users[index]['full_name'].toString();
 
     setState(() {
       users[index]['isActive'] = newStatus;
     });
 
-    final String name = users[index]['full_name'].toString();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          newStatus
-              ? 'Account "$name" is now ACTIVE.'
-              : 'Account "$name" is now SUSPENDED.',
-        ),
-        backgroundColor: newStatus ? primaryPink : darkCharcoal,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    try {
+      await _adminController.updateUserStatus(
+        userId: userId,
+        isActive: newStatus,
+      );
+      if (!mounted) return;
+      _showSnackBar(
+        newStatus
+            ? 'Account "$name" is now ACTIVE.'
+            : 'Account "$name" is now SUSPENDED.',
+        newStatus ? primaryPink : darkCharcoal,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        users[index]['isActive'] = oldStatus;
+      });
+      _showSnackBar(
+        e.toString().replaceAll('Exception: ', ''),
+        Colors.redAccent,
+      );
+    }
   }
 
-  /// delete user account
-  void _deleteUser(String userId) {
+  /// delete user account (ยิง API จริง)
+  Future<void> _deleteUser(String userId) async {
     final index = users.indexWhere((user) => user['id'].toString() == userId);
     if (index == -1) return;
 
     final String name = users[index]['full_name'].toString();
 
-    setState(() {
-      users.removeAt(index);
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Account "$name" deleted successfully.'),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    try {
+      await _adminController.deleteUser(userId);
+      if (!mounted) return;
+      setState(() {
+        users.removeAt(index);
+      });
+      _showSnackBar(
+        'Account "$name" deleted successfully.',
+        Colors.redAccent,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar(
+        e.toString().replaceAll('Exception: ', ''),
+        Colors.redAccent,
+      );
+    }
   }
 
   // =============================== Dialogs and popups ======================================
@@ -355,6 +326,17 @@ class _AdminPageState extends State<AdminPage> {
 
   /// Dialog My Tickets
   void _showTicketAndPaymentDetailsDialog(Map<String, dynamic> ticket) {
+    final bool isParcel = _isParcelShipping(ticket);
+    final int basePaid =
+        ((ticket['paidAmount'] ?? ticket['originalPrice']) as num?)?.toInt() ??
+            0;
+    final int shippingFee = isParcel
+        ? (((ticket['shippingFee'] ?? ticket['shipping_fee']) as num?)
+                    ?.toInt() ??
+                50)
+        : 0;
+    final int totalPaid = basePaid + shippingFee;
+
     showDialog(
       context: context,
       builder: (context) {
@@ -429,8 +411,26 @@ class _AdminPageState extends State<AdminPage> {
                       ),
                       const SizedBox(height: 10),
                       _simpleInfoRow(
-                        'Paid Amount',
-                        '฿${(ticket['paidAmount'] ?? ticket['originalPrice']).toInt()}',
+                        'Delivery Method',
+                        isParcel
+                            ? 'Parcel Shipping'
+                            : (ticket['delivery_method'] ?? 'Digital Transfer')
+                                .toString(),
+                      ),
+                      const SizedBox(height: 10),
+                      _simpleInfoRow('Ticket Price', '฿$basePaid'),
+                      if (shippingFee > 0) ...[
+                        const SizedBox(height: 10),
+                        _simpleInfoRow(
+                          'Shipping Fee (Parcel)',
+                          '+ ฿$shippingFee',
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      _simpleInfoRow(
+                        'Total Paid Amount',
+                        '฿$totalPaid',
+                        isBold: true,
                       ),
                       if (ticket['paymentMethod'] != null) ...[
                         const SizedBox(height: 10),
@@ -508,13 +508,22 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  /// Dialog Resell
+  /// Dialog Resell (คำนวณค่าธรรมเนียม + ค่าส่งไปรษณีย์ 50 บาท)
   void _showResellDetailsDialog(Map<String, dynamic> resell) {
     final bool isSold = resell['status'] == 'sold';
+    final bool isParcel = _isParcelShipping(resell);
     final double resellPrice =
-        (resell['resellPrice'] as num?)?.toDouble() ?? 0.0;
+        (resell['resellPrice'] ?? resell['resell_price'] as num?)?.toDouble() ??
+            0.0;
     final int commissionFee = (resellPrice * 0.02).round();
-    final int totalBuyerPrice = resellPrice.toInt() + commissionFee;
+
+    final int rawShipping =
+        ((resell['shippingFee'] ?? resell['shipping_fee']) as num?)?.toInt() ??
+            0;
+    final int shippingFee = isParcel ? (rawShipping > 0 ? rawShipping : 50) : 0;
+
+    final int totalBuyerPrice =
+        resellPrice.toInt() + commissionFee + shippingFee;
 
     showDialog(
       context: context,
@@ -593,6 +602,16 @@ class _AdminPageState extends State<AdminPage> {
                       ),
                       const SizedBox(height: 10),
                       _simpleInfoRow(
+                        'Delivery Type',
+                        isParcel
+                            ? 'Parcel Shipping'
+                            : (resell['deliveryType'] ??
+                                    resell['delivery_type'] ??
+                                    'Digital Transfer')
+                                .toString(),
+                      ),
+                      const SizedBox(height: 10),
+                      _simpleInfoRow(
                         'Status',
                         isSold ? 'Sold' : resell['status'].toString(),
                       ),
@@ -632,6 +651,13 @@ class _AdminPageState extends State<AdminPage> {
                       ),
                       const SizedBox(height: 8),
                       _simpleInfoRow('Platform Fee (+2%)', '+ ฿$commissionFee'),
+                      if (shippingFee > 0) ...[
+                        const SizedBox(height: 8),
+                        _simpleInfoRow(
+                          'Shipping Fee (Parcel)',
+                          '+ ฿$shippingFee',
+                        ),
+                      ],
                       const Divider(height: 16),
                       _simpleInfoRow(
                         'Total Buyer Payment',
@@ -745,18 +771,14 @@ class _AdminPageState extends State<AdminPage> {
                                       vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: user['role'] == 'admin'
-                                          ? darkCharcoal
-                                          : softPink,
+                                      color: softPink,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
                                       (user['role'] ?? 'customer')
                                           .toUpperCase(),
-                                      style: TextStyle(
-                                        color: user['role'] == 'admin'
-                                            ? Colors.white
-                                            : primaryPink,
+                                      style: const TextStyle(
+                                        color: primaryPink,
                                         fontSize: 9,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -860,8 +882,20 @@ class _AdminPageState extends State<AdminPage> {
                   if (ownedTickets.isEmpty)
                     _buildEmptyState('No tickets owned.')
                   else
-                    ...ownedTickets.map(
-                      (t) => Container(
+                    ...ownedTickets.map((t) {
+                      final bool isParcel = _isParcelShipping(t);
+                      final int basePaid =
+                          ((t['paidAmount'] ?? t['originalPrice']) as num?)
+                                  ?.toInt() ??
+                              0;
+                      final int shipFee = isParcel
+                          ? (((t['shippingFee'] ?? t['shipping_fee']) as num?)
+                                      ?.toInt() ??
+                                  50)
+                          : 0;
+                      final int totalPaid = basePaid + shipFee;
+
+                      return Container(
                         margin: const EdgeInsets.only(bottom: 10),
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
@@ -899,7 +933,7 @@ class _AdminPageState extends State<AdminPage> {
                             Row(
                               children: [
                                 Text(
-                                  '฿${(t['paidAmount'] ?? t['originalPrice']).toInt()}',
+                                  '฿$totalPaid',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: primaryPink,
@@ -934,8 +968,8 @@ class _AdminPageState extends State<AdminPage> {
                             ),
                           ],
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                   const SizedBox(height: 20),
                   Row(
                     children: [
@@ -961,6 +995,16 @@ class _AdminPageState extends State<AdminPage> {
                   else
                     ...resellListings.map((r) {
                       final bool isSold = r['status'] == 'sold';
+                      final bool isParcel = _isParcelShipping(r);
+                      final double price =
+                          (r['resellPrice'] ?? r['resell_price'] as num?)
+                                  ?.toDouble() ??
+                              0.0;
+                      final int fee = (price * 0.02).round();
+                      final int shipFee = isParcel ? 50 : 0;
+                      final int totalWithShipping =
+                          price.toInt() + fee + shipFee;
+
                       return Container(
                         margin: const EdgeInsets.only(bottom: 10),
                         padding: const EdgeInsets.all(12),
@@ -1041,13 +1085,26 @@ class _AdminPageState extends State<AdminPage> {
                             ),
                             Row(
                               children: [
-                                Text(
-                                  '฿${r['resellPrice'].toInt()}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: primaryPink,
-                                    fontSize: 13,
-                                  ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      '฿$totalWithShipping',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: primaryPink,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    if (shipFee > 0)
+                                      const Text(
+                                        '(incl. ฿50 ship)',
+                                        style: TextStyle(
+                                          color: slateGrey,
+                                          fontSize: 9,
+                                        ),
+                                      ),
+                                  ],
                                 ),
                                 const SizedBox(width: 8),
                                 ElevatedButton(
@@ -1098,24 +1155,28 @@ class _AdminPageState extends State<AdminPage> {
           children: [
             _buildHeader(),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24.0,
-                  vertical: 20.0,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildMetricsSection(),
-                    const SizedBox(height: 28),
-                    _buildTitleSection(),
-                    const SizedBox(height: 16),
-                    _buildSearchAndFilterBar(),
-                    const SizedBox(height: 20),
-                    _buildUserCardsList(),
-                  ],
-                ),
-              ),
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: primaryPink),
+                    )
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24.0,
+                        vertical: 20.0,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildMetricsSection(),
+                          const SizedBox(height: 28),
+                          _buildTitleSection(),
+                          const SizedBox(height: 16),
+                          _buildSearchAndFilterBar(),
+                          const SizedBox(height: 20),
+                          _buildUserCardsList(),
+                        ],
+                      ),
+                    ),
             ),
           ],
         ),
@@ -1124,7 +1185,7 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   // ========================== widget components ===============================
-  /// Header
+  /// Header (มีเฉพาะปุ่ม Log Out ไม่มีปุ่ม Refresh)
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -1173,7 +1234,6 @@ class _AdminPageState extends State<AdminPage> {
             ),
           ),
           const Spacer(),
-          // ปุ่ม Logout เพียงอย่างเดียวทางขวา
           IconButton(
             icon: const Icon(Icons.logout, color: slateGrey, size: 20),
             tooltip: 'Log Out',
