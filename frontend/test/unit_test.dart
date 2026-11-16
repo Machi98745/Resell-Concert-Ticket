@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/testing.dart';
 import 'package:http/http.dart' as http;
+import 'package:frontend/controller/admin_controller.dart';
 import 'package:frontend/controller/auth_controller.dart';
 import 'package:frontend/controller/concert_controller.dart';
 import 'package:frontend/controller/login_controller.dart';
@@ -34,9 +35,9 @@ void main() {
   });
 
   // ============================================================================
-  // 🧑‍💻 [ส่วนที่ 1: รับผิดชอบโดย คนที่ 1 (6731501012) - ระบบ Auth & Login]
-  // ครอบคลุม: การตรวจสอบสิทธิ์, Login Form, Token, Session, และ Input Validation
-  // จำนวนเคสทดสอบ: 11 ข้อ (LoginController 6 ข้อ + AuthController 5 ข้อ)
+  // 🧑‍💻 [ส่วนที่ 1: รับผิดชอบโดย คนที่ 1 (6731501012) - ระบบ Auth, Login & Admin]
+  // ครอบคลุม: การตรวจสอบสิทธิ์, Login Form, Token, Input Validation และ Admin Management
+  // จำนวนเคสทดสอบ: 16 ข้อ (LoginController 6 ข้อ + AuthController 5 ข้อ + AdminController 5 ข้อ)
   // ============================================================================
 
   group('LoginController', () {
@@ -201,6 +202,107 @@ void main() {
         ),
         'New password must be at least 6 characters long.',
       );
+    });
+  });
+
+  group('AdminController', () {
+    // ตรวจว่าแอดมินต้องมี token และ userId ที่ถูกต้องก่อนทำรายการ
+    test('requires admin token and valid user id for management actions', () {
+      expect(
+        AdminController.validateAdminAction(token: '  ', userId: 2),
+        'Please log in as an administrator',
+      );
+      expect(
+        AdminController.validateAdminAction(token: 'admin-token', userId: 0),
+        'Invalid user ID',
+      );
+    });
+
+    // ตรวจว่าป้องกันแอดมินระงับหรือลบบัญชีของตัวเอง
+    test('prevents admin from suspending or deleting their own account', () {
+      expect(
+        AdminController.validateAdminAction(
+          token: 'admin-token',
+          userId: 1,
+          currentAdminId: 1,
+          preventSelfAction: true,
+        ),
+        'Admin cannot suspend or delete their own account',
+      );
+      expect(
+        AdminController.validateAdminAction(
+          token: 'admin-token',
+          userId: 2,
+          currentAdminId: 1,
+          preventSelfAction: true,
+        ),
+        isNull,
+      );
+    });
+
+    // ตรวจการดึงรายชื่อผู้ใช้ทั้งหมดพร้อมแนบ Bearer token
+    test('fetches all users with bearer authorization header', () async {
+      final client = MockClient((request) async {
+        expect(request.url.path, '/api/admin/users');
+        expect(request.headers['Authorization'], 'Bearer admin-token');
+        return http.Response(
+          jsonEncode([
+            {'user_id': 1, 'username': 'admin', 'is_active': 1},
+            {'user_id': 2, 'username': 'cocomint', 'is_active': 1},
+          ]),
+          200,
+        );
+      });
+
+      final users = await AdminController(client: client).getAllUsers(' admin-token ');
+      expect(users, hasLength(2));
+      expect(users.last['username'], 'cocomint');
+      client.close();
+    });
+
+    // ตรวจการระงับและปลดระงับสถานะบัญชีผู้ใช้
+    test('updates user active status via patch request', () async {
+      final client = MockClient((request) async {
+        expect(request.method, 'PATCH');
+        expect(request.url.path, '/api/admin/users/2/status');
+        expect(jsonDecode(request.body), {'is_active': 0});
+        return http.Response(
+          jsonEncode({'user_id': 2, 'is_active': 0}),
+          200,
+        );
+      });
+
+      final result = await AdminController(client: client).updateUserStatus(
+        token: 'admin-token',
+        userId: 2,
+        isActive: false,
+        currentAdminId: 1,
+      );
+
+      expect(result['is_active'], 0);
+      client.close();
+    });
+
+    // ตรวจการอนุมัติยืนยันตัวตนผู้ขาย KYC
+    test('verifies seller KYC badge via patch request', () async {
+      final client = MockClient((request) async {
+        expect(request.method, 'PATCH');
+        expect(request.url.path, '/api/admin/users/2/verify');
+        expect(jsonDecode(request.body), {'is_verified': 1});
+        return http.Response(
+          jsonEncode({'user_id': 2, 'is_verified': 1}),
+          200,
+        );
+      });
+
+      final result = await AdminController(client: client).verifySeller(
+        token: 'admin-token',
+        userId: 2,
+        isVerified: true,
+      );
+
+      expect(result['is_verified'], 1);
+      client.close();
     });
   });
 
