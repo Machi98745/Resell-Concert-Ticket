@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'cart_service.dart';
+import 'package:frontend/server/api_service.dart';
 
 class SellPage extends StatefulWidget {
   const SellPage({super.key});
@@ -9,48 +10,68 @@ class SellPage extends StatefulWidget {
 }
 
 class _SellPageState extends State<SellPage> {
-  Color pink = Colors.pinkAccent;
-  Color lightPink = const Color(0xFFFFF0F5);
+  final Color pink = Colors.pinkAccent;
+  final Color lightPink = const Color(0xFFFFF0F5);
 
   int page = 0; // 0 = form, 1 = review, 2 = success
 
-  final List<Map<String, dynamic>> concertOptions = [
-    {
-      'name': 'BLACKPINK WORLD TOUR',
-      'date': '15 December 2026',
-      'venue': 'Bangkok, Thailand',
-    },
-    {
-      'name': 'LISA FAN MEETING',
-      'date': '20 December 2026',
-      'venue': 'Bangkok, Thailand',
-    },
-    {
-      'name': 'THE ERAS TOUR',
-      'date': '25 December 2026',
-      'venue': 'Singapore',
-    },
-    {
-      'name': 'BTS WORLD TOUR',
-      'date': '30 December 2026',
-      'venue': 'Bangkok, Thailand',
-    },
-  ];
+  // ==========================================
+  // TICKET DATA FROM DATABASE
+  // ==========================================
 
-  String? selectedConcert;
+  List<Map<String, dynamic>> myTickets = [];
+  Map<String, dynamic>? selectedTicket;
 
-  var concert = TextEditingController();
-  var date = TextEditingController();
-  var venue = TextEditingController();
-  var zone = TextEditingController();
-  var seat = TextEditingController();
-  var originalPrice = TextEditingController();
-  var price = TextEditingController(text: '4200');
-  var shipping = TextEditingController(text: '50');
-  var appName = TextEditingController();
-  var note = TextEditingController();
-  var accName = TextEditingController();
-  var accNumber = TextEditingController();
+  bool isLoadingTickets = false;
+  bool isSubmitting = false;
+
+  // ==========================================
+  // TEXT CONTROLLERS
+  // ==========================================
+
+  final concert = TextEditingController();
+  final date = TextEditingController();
+  final venue = TextEditingController();
+  final zone = TextEditingController();
+  final seat = TextEditingController();
+  final originalPrice = TextEditingController();
+
+  final price = TextEditingController(text: '4200');
+  final shipping = TextEditingController(text: '50');
+
+  final appName = TextEditingController();
+  final note = TextEditingController();
+
+  final accName = TextEditingController();
+  final accNumber = TextEditingController();
+
+  String delivery = 'Parcel Shipping';
+  String company = 'Thailand Post';
+  String channel = 'Email (PDF)';
+  String? bank;
+
+  int? createdListingId;
+
+  double get priceNum => double.tryParse(price.text) ?? 0;
+
+  double get shipNum {
+    if (delivery == 'Parcel Shipping') {
+      return double.tryParse(shipping.text) ?? 0;
+    }
+    return 0;
+  }
+
+  double get total => priceNum + shipNum;
+
+  // ==========================================
+  // INIT
+  // ==========================================
+
+  @override
+  void initState() {
+    super.initState();
+    loadMyTickets();
+  }
 
   @override
   void dispose() {
@@ -69,36 +90,87 @@ class _SellPageState extends State<SellPage> {
     super.dispose();
   }
 
-  String delivery = 'Parcel Shipping';
-  String company = 'Thailand Post';
-  String channel = 'Email (PDF)';
-  String? bank;
+  // ==========================================
+  // LOAD MY TICKETS
+  // GET /api/resell/my-tickets
+  // ==========================================
 
-  double get priceNum => double.tryParse(price.text) ?? 0;
+  Future<void> loadMyTickets() async {
+    if (isLoadingTickets) return;
 
-  double get shipNum =>
-      delivery == 'Parcel Shipping'
-          ? double.tryParse(shipping.text) ?? 0
-          : 0;
+    setState(() {
+      isLoadingTickets = true;
+    });
 
-  double get total => priceNum + shipNum;
+    try {
+      final tickets = await ApiService.getMyTickets();
+
+      if (!mounted) return;
+
+      setState(() {
+        myTickets = tickets;
+        isLoadingTickets = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoadingTickets = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Cannot load your tickets: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // ==========================================
+  // SELECT TICKET
+  // ==========================================
 
   Future<void> chooseConcert() async {
+    if (isLoadingTickets) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Loading your tickets. Please wait.'),
+        ),
+      );
+      return;
+    }
+
+    if (myTickets.isEmpty) {
+      await loadMyTickets();
+
+      if (!mounted) return;
+
+      if (myTickets.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('You have no tickets available for resale.'),
+          ),
+        );
+        return;
+      }
+    }
+
     final searchController = TextEditingController();
 
-    final result = await showDialog(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (dialogContext) {
-        List<Map<String, dynamic>> results = concertOptions;
+        List<Map<String, dynamic>> results = List.from(myTickets);
 
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Select Concert'),
+              title: const Text('Select Your Ticket'),
               content: SizedBox(
-                width: 400,
+                width: 420,
+                height: 350,
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
                     TextField(
                       controller: searchController,
@@ -109,35 +181,75 @@ class _SellPageState extends State<SellPage> {
                       ),
                       onChanged: (value) {
                         setDialogState(() {
-                          results = concertOptions.where((item) {
-                            return item['name']!
-                                .toLowerCase()
-                                .contains(value.toLowerCase());
+                          results = myTickets.where((item) {
+                            final name =
+                                item['concert_title']?.toString() ?? '';
+
+                            final artist =
+                                item['artist']?.toString() ?? '';
+
+                            return name
+                                    .toLowerCase()
+                                    .contains(value.toLowerCase()) ||
+                                artist
+                                    .toLowerCase()
+                                    .contains(value.toLowerCase());
                           }).toList();
                         });
                       },
                     ),
                     const SizedBox(height: 12),
-                    SizedBox(
-                      height: 250,
+                    Expanded(
                       child: results.isEmpty
                           ? const Center(
-                              child: Text('No concerts found.'),
+                              child: Text('No tickets found.'),
                             )
                           : ListView.builder(
-                              shrinkWrap: true,
                               itemCount: results.length,
                               itemBuilder: (context, index) {
-                                final item = results[index];
+                                final ticket = results[index];
 
-                                return ListTile(
-                                  title: Text(item['name']!),
-                                  subtitle: Text(
-                                    '${item['date']} • ${item['venue']}',
+                                final name =
+                                    ticket['concert_title']?.toString() ??
+                                        'Unknown Concert';
+
+                                final artist =
+                                    ticket['artist']?.toString() ?? '';
+
+                                final ticketZone =
+                                    ticket['zone_name']?.toString() ?? '';
+
+                                final ticketSeat =
+                                    ticket['seat_number']?.toString() ?? '';
+
+                                final ticketVenue =
+                                    ticket['venue']?.toString() ?? '';
+
+                                return Card(
+                                  child: ListTile(
+                                    leading: Icon(
+                                      Icons.confirmation_number,
+                                      color: pink,
+                                    ),
+                                    title: Text(
+                                      name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      '$artist\n'
+                                      '$ticketVenue\n'
+                                      'Zone: $ticketZone | Seat: $ticketSeat',
+                                    ),
+                                    isThreeLine: true,
+                                    onTap: () {
+                                      Navigator.pop(
+                                        dialogContext,
+                                        ticket,
+                                      );
+                                    },
                                   ),
-                                  onTap: () {
-                                    Navigator.pop(dialogContext, item);
-                                  },
                                 );
                               },
                             ),
@@ -153,68 +265,176 @@ class _SellPageState extends State<SellPage> {
 
     searchController.dispose();
 
-    if (result != null && mounted) {
-      setState(() {
-        selectedConcert = result['name'];
-        concert.text = result['name']!;
-        date.text = result['date']!;
-        venue.text = result['venue']!;
-      });
-    }
+    if (result == null || !mounted) return;
+
+    setState(() {
+      selectedTicket = result;
+
+      concert.text =
+          result['concert_title']?.toString() ?? '';
+
+      date.text =
+          result['show_datetime']?.toString() ?? '';
+
+      venue.text =
+          result['venue']?.toString() ?? '';
+
+      zone.text =
+          result['zone_name']?.toString() ?? '';
+
+      seat.text =
+          result['seat_number']?.toString() ?? '';
+
+      originalPrice.text =
+          result['original_price']?.toString() ?? '';
+    });
   }
 
+  // ==========================================
+  // VALIDATION
+  // ==========================================
+
   String? check() {
+    if (selectedTicket == null ||
+        selectedTicket!['ticket_id'] == null) {
+      return 'Please select one of your tickets.';
+    }
+
     if (concert.text.trim().isEmpty) {
       return 'Please select a concert.';
     }
-    if (date.text.trim().isEmpty) {
-      return 'Please enter the date and time.';
-    }
-    if (venue.text.trim().isEmpty) {
-      return 'Please enter the venue.';
-    }
+
     if (zone.text.trim().isEmpty) {
       return 'Please enter the zone.';
     }
+
     if (seat.text.trim().isEmpty) {
       return 'Please enter your seat.';
     }
+
     if ((double.tryParse(originalPrice.text) ?? 0) <= 0) {
-      return 'Please enter a valid original price.';
+      return 'Invalid original ticket price.';
     }
+
     if (priceNum <= 0) {
       return 'Please enter a valid selling price.';
     }
-    if (delivery == 'Parcel Shipping' &&
-        (shipping.text.trim().isEmpty || shipNum < 0)) {
-      return 'Please enter a valid shipping fee.';
+
+    if (delivery == 'Parcel Shipping') {
+      if (shipping.text.trim().isEmpty || shipNum < 0) {
+        return 'Please enter a valid shipping fee.';
+      }
     }
+
     if (delivery == 'Digital Transfer' &&
         channel == 'Other Application' &&
         appName.text.trim().isEmpty) {
       return 'Please enter the application name.';
     }
+
     if (bank == null ||
         accName.text.trim().isEmpty ||
         !RegExp(r'^\d{9,15}$').hasMatch(accNumber.text.trim())) {
       return 'Please complete your payout account.';
     }
+
     return null;
   }
 
+  // ==========================================
+  // GO TO REVIEW
+  // ==========================================
+
   void goToReview() {
-    String? error = check();
+    final error = check();
 
     if (error != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(error)));
-    } else {
-      setState(() => page = 1);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error)),
+      );
+      return;
+    }
+
+    setState(() {
+      page = 1;
+    });
+  }
+
+  // ==========================================
+  // CREATE LISTING
+  // POST /api/resell/create
+  // ==========================================
+
+  Future<void> submitListing() async {
+    if (isSubmitting) return;
+
+    final error = check();
+
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error)),
+      );
+      return;
+    }
+
+    setState(() {
+      isSubmitting = true;
+    });
+
+    try {
+      final transferNote = delivery == 'Digital Transfer'
+          ? 'Transfer Channel: ${channel == 'Other Application' ? appName.text.trim() : channel}'
+          : null;
+
+      final notes = [
+        if (transferNote != null) transferNote,
+        if (note.text.trim().isNotEmpty) note.text.trim(),
+      ].join('\n');
+
+      final result = await ApiService.createResellListing({
+        'ticket_id': selectedTicket!['ticket_id'],
+        'resell_price': priceNum,
+        'delivery_type': delivery,
+        'shipping_company':
+            delivery == 'Parcel Shipping' ? company : null,
+        'shipping_fee': shipNum,
+        'delivery_note': notes.isEmpty ? null : notes,
+        'bank_name': bank,
+        'bank_account_name': accName.text.trim(),
+        'bank_account_number': accNumber.text.trim(),
+      });
+
+      if (!mounted) return;
+
+      setState(() {
+        isSubmitting = false;
+        page = 2;
+        createdListingId =
+            int.tryParse(result['listing_id']?.toString() ?? '');
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isSubmitting = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to create listing: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
     }
   }
 
+  // ==========================================
+  // RESET
+  // ==========================================
+
   void reset() {
-    for (var c in [
+    for (final controller in [
       concert,
       date,
       venue,
@@ -226,34 +446,44 @@ class _SellPageState extends State<SellPage> {
       accName,
       accNumber,
     ]) {
-      c.clear();
+      controller.clear();
     }
 
     setState(() {
       page = 0;
-      selectedConcert = null;
+      selectedTicket = null;
+      createdListingId = null;
+
       price.text = '4200';
       shipping.text = '50';
+
       delivery = 'Parcel Shipping';
       company = 'Thailand Post';
       channel = 'Email (PDF)';
       bank = null;
     });
+
+    loadMyTickets();
   }
+
+  // ==========================================
+  // REUSABLE WIDGETS
+  // ==========================================
 
   Widget field(
     String label,
-    TextEditingController c, {
+    TextEditingController controller, {
     bool number = false,
     int lines = 1,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 15),
       child: TextField(
-        controller: c,
+        controller: controller,
         maxLines: lines,
-        keyboardType:
-            number ? TextInputType.number : TextInputType.text,
+        keyboardType: number
+            ? TextInputType.number
+            : TextInputType.text,
         onChanged: (_) => setState(() {}),
         decoration: InputDecoration(
           labelText: label,
@@ -280,13 +510,17 @@ class _SellPageState extends State<SellPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(child: Text(label)),
+          const SizedBox(width: 10),
           Flexible(
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -296,6 +530,7 @@ class _SellPageState extends State<SellPage> {
 
   Widget pinkBox(List<Widget> children) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: lightPink,
@@ -320,6 +555,10 @@ class _SellPageState extends State<SellPage> {
     );
   }
 
+  // ==========================================
+  // SELL FORM
+  // ==========================================
+
   Widget sellForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -330,26 +569,62 @@ class _SellPageState extends State<SellPage> {
           onTap: chooseConcert,
           child: InputDecorator(
             decoration: const InputDecoration(
-              labelText: 'Select Concert',
+              labelText: 'Select Your Ticket',
               border: OutlineInputBorder(),
               suffixIcon: Icon(Icons.arrow_drop_down),
             ),
             child: Text(
-              selectedConcert ?? 'Choose a concert',
+              selectedTicket == null
+                  ? 'Choose one of your tickets'
+                  : concert.text,
             ),
           ),
         ),
 
+        if (isLoadingTickets)
+          const Padding(
+            padding: EdgeInsets.all(12),
+            child: Center(
+              child: CircularProgressIndicator(),
+            ),
+          ),
+
+        if (!isLoadingTickets && myTickets.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'No tickets available. Please check your ticket history.',
+              style: TextStyle(
+                color: Colors.red.shade700,
+                fontSize: 12,
+              ),
+            ),
+          ),
+
         const SizedBox(height: 15),
 
-        field('Date & Time (e.g. 15 Dec 2026, 18:00)', date),
-        field('Venue', venue),
-        field('Zone', zone),
-        field('Seat', seat),
-        field('Original Price (THB)', originalPrice, number: true),
+        if (selectedTicket != null) ...[
+          pinkBox([
+            row('Concert', concert.text),
+            row('Date & Time', date.text),
+            row('Venue', venue.text),
+            row('Zone', zone.text),
+            row('Seat', seat.text),
+            row(
+              'Original Price',
+              'THB ${originalPrice.text}',
+            ),
+          ]),
+          const SizedBox(height: 15),
+        ],
 
         title('Selling Price'),
-        field('Selling Price (THB)', price, number: true),
+
+        field(
+          'Selling Price (THB)',
+          price,
+          number: true,
+        ),
 
         title('Ticket Delivery Method'),
 
@@ -358,7 +633,11 @@ class _SellPageState extends State<SellPage> {
           value: 'Parcel Shipping',
           groupValue: delivery,
           activeColor: pink,
-          onChanged: (v) => setState(() => delivery = v!),
+          onChanged: (v) {
+            if (v != null) {
+              setState(() => delivery = v);
+            }
+          },
         ),
 
         RadioListTile<String>(
@@ -366,7 +645,11 @@ class _SellPageState extends State<SellPage> {
           value: 'Digital Transfer',
           groupValue: delivery,
           activeColor: pink,
-          onChanged: (v) => setState(() => delivery = v!),
+          onChanged: (v) {
+            if (v != null) {
+              setState(() => delivery = v);
+            }
+          },
         ),
 
         if (delivery == 'Parcel Shipping') ...[
@@ -380,17 +663,32 @@ class _SellPageState extends State<SellPage> {
               'Thailand Post',
               'Flash Express',
               'Kerry Express',
-            ].map((c) => DropdownMenuItem(
-              value: c,
-              child: Text(c),
-            )).toList(),
-            onChanged: (v) => setState(() => company = v!),
+            ].map((item) {
+              return DropdownMenuItem(
+                value: item,
+                child: Text(item),
+              );
+            }).toList(),
+            onChanged: (v) {
+              if (v != null) {
+                setState(() => company = v);
+              }
+            },
           ),
+
           const SizedBox(height: 15),
-          field('Shipping Fee (THB)', shipping, number: true),
+
+          field(
+            'Shipping Fee (THB)',
+            shipping,
+            number: true,
+          ),
         ] else
           Container(
-            margin: const EdgeInsets.only(left: 16, bottom: 15),
+            margin: const EdgeInsets.only(
+              left: 16,
+              bottom: 15,
+            ),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: lightPink,
@@ -402,9 +700,12 @@ class _SellPageState extends State<SellPage> {
               children: [
                 const Text(
                   'Select transfer channel',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                for (var app in [
+
+                for (final app in [
                   'Email (PDF)',
                   'Eventpop App',
                   'I Have Ticket App',
@@ -417,15 +718,27 @@ class _SellPageState extends State<SellPage> {
                     groupValue: channel,
                     activeColor: pink,
                     dense: true,
-                    onChanged: (v) => setState(() => channel = v!),
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() => channel = v);
+                      }
+                    },
                   ),
+
                 if (channel == 'Other Application')
-                  field('Application Name', appName),
+                  field(
+                    'Application Name',
+                    appName,
+                  ),
               ],
             ),
           ),
 
-        field('Delivery Notes (Optional)', note, lines: 2),
+        field(
+          'Delivery Notes (Optional)',
+          note,
+          lines: 2,
+        ),
 
         title('Payout Account'),
 
@@ -441,41 +754,72 @@ class _SellPageState extends State<SellPage> {
             'SCB',
             'Krungthai Bank',
             'Krungsri',
-          ].map((b) => DropdownMenuItem(
-            value: b,
-            child: Text(b),
-          )).toList(),
-          onChanged: (v) => setState(() => bank = v),
+          ].map((item) {
+            return DropdownMenuItem(
+              value: item,
+              child: Text(item),
+            );
+          }).toList(),
+          onChanged: (v) {
+            setState(() => bank = v);
+          },
         ),
 
         const SizedBox(height: 15),
 
-        field('Account Holder Name', accName),
-        field('Bank Account Number', accNumber, number: true),
+        field(
+          'Account Holder Name',
+          accName,
+        ),
+
+        field(
+          'Bank Account Number',
+          accNumber,
+          number: true,
+        ),
 
         const Text(
           'Demo only. Do not enter real bank details.',
-          style: TextStyle(color: Colors.grey, fontSize: 12),
+          style: TextStyle(
+            color: Colors.grey,
+            fontSize: 12,
+          ),
         ),
 
         const SizedBox(height: 20),
 
         pinkBox([
-          row('Selling Price', 'THB ${priceNum.toStringAsFixed(2)}'),
-          row('Shipping Fee', 'THB ${shipNum.toStringAsFixed(2)}'),
+          row(
+            'Selling Price',
+            'THB ${priceNum.toStringAsFixed(2)}',
+          ),
+          row(
+            'Shipping Fee',
+            'THB ${shipNum.toStringAsFixed(2)}',
+          ),
           const Divider(),
-          row('Buyer Total', 'THB ${total.toStringAsFixed(2)}'),
+          row(
+            'Buyer Total',
+            'THB ${total.toStringAsFixed(2)}',
+          ),
         ]),
 
         const SizedBox(height: 20),
 
-        button('Continue to Review', goToReview),
+        button(
+          'Continue to Review',
+          goToReview,
+        ),
       ],
     );
   }
 
+  // ==========================================
+  // REVIEW PAGE
+  // ==========================================
+
   Widget reviewPage() {
-    String acc = accNumber.text.trim();
+    final acc = accNumber.text.trim();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -488,14 +832,26 @@ class _SellPageState extends State<SellPage> {
           row('Venue', venue.text.trim()),
           row('Zone', zone.text.trim()),
           row('Seat', seat.text.trim()),
-          row('Original Price', 'THB ${originalPrice.text}'),
+          row(
+            'Original Price',
+            'THB ${originalPrice.text}',
+          ),
+
           const Divider(),
-          row('Selling Price', 'THB ${priceNum.toStringAsFixed(2)}'),
+
+          row(
+            'Selling Price',
+            'THB ${priceNum.toStringAsFixed(2)}',
+          ),
+
           row('Delivery Method', delivery),
 
           if (delivery == 'Parcel Shipping') ...[
             row('Shipping Company', company),
-            row('Shipping Fee', 'THB ${shipNum.toStringAsFixed(2)}'),
+            row(
+              'Shipping Fee',
+              'THB ${shipNum.toStringAsFixed(2)}',
+            ),
           ] else
             row(
               'Transfer Channel',
@@ -505,17 +861,24 @@ class _SellPageState extends State<SellPage> {
             ),
 
           if (note.text.trim().isNotEmpty)
-            row('Delivery Notes', note.text),
+            row('Delivery Notes', note.text.trim()),
 
           const Divider(),
+
           row('Bank', bank ?? ''),
-          row('Account Holder', accName.text),
+          row('Account Holder', accName.text.trim()),
+
           row(
             'Account Number',
             'Ending in ${acc.substring(acc.length - 4)}',
           ),
+
           const Divider(),
-          row('Buyer Total', 'THB ${total.toStringAsFixed(2)}'),
+
+          row(
+            'Buyer Total',
+            'THB ${total.toStringAsFixed(2)}',
+          ),
         ]),
 
         const SizedBox(height: 20),
@@ -524,32 +887,37 @@ class _SellPageState extends State<SellPage> {
           children: [
             Expanded(
               child: OutlinedButton(
-                onPressed: () => setState(() => page = 0),
+                onPressed: isSubmitting
+                    ? null
+                    : () {
+                        setState(() => page = 0);
+                      },
                 child: const Text('Back'),
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: button(
-                'Confirm Sell',
-                () {
-                  // บันทึกตั๋วเข้าสู่ CartService
-                  CartService.createResaleListing({
-                    'concert': concert.text.trim(),
-                    'date': date.text.trim(),
-                    'venue': venue.text.trim(),
-                    'zone': zone.text.trim(),
-                    'seat': seat.text.trim(),
-                    'price': priceNum,
-                    'delivery': delivery,
-                    'company': company,
-                    'bank': bank,
-                    'accName': accName.text.trim(),
-                    'accNumber': accNumber.text.trim(),
-                  });
 
-                  setState(() => page = 2);
-                },
+            const SizedBox(width: 10),
+
+            Expanded(
+              child: ElevatedButton(
+                onPressed: isSubmitting
+                    ? null
+                    : submitListing,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: pink,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.all(16),
+                ),
+                child: isSubmitting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text('Confirm Sell'),
               ),
             ),
           ],
@@ -558,10 +926,19 @@ class _SellPageState extends State<SellPage> {
     );
   }
 
+  // ==========================================
+  // SUCCESS PAGE
+  // ==========================================
+
   Widget successPage() {
     return Column(
       children: [
-        Icon(Icons.check_circle, color: pink, size: 75),
+        Icon(
+          Icons.check_circle,
+          color: pink,
+          size: 75,
+        ),
+
         const SizedBox(height: 15),
 
         const Text(
@@ -582,8 +959,19 @@ class _SellPageState extends State<SellPage> {
         const SizedBox(height: 20),
 
         pinkBox([
-          row('Ticket', '${concert.text.trim()} - ${seat.text.trim()}'),
-          row('Selling Price', 'THB ${priceNum.toStringAsFixed(2)}'),
+          row(
+            'Ticket',
+            '${concert.text.trim()} - ${seat.text.trim()}',
+          ),
+          row(
+            'Selling Price',
+            'THB ${priceNum.toStringAsFixed(2)}',
+          ),
+          if (createdListingId != null)
+            row(
+              'Listing ID',
+              createdListingId.toString(),
+            ),
         ]),
 
         const SizedBox(height: 20),
@@ -591,17 +979,35 @@ class _SellPageState extends State<SellPage> {
         button('Done', () {
           Navigator.pop(context, true);
         }),
+
+        const SizedBox(height: 10),
+
+        TextButton(
+          onPressed: reset,
+          child: Text(
+            'Sell Another Ticket',
+            style: TextStyle(color: pink),
+          ),
+        ),
       ],
     );
   }
 
+  // ==========================================
+  // BUILD
+  // ==========================================
+
   @override
   Widget build(BuildContext context) {
-    Widget body = page == 0
-        ? sellForm()
-        : page == 1
-            ? reviewPage()
-            : successPage();
+    Widget body;
+
+    if (page == 0) {
+      body = sellForm();
+    } else if (page == 1) {
+      body = reviewPage();
+    } else {
+      body = successPage();
+    }
 
     return Scaffold(
       backgroundColor: lightPink,

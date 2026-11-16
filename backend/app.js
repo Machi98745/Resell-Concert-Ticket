@@ -1,3 +1,4 @@
+
 const express = require('express');
 const cors = require('cors');
 
@@ -16,41 +17,24 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// ============================================================================
-// MOUNT MODULES (แยกตาม Module ชัดเจนตามโครงสร้าง MVC)
-// ============================================================================
-
-// Module 1: Auth & Profile (/api/auth/*)
 app.use('/api/auth', authRoutes);
-
-// Module 2: Admin Management (/api/admin/*)
 app.use('/api/admin', adminRoutes);
-
-// Module 3: Concerts (/api/concerts/*)
 app.use('/api/concerts', concertRoutes);
-
-// Module 4: Resell Tickets & User Tickets (/api/resell/* และ /api/user/my-tickets)
 app.use('/api/resell', resellRoutes);
-app.get('/api/user/my-tickets', verifyToken, resellController.getMyTickets);
-
-// Module 5: Payment & Orders (/api/payments/*)
 app.use('/api/payments', paymentRoutes);
 
-// ============================================================================
-// ROOT HEALTH CHECK & START SERVER
-// ============================================================================
+app.get(
+  '/api/user/my-tickets',
+  verifyToken,
+  resellController.getMyTickets
+);
+
 app.get('/', (req, res) => {
   res.send('Concert Resell Ticket API is running...');
 });
-module.exports = app;
-// ==========================================
-// 2. CONCERT MODULE (ดึงผ่าน Route อย่างเดียว)
-// ==========================================
-app.use('/api', concertRoutes);
 
-// ==========================================
-// START SERVER
-// ==========================================
 app.listen(PORT, () => {
   console.log(`Server is running at http://localhost:${PORT}`);
 });
+
+module.exports = app;

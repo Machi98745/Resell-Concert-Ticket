@@ -68,7 +68,8 @@ CREATE TABLE `payments` (
   `tracking_number` varchar(100) DEFAULT NULL COMMENT 'หมายเลขพัสดุ',
   `status` enum('pending','completed','failed','expired','cancelled') NOT NULL DEFAULT 'pending',
   `expires_at` datetime DEFAULT NULL COMMENT 'เวลาหมดอายุชำระเงิน (15 นาที)',
-  `paid_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `paid_at` ALTER TABLE payments
+MODIFY paid_at TIMESTAMP NULL DEFAULT NULL;
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------

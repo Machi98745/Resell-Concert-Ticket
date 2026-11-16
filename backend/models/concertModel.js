@@ -1,27 +1,70 @@
+
 const db = require('../db_config');
 
 class ConcertModel {
-  // ดึงคอนเสิร์ตทั้งหมด (รองรับการค้นหา)
+  // GET ALL CONCERTS
   static async getAll(search) {
-    let sql = 'SELECT * FROM concerts';
-    let params = [];
+    let sql = `
+      SELECT
+        concert_id,
+        title,
+        artist,
+        category,
+        description,
+        venue,
+        show_datetime,
+        poster_url,
+        created_at
+      FROM concerts
+    `;
+
+    const params = [];
 
     if (search && search.trim() !== '') {
-      sql += ' WHERE title LIKE ? OR venue LIKE ?';
+      sql += `
+        WHERE title LIKE ?
+        OR artist LIKE ?
+        OR venue LIKE ?
+        OR category LIKE ?
+      `;
+
       const keyword = `%${search.trim()}%`;
-      params = [keyword, keyword];
+
+      params.push(
+        keyword,
+        keyword,
+        keyword,
+        keyword
+      );
     }
 
-    
-    const [results] = await db.promise().query(sql, params);
+    sql += ` ORDER BY show_datetime ASC`;
+
+    const [results] = await db.query(sql, params);
+
     return results;
   }
 
-  // ดึงคอนเสิร์ตตาม ID
+  // GET CONCERT BY ID
   static async getById(id) {
-    const sql = 'SELECT * FROM concerts WHERE concert_id = ?';
-    const [results] = await db.promise().query(sql, [id]);
-    return results;
+    const sql = `
+      SELECT
+        concert_id,
+        title,
+        artist,
+        category,
+        description,
+        venue,
+        show_datetime,
+        poster_url,
+        created_at
+      FROM concerts
+      WHERE concert_id = ?
+    `;
+
+    const [results] = await db.query(sql, [id]);
+
+    return results[0] || null;
   }
 }
 

@@ -1,40 +1,59 @@
+
 const jwt = require('jsonwebtoken');
 
-const JWT_KEY = process.env.JWT_SECRET || 'thisisthesecretforjwt_concert_app';
+// อ่าน Secret จากไฟล์ .env
+const JWT_KEY = process.env.JWT_SECRET;
+
+if (!JWT_KEY) {
+  throw new Error('JWT_SECRET is not configured in .env');
+}
 
 // ตรวจสอบ JWT Token (บังคับต้องล็อกอิน)
 const verifyToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const authHeader = req.headers.authorization;
+
+  // ต้องส่ง Token ในรูปแบบ Bearer <token>
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : null;
 
   if (!token) {
-    return res.status(401).json({ message: 'Access denied. No token provided.' });
+    return res.status(401).json({
+      message: 'Access denied. No token provided.',
+    });
   }
 
   try {
     const decoded = jwt.verify(token, JWT_KEY);
     req.user = decoded;
     next();
-  } catch (err) {
-    return res.status(403).json({ message: 'Invalid or expired token.' });
+  } catch (error) {
+    return res.status(403).json({
+      message: 'Invalid or expired token.',
+    });
   }
 };
 
-// ตรวจสอบ JWT Token แบบไม่บังคับ (ถ้ามีก็แกะให้ ถ้าไม่มีก็ไปต่อได้)
+// ตรวจสอบ JWT Token แบบไม่บังคับ
 const optionalVerifyToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const authHeader = req.headers.authorization;
+
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : null;
+
   if (token) {
     try {
       req.user = jwt.verify(token, JWT_KEY);
-    } catch (_) {
-      // ignore invalid optional token
+    } catch (error) {
+      req.user = null;
     }
   }
+
   next();
 };
 
-// ตรวจสอบสิทธิ์ตาม Role (เช่น 'admin', 'customer')
+// ตรวจสอบสิทธิ์ตาม Role
 const authorizeRoles = (...allowedRoles) => {
   return (req, res, next) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {
@@ -42,6 +61,7 @@ const authorizeRoles = (...allowedRoles) => {
         message: 'Forbidden: You do not have permission to access this resource.',
       });
     }
+
     next();
   };
 };
