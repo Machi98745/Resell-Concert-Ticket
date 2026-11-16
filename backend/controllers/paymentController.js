@@ -83,6 +83,11 @@ exports.createPayment = async (req, res) => {
       [listing_id]
     );
 
+    const basePrice = Number(listing.resell_price);
+    const commissionFee = Math.round(basePrice * COMMISSION_RATE);
+    const shippingFee = isParcel ? PARCEL_SHIPPING_FEE : 0;
+    const totalAmount = basePrice + commissionFee + shippingFee;
+
     if (activePayments.length > 0) {
       // ถ้าเป็นคนอื่นจองอยู่ ให้แจ้ง 409 Conflict
       if (activePayments[0].buyer_id !== buyerId) {
@@ -92,22 +97,37 @@ exports.createPayment = async (req, res) => {
             'Another buyer is currently in the payment process for this ticket. Please wait up to 15 minutes.',
         });
       }
-      // ถ้าเป็นผู้ซื้อคนเดิมกดซ้ำ ให้คืนค่าออเดอร์เดิมที่กำลังเดินเวลาอยู่โดยไม่สร้างแถวซ้ำ
+      // ถ้าเป็นผู้ซื้อคนเดิมกดซ้ำ ให้อัปเดตช่องทางจ่ายเงิน/วิธีจัดส่งที่เลือกใหม่โดยใช้เวลาเดิม
+      await conn.query(
+        `UPDATE payments
+         SET amount = ?, commission_fee = ?, shipping_fee = ?, payment_method = ?, delivery_method = ?, shipping_info = ?
+         WHERE payment_id = ?`,
+        [
+          totalAmount,
+          commissionFee,
+          shippingFee,
+          paymentMethod,
+          rawDeliveryMethod,
+          String(shippingInfo).trim(),
+          activePayments[0].payment_id,
+        ]
+      );
+
+      const [updatedPending] = await conn.query(
+        'SELECT *, GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), expires_at)) AS remaining_seconds FROM payments WHERE payment_id = ?',
+        [activePayments[0].payment_id]
+      );
+
       await conn.commit();
       return res.status(200).json({
         message: 'Active order already exists. Please complete payment within the remaining time.',
         payment: {
-          ...activePayments[0],
-          receive_method: activePayments[0].delivery_method,
-          receive_details: activePayments[0].shipping_info,
+          ...updatedPending[0],
+          receive_method: updatedPending[0].delivery_method,
+          receive_details: updatedPending[0].shipping_info,
         },
       });
     }
-
-    const basePrice = Number(listing.resell_price);
-    const commissionFee = Math.round(basePrice * COMMISSION_RATE);
-    const shippingFee = isParcel ? PARCEL_SHIPPING_FEE : 0;
-    const totalAmount = basePrice + commissionFee + shippingFee;
 
     const [result] = await conn.query(
       `INSERT INTO payments

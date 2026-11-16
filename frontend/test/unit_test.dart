@@ -9,6 +9,7 @@ import 'package:frontend/controller/concert_controller.dart';
 import 'package:frontend/controller/login_controller.dart';
 import 'package:frontend/controller/payment_controller.dart';
 import 'package:frontend/controller/resell_controller.dart';
+import 'package:frontend/models/concert_model.dart';
 import 'package:frontend/views/cart_service.dart';
 import 'package:frontend/views/favorite_service.dart';
 
@@ -669,6 +670,24 @@ void main() {
 
       expect(concert['concert_id'], 7);
       client.close();
+    });
+
+    // ตรวจการแปลงข้อมูล JSON เป็น ConcertModel และแปลงกลับเป็น Map
+    test('serializes and deserializes ConcertModel fromJson and toJson', () {
+      final model = ConcertModel.fromJson({
+        'concert_id': 10,
+        'title': 'Bodyslam Live',
+        'artist': 'Bodyslam',
+        'category': 'Rock',
+        'venue': 'Impact Arena',
+        'show_datetime': '2026-12-01 19:00:00',
+        'poster_url': 'poster.jpg',
+      });
+
+      expect(model.concertId, 10);
+      expect(model.title, 'Bodyslam Live');
+      expect(model.toJson()['venue'], 'Impact Arena');
+      expect(model.toJson()['category'], 'Rock');
     });
   });
 
