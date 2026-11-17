@@ -1,28 +1,40 @@
 const ConcertModel = require('../models/concertModel');
 
-// ดึงคอนเสิร์ตทั้งหมด
+// ดึงรายการคอนเสิร์ตทั้งหมด
 exports.getAllConcerts = async (req, res) => {
   try {
     const { search } = req.query;
     const concerts = await ConcertModel.getAll(search);
-    res.status(200).json(concerts);
+    return res.status(200).json(concerts);
   } catch (err) {
-    res.status(500).json({ message: err.message || 'Database Error' });
+    return res.status(500).json({ message: err.message || 'Database Error' });
   }
 };
 
-// ดึงคอนเสิร์ตตาม ID
+// ดึงรายละเอียดคอนเสิร์ตตาม ID
 exports.getConcertById = async (req, res) => {
   try {
     const { id } = req.params;
-    const concerts = await ConcertModel.getById(id);
 
-    if (concerts.length === 0) {
-      return res.status(404).json({ message: 'Concert not found' });
+    // ตรวจสอบว่า ID เป็นตัวเลขหรือไม่
+    if (!/^\d+$/.test(id)) {
+      return res.status(400).json({
+        message: 'Invalid concert ID',
+      });
     }
-    res.status(200).json(concerts[0]);
+
+    const result = await ConcertModel.getById(id);
+    const concert = Array.isArray(result) ? result[0] : result;
+
+    if (!concert) {
+      return res.status(404).json({
+        message: 'Concert not found',
+      });
+    }
+
+    return res.status(200).json(concert);
   } catch (err) {
-    res.status(500).json({ message: err.message || 'Database Error' });
+    return res.status(500).json({ message: err.message || 'Database Error' });
   }
 };
 
@@ -47,13 +59,15 @@ exports.createConcert = async (req, res) => {
       poster_url,
     });
 
-    const created = await ConcertModel.getById(insertId);
-    res.status(201).json({
+    const result = await ConcertModel.getById(insertId);
+    const createdConcert = Array.isArray(result) ? result[0] : result;
+
+    return res.status(201).json({
       message: 'Concert created successfully',
-      concert: created[0],
+      concert: createdConcert,
     });
   } catch (err) {
-    res.status(500).json({ message: err.message || 'Database Error' });
+    return res.status(500).json({ message: err.message || 'Database Error' });
   }
 };
 
@@ -83,13 +97,15 @@ exports.updateConcert = async (req, res) => {
       return res.status(404).json({ message: 'Concert not found' });
     }
 
-    const updated = await ConcertModel.getById(id);
-    res.status(200).json({
+    const result = await ConcertModel.getById(id);
+    const updatedConcert = Array.isArray(result) ? result[0] : result;
+
+    return res.status(200).json({
       message: 'Concert updated successfully',
-      concert: updated[0],
+      concert: updatedConcert,
     });
   } catch (err) {
-    res.status(500).json({ message: err.message || 'Database Error' });
+    return res.status(500).json({ message: err.message || 'Database Error' });
   }
 };
 
@@ -103,9 +119,9 @@ exports.deleteConcert = async (req, res) => {
       return res.status(404).json({ message: 'Concert not found' });
     }
 
-    res.status(200).json({ message: 'Concert deleted successfully' });
+    return res.status(200).json({ message: 'Concert deleted successfully' });
   } catch (err) {
-    res.status(500).json({ message: err.message || 'Database Error' });
+    return res.status(500).json({ message: err.message || 'Database Error' });
   }
 };
 
@@ -116,8 +132,8 @@ exports.uploadPoster = (req, res) => {
       return res.status(400).json({ message: 'No image file uploaded' });
     }
     const posterUrl = `${req.protocol}://${req.get('host')}/uploads/posters/${req.file.filename}`;
-    res.status(200).json({ poster_url: posterUrl });
+    return res.status(200).json({ poster_url: posterUrl });
   } catch (err) {
-    res.status(500).json({ message: err.message || 'Failed to upload image' });
+    return res.status(500).json({ message: err.message || 'Failed to upload image' });
   }
 };

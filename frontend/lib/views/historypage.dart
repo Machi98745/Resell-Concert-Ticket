@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'cart_service.dart';
+import 'package:frontend/controller/payment_controller.dart';
 import 'payment_page.dart';
 
 const Color pink = Color(0xFFE85D9E);
@@ -17,10 +17,11 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage>
     with SingleTickerProviderStateMixin {
   late TabController tabController;
-  Timer? refreshTimer;
+  final PaymentController _paymentController = PaymentController();
 
-  // สมมติ Username ผู้ใช้งานปัจจุบัน (สามารถเปลี่ยนเป็นค่าจาก Auth/Profile Service ได้)
-  final String currentUsername = 'cocomint';
+  List<Map<String, dynamic>> allOrders = [];
+  bool isLoading = true;
+  String? errorMessage;
 
   final List<String> statuses = [
     'To Pay',
@@ -39,50 +40,102 @@ class _HistoryPageState extends State<HistoryPage>
       vsync: this,
     );
 
-    // อัปเดตเวลานับถอยหลังทุก 1 วินาที
-    refreshTimer = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) {
-        if (!mounted) return;
-
-        CartService.refreshExpiredOrders();
-        setState(() {});
-      },
-    );
-
-    CartService.refreshExpiredOrders();
+    loadOrders();
   }
 
   @override
   void dispose() {
-    refreshTimer?.cancel();
     tabController.dispose();
     super.dispose();
   }
 
-  void refreshPage() {
-    CartService.refreshExpiredOrders();
+  // แปลง status + shipping_status จาก DB ให้ตรงกับแท็บ 5 สถานะ
+  String _mapOrderTabStatus(Map<String, dynamic> raw) {
+    final status = (raw['status'] ?? '').toString().toLowerCase();
+    final shipStatus = (raw['shipping_status'] ?? '').toString().toLowerCase();
 
-    if (mounted) {
-      setState(() {});
+    if (status == 'cancelled' || status == 'expired') {
+      return 'Cancelled';
     }
+    if (status == 'pending') {
+      return 'To Pay';
+    }
+    if (status == 'completed' || status == 'paid') {
+      if (shipStatus.contains('deliver') || shipStatus.contains('complete')) {
+        return 'Completed';
+      }
+      if (shipStatus.contains('ship') || shipStatus.contains('transit')) {
+        return 'To Receive';
+      }
+      return 'To Ship';
+    }
+    return 'To Pay';
   }
 
-  // เช็คว่าผู้ใช้ปัจจุบันเป็นผู้ขายรายการในออเดอร์นี้หรือไม่
-  bool _isCurrentUserSeller(Map<String, dynamic> order) {
-    final items = order['items'] as List?;
-    if (items == null || items.isEmpty) return false;
+  Future<void> loadOrders() async {
+    if (mounted) {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+    }
 
-    return items.any((item) {
-      final sellerName = (item['seller'] ?? item['accName'] ?? '').toString().trim().toLowerCase();
-      return sellerName == currentUsername.trim().toLowerCase();
-    });
-  }
+    try {
+      final rawOrders = await _paymentController.getMyOrders();
 
-  // เช็คว่าผู้ใช้ปัจจุบันเป็นผู้ซื้อออเดอร์นี้หรือไม่
-  bool _isCurrentUserBuyer(Map<String, dynamic> order) {
-    final buyerName = (order['buyer'] ?? order['username'] ?? currentUsername).toString().trim().toLowerCase();
-    return buyerName == currentUsername.trim().toLowerCase();
+      final mapped = rawOrders.map((row) {
+        final tabStatus = _mapOrderTabStatus(row);
+        final showDate = DateTime.tryParse(
+          row['show_datetime']?.toString() ?? '',
+        );
+
+        final dateText = showDate != null
+            ? '${showDate.day.toString().padLeft(2, '0')}/${showDate.month.toString().padLeft(2, '0')}/${showDate.year}'
+            : '-';
+
+        final timeText = showDate != null
+            ? '${showDate.hour.toString().padLeft(2, '0')}:${showDate.minute.toString().padLeft(2, '0')}'
+            : '-';
+
+        return {
+          ...row,
+          'orderId': 'ORD-${row['payment_id']}',
+          'status': tabStatus,
+          'orderDate': row['paid_at'] ?? row['created_at'] ?? row['expires_at'],
+          'totalPrice': row['amount'] ?? 0,
+          'paymentStatus': row['status'] ?? '-',
+          'shippingStatus': row['shipping_status'] ?? '-',
+          'items': [
+            {
+              'listing_id': row['listing_id'],
+              'payment_id': row['payment_id'],
+              'ticket_id': row['ticket_id'],
+              'ticket_code': row['ticket_code'],
+              'concertName': row['concert_title'] ?? 'Concert Ticket',
+              'artist': row['artist'] ?? '',
+              'zone': row['zone_name'] ?? '-',
+              'seat': row['seat_number'] ?? '-',
+              'location': row['venue'] ?? '-',
+              'date': dateText,
+              'time': timeText,
+              'price': row['resell_price'] ?? row['amount'] ?? 0,
+            }
+          ],
+        };
+      }).toList();
+
+      if (!mounted) return;
+      setState(() {
+        allOrders = mapped;
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        isLoading = false;
+        errorMessage = e.toString().replaceAll('Exception: ', '');
+      });
+    }
   }
 
   String formatDate(dynamic value) {
@@ -111,7 +164,7 @@ class _HistoryPageState extends State<HistoryPage>
   }
 
   List<Map<String, dynamic>> ordersFor(String status) {
-    return CartService.getOrdersByStatus(status);
+    return allOrders.where((o) => o['status'] == status).toList();
   }
 
   @override
@@ -145,12 +198,37 @@ class _HistoryPageState extends State<HistoryPage>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: tabController,
-        children: statuses.map((status) {
-          return _buildOrderList(status);
-        }).toList(),
-      ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator(color: pink))
+          : errorMessage != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline, size: 50, color: pink),
+                        const SizedBox(height: 12),
+                        Text(errorMessage!, textAlign: TextAlign.center),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: loadOrders,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: pink,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : TabBarView(
+                  controller: tabController,
+                  children: statuses.map((status) {
+                    return _buildOrderList(status);
+                  }).toList(),
+                ),
     );
   }
 
@@ -188,9 +266,7 @@ class _HistoryPageState extends State<HistoryPage>
 
     return RefreshIndicator(
       color: pink,
-      onRefresh: () async {
-        refreshPage();
-      },
+      onRefresh: loadOrders,
       child: ListView.builder(
         padding: const EdgeInsets.all(15),
         itemCount: orders.length,
@@ -203,9 +279,8 @@ class _HistoryPageState extends State<HistoryPage>
 
   Widget _buildOrderCard(Map<String, dynamic> order) {
     final status = order['status']?.toString() ?? '';
-    final orderItems = order['items'] is List
-        ? order['items'] as List
-        : [];
+    final orderItems =
+        order['items'] is List ? order['items'] as List : [];
 
     final statusColor = _statusColor(status);
 
@@ -297,9 +372,6 @@ class _HistoryPageState extends State<HistoryPage>
 
             const SizedBox(height: 15),
 
-            if (status == 'To Pay')
-              _buildPaymentCountdown(order),
-
             if (status == 'To Ship' ||
                 status == 'To Receive' ||
                 status == 'Completed')
@@ -307,7 +379,32 @@ class _HistoryPageState extends State<HistoryPage>
 
             const SizedBox(height: 15),
 
-            _buildActionButtons(order),
+            if (status == 'To Pay')
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _cancelOrder(order),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                      ),
+                      child: const Text('Cancel Order'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => _payOrder(order),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: pink,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Pay Now'),
+                    ),
+                  ),
+                ],
+              ),
 
             const SizedBox(height: 5),
 
@@ -331,38 +428,16 @@ class _HistoryPageState extends State<HistoryPage>
     );
   }
 
-  
   Widget _buildTicketItem(Map<String, dynamic> ticket) {
-    final concertName = ticket['concertName'] ??
-        ticket['name'] ??
-        ticket['concert'] ??
-        'Concert Ticket';
-
+    final concertName = ticket['concertName'] ?? 'Concert Ticket';
     final artist = ticket['artist'] ?? '';
     final zone = ticket['zone'] ?? 'General Zone';
     final price = ticket['price'] ?? 0;
-    final seller = ticket['seller'] ?? ticket['accName'] ?? '';
-
-    // Ticket details
-    final seat = ticket['seat'] ??
-        ticket['selectedSeat'] ??
-        ticket['seatNumber'] ??
-        '-';
-
-    final location = ticket['location'] ??
-        ticket['venue'] ??
-        ticket['concertLocation'] ??
-        '-';
-
-    final date = ticket['date'] ??
-        ticket['concertDate'] ??
-        ticket['eventDate'] ??
-        '-';
-
-    final time = ticket['time'] ??
-        ticket['concertTime'] ??
-        ticket['eventTime'] ??
-        '-';
+    final seat = ticket['seat'] ?? '-';
+    final location = ticket['location'] ?? '-';
+    final date = ticket['date'] ?? '-';
+    final time = ticket['time'] ?? '-';
+    final code = ticket['ticket_code'] ?? '-';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -413,14 +488,6 @@ class _HistoryPageState extends State<HistoryPage>
                         fontSize: 12,
                       ),
                     ),
-                    if (seller.toString().isNotEmpty)
-                      Text(
-                        'Seller: $seller',
-                        style: const TextStyle(
-                          color: Colors.black54,
-                          fontSize: 11,
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -433,10 +500,7 @@ class _HistoryPageState extends State<HistoryPage>
               ),
             ],
           ),
-
           const SizedBox(height: 15),
-
-          // Ticket Information
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
@@ -456,31 +520,30 @@ class _HistoryPageState extends State<HistoryPage>
                   ),
                 ),
                 const SizedBox(height: 10),
-
+                _ticketInfoRow(
+                  Icons.qr_code_2,
+                  'Code',
+                  code.toString(),
+                ),
+                const SizedBox(height: 8),
                 _ticketInfoRow(
                   Icons.event_seat_outlined,
                   'Seat',
                   seat.toString(),
                 ),
-
                 const SizedBox(height: 8),
-
                 _ticketInfoRow(
                   Icons.location_on_outlined,
                   'Venue',
                   location.toString(),
                 ),
-
                 const SizedBox(height: 8),
-
                 _ticketInfoRow(
                   Icons.calendar_month_outlined,
                   'Date',
                   date.toString(),
                 ),
-
                 const SizedBox(height: 8),
-
                 _ticketInfoRow(
                   Icons.access_time,
                   'Time',
@@ -502,20 +565,13 @@ class _HistoryPageState extends State<HistoryPage>
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: pink,
-        ),
+        Icon(icon, size: 16, color: pink),
         const SizedBox(width: 8),
         SizedBox(
           width: 55,
           child: Text(
             title,
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
           ),
         ),
         Expanded(
@@ -531,73 +587,10 @@ class _HistoryPageState extends State<HistoryPage>
       ],
     );
   }
-  Widget _buildPaymentCountdown(
-    Map<String, dynamic> order,
-  ) {
-    final remaining =
-        CartService.remainingPaymentTime(order);
 
-    final expired = remaining <= Duration.zero;
-
+  Widget _buildTrackingInfo(Map<String, dynamic> order) {
     return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: expired
-            ? Colors.red.shade50
-            : const Color(0xFFFFF2E8),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.timer_outlined,
-                color: expired ? Colors.red : Colors.orange,
-              ),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Payment countdown',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: darkPink,
-                  ),
-                ),
-              ),
-              Text(
-                CartService.formatRemainingTime(order),
-                style: TextStyle(
-                  color: expired ? Colors.red : Colors.deepOrange,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            expired
-                ? 'Payment time has expired.'
-                : 'Please complete payment within 15 minutes.',
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTrackingInfo(
-    Map<String, dynamic> order,
-  ) {
-    final trackingNumber =
-        order['trackingNumber']?.toString();
-
-    return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
         color: lightPink,
@@ -607,159 +600,31 @@ class _HistoryPageState extends State<HistoryPage>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Order tracking',
+            'Delivery & Shipping',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: darkPink,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            order['shippingStatus']?.toString() ?? '',
+            'Status: ${order['shippingStatus'] ?? 'Preparing'}',
             style: const TextStyle(
               color: pink,
               fontWeight: FontWeight.w600,
             ),
           ),
-          if (trackingNumber != null)
+          if (order['shipping_info'] != null)
             Padding(
-              padding: const EdgeInsets.only(top: 5),
+              padding: const EdgeInsets.only(top: 4),
               child: Text(
-                'Tracking number: $trackingNumber',
-                style: const TextStyle(
-                  color: Colors.grey,
-                  fontSize: 12,
-                ),
+                order['shipping_info'].toString(),
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
             ),
-          const SizedBox(height: 10),
-          _buildTimeline(order),
         ],
       ),
     );
-  }
-
-  Widget _buildTimeline(Map<String, dynamic> order) {
-    final timeline = order['timeline'];
-
-    if (timeline is! List || timeline.isEmpty) {
-      return const Text(
-        'No tracking updates yet.',
-        style: TextStyle(color: Colors.grey),
-      );
-    }
-
-    return Column(
-      children: timeline.map<Widget>((event) {
-        final data = Map<String, dynamic>.from(event);
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(
-                Icons.check_circle,
-                size: 17,
-                color: pink,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      data['message']?.toString() ?? '',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: darkPink,
-                      ),
-                    ),
-                    Text(
-                      formatDate(data['date']),
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildActionButtons(
-    Map<String, dynamic> order,
-  ) {
-    final status = order['status'];
-    final isBuyer = _isCurrentUserBuyer(order);
-    final isSeller = _isCurrentUserSeller(order);
-
-    // 1. สถานะ To Pay -> แสดงปุ่มเฉพาะ ผู้ซื้อ
-    if (status == 'To Pay' && isBuyer) {
-      return Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: () => _cancelOrder(order),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red,
-                side: const BorderSide(color: Colors.red),
-              ),
-              child: const Text('Cancel Order'),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: ElevatedButton(
-              onPressed: () => _payOrder(order),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: pink,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Pay Now'),
-            ),
-          ),
-        ],
-      );
-    }
-
-    // 2. สถานะ To Ship -> แสดงปุ่มจัดส่งเฉพาะ ผู้ขาย ของบัตรใบนี้
-    if (status == 'To Ship' && isSeller) {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: () => _simulateShipping(order),
-          icon: const Icon(Icons.local_shipping_outlined),
-          label: const Text('Ship Ticket (Seller)'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: pink,
-            foregroundColor: Colors.white,
-          ),
-        ),
-      );
-    }
-
-    // 3. สถานะ To Receive -> แสดงปุ่มยืนยันรับบัตรเฉพาะ ผู้ซื้อ
-    if (status == 'To Receive' && isBuyer) {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: () => _confirmReceived(order),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Confirm Received Ticket'),
-        ),
-      );
-    }
-
-    return const SizedBox.shrink();
   }
 
   Widget _infoRow(
@@ -773,19 +638,13 @@ class _HistoryPageState extends State<HistoryPage>
         const SizedBox(width: 8),
         Text(
           '$title: ',
-          style: const TextStyle(
-            color: Colors.grey,
-            fontSize: 12,
-          ),
+          style: const TextStyle(color: Colors.grey, fontSize: 12),
         ),
         Expanded(
           child: Text(
             value,
             textAlign: TextAlign.right,
-            style: const TextStyle(
-              color: darkPink,
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: darkPink, fontSize: 12),
           ),
         ),
       ],
@@ -821,56 +680,30 @@ class _HistoryPageState extends State<HistoryPage>
         builder: (_) => PaymentPage(items: orderItems),
       ),
     ).then((_) {
-      refreshPage();
+      loadOrders();
     });
   }
 
-  void _cancelOrder(Map<String, dynamic> order) {
-    final success = CartService.cancelOrder(order);
+  Future<void> _cancelOrder(Map<String, dynamic> order) async {
+    final paymentId = int.tryParse(order['payment_id']?.toString() ?? '');
+    if (paymentId == null) return;
 
-    refreshPage();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          success
-              ? 'Order cancelled.'
-              : 'Unable to cancel this order.',
+    try {
+      await _paymentController.cancelPayment(paymentId: paymentId);
+      await loadOrders();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Order cancelled.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
         ),
-      ),
-    );
-  }
-
-  void _simulateShipping(Map<String, dynamic> order) {
-    final success = CartService.shipOrder(order);
-
-    refreshPage();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          success
-              ? 'Ticket shipped successfully.'
-              : 'Unable to update shipping.',
-        ),
-      ),
-    );
-  }
-
-  void _confirmReceived(Map<String, dynamic> order) {
-    final success = CartService.confirmReceived(order);
-
-    refreshPage();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          success
-              ? 'Order completed successfully!'
-              : 'Unable to confirm this order.',
-        ),
-      ),
-    );
+      );
+    }
   }
 
   void _showOrderDetails(Map<String, dynamic> order) {
@@ -879,9 +712,7 @@ class _HistoryPageState extends State<HistoryPage>
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(22),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
       builder: (context) {
         return SafeArea(
@@ -910,13 +741,13 @@ class _HistoryPageState extends State<HistoryPage>
                   ),
                   const SizedBox(height: 12),
                   _infoRow(
-                    Icons.calendar_month,
-                    'Order date',
-                    formatDate(order['orderDate']),
+                    Icons.payment,
+                    'Payment method',
+                    order['payment_method']?.toString() ?? '-',
                   ),
                   const SizedBox(height: 12),
                   _infoRow(
-                    Icons.payment,
+                    Icons.verified,
                     'Payment status',
                     order['paymentStatus']?.toString() ?? '-',
                   ),
@@ -933,16 +764,6 @@ class _HistoryPageState extends State<HistoryPage>
                     money(order['totalPrice'] ?? 0),
                   ),
                   const SizedBox(height: 20),
-                  const Text(
-                    'Order timeline',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: darkPink,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildTimeline(order),
-                  const SizedBox(height: 15),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(

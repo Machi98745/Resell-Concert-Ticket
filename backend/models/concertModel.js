@@ -1,18 +1,30 @@
 const db = require('../db_config');
 
 class ConcertModel {
-  // ดึงคอนเสิร์ตทั้งหมด (รองรับการค้นหา)
+  // ดึงคอนเสิร์ตทั้งหมด (รองรับการค้นหาชื่อคอนเสิร์ต ศิลปิน สถานที่ และหมวดหมู่)
   static async getAll(search) {
-    let sql = 'SELECT * FROM concerts';
+    let sql = `
+      SELECT
+        concert_id,
+        title,
+        artist,
+        category,
+        description,
+        venue,
+        show_datetime,
+        poster_url,
+        created_at
+      FROM concerts
+    `;
     let params = [];
 
     if (search && search.trim() !== '') {
-      sql += ' WHERE title LIKE ? OR venue LIKE ? OR artist LIKE ?';
+      sql += ' WHERE title LIKE ? OR artist LIKE ? OR venue LIKE ? OR category LIKE ?';
       const keyword = `%${search.trim()}%`;
-      params = [keyword, keyword, keyword];
+      params = [keyword, keyword, keyword, keyword];
     }
 
-    sql += ' ORDER BY concert_id DESC';
+    sql += ' ORDER BY show_datetime ASC';
 
     const [results] = await db.query(sql, params);
     return results;
