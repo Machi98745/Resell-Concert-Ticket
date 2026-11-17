@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
@@ -15,6 +16,10 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// เปิดโฟลเดอร์เก็บรูปภาพโปสเตอร์คอนเสิร์ต
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ============================================================================
 // MOUNT MODULES (แยกตาม Module ชัดเจนตามโครงสร้าง MVC)
@@ -37,16 +42,18 @@ app.get('/api/user/my-tickets', verifyToken, resellController.getMyTickets);
 app.use('/api/payments', paymentRoutes);
 
 // ============================================================================
-// ROOT HEALTH CHECK & START SERVER
+// ROOT HEALTH CHECK
 // ============================================================================
 app.get('/', (req, res) => {
   res.send('Concert Resell Ticket API is running...');
 });
-module.exports = app;
+
 // ==========================================
 // 2. CONCERT MODULE (ดึงผ่าน Route อย่างเดียว)
 // ==========================================
 app.use('/api', concertRoutes);
+
+module.exports = app;
 
 // ==========================================
 // START SERVER
