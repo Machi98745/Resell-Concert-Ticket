@@ -1,5 +1,6 @@
+
 import 'package:flutter/material.dart';
-import 'cart_service.dart';
+
 
 class SellPage extends StatefulWidget {
   const SellPage({super.key});
@@ -14,7 +15,8 @@ class _SellPageState extends State<SellPage> {
 
   int page = 0; // 0 = form, 1 = review, 2 = success
 
-  final List<Map<String, dynamic>> concertOptions = [
+  // Concerts from HomePage (temporary data)
+  final List<Map<String, String>> concertOptions = [
     {
       'name': 'BLACKPINK WORLD TOUR',
       'date': '15 December 2026',
@@ -39,6 +41,7 @@ class _SellPageState extends State<SellPage> {
 
   String? selectedConcert;
 
+  // Text fields
   var concert = TextEditingController();
   var date = TextEditingController();
   var venue = TextEditingController();
@@ -69,6 +72,7 @@ class _SellPageState extends State<SellPage> {
     super.dispose();
   }
 
+  // Choices
   String delivery = 'Parcel Shipping';
   String company = 'Thailand Post';
   String channel = 'Email (PDF)';
@@ -83,13 +87,14 @@ class _SellPageState extends State<SellPage> {
 
   double get total => priceNum + shipNum;
 
+  // Select and search concert
   Future<void> chooseConcert() async {
     final searchController = TextEditingController();
 
-    final result = await showDialog(
+    final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (dialogContext) {
-        List<Map<String, dynamic>> results = concertOptions;
+        List<Map<String, String>> results = concertOptions;
 
         return StatefulBuilder(
           builder: (context, setDialogState) {
@@ -163,6 +168,7 @@ class _SellPageState extends State<SellPage> {
     }
   }
 
+  // Returns an error message, or null if everything is OK
   String? check() {
     if (concert.text.trim().isEmpty) {
       return 'Please select a concert.';
@@ -532,24 +538,7 @@ class _SellPageState extends State<SellPage> {
             Expanded(
               child: button(
                 'Confirm Sell',
-                () {
-                  // บันทึกตั๋วเข้าสู่ CartService
-                  CartService.createResaleListing({
-                    'concert': concert.text.trim(),
-                    'date': date.text.trim(),
-                    'venue': venue.text.trim(),
-                    'zone': zone.text.trim(),
-                    'seat': seat.text.trim(),
-                    'price': priceNum,
-                    'delivery': delivery,
-                    'company': company,
-                    'bank': bank,
-                    'accName': accName.text.trim(),
-                    'accNumber': accNumber.text.trim(),
-                  });
-
-                  setState(() => page = 2);
-                },
+                () => setState(() => page = 2),
               ),
             ),
           ],
@@ -588,9 +577,7 @@ class _SellPageState extends State<SellPage> {
 
         const SizedBox(height: 20),
 
-        button('Done', () {
-          Navigator.pop(context, true);
-        }),
+        button('Create Another Listing', reset),
       ],
     );
   }
