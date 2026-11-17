@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'cart_service.dart';
@@ -63,10 +62,9 @@ class _ProfilePageState extends State<ProfilePage> {
         email = user['email']?.toString() ?? '';
         phone = user['phone']?.toString() ?? '';
 
-        profileImageUrl =
-            imagePath == null || imagePath.isEmpty
-                ? null
-                : _withCacheBuster(ApiService.getImageUrl(imagePath));
+        profileImageUrl = imagePath == null || imagePath.isEmpty
+            ? null
+            : _withCacheBuster(ApiService.getImageUrl(imagePath));
 
         isLoading = false;
       });
@@ -107,9 +105,7 @@ class _ProfilePageState extends State<ProfilePage> {
       if (!mounted) return;
 
       setState(() {
-        profileImageUrl = _withCacheBuster(
-          ApiService.getImageUrl(imagePath),
-        );
+        profileImageUrl = _withCacheBuster(ApiService.getImageUrl(imagePath));
         isUploadingImage = false;
       });
 
@@ -140,18 +136,12 @@ class _ProfilePageState extends State<ProfilePage> {
     return CircleAvatar(
       radius: radius,
       backgroundColor: Colors.white,
-      backgroundImage:
-          profileImageUrl != null
-              ? NetworkImage(profileImageUrl!)
-              : null,
-      child:
-          profileImageUrl == null
-              ? Icon(
-                  Icons.person,
-                  size: radius * 1.15,
-                  color: pink,
-                )
-              : null,
+      backgroundImage: profileImageUrl != null
+          ? NetworkImage(profileImageUrl!)
+          : null,
+      child: profileImageUrl == null
+          ? Icon(Icons.person, size: radius * 1.15, color: pink)
+          : null,
     );
   }
 
@@ -169,21 +159,16 @@ class _ProfilePageState extends State<ProfilePage> {
           color: backgroundColor,
           shape: BoxShape.circle,
         ),
-        child:
-            isUploadingImage
-                ? SizedBox(
-                    width: size,
-                    height: size,
-                    child: CircularProgressIndicator(
-                      color: iconColor,
-                      strokeWidth: 2,
-                    ),
-                  )
-                : Icon(
-                    Icons.camera_alt,
-                    color: iconColor,
-                    size: size,
-                  ),
+        child: isUploadingImage
+            ? SizedBox(
+                width: size,
+                height: size,
+                child: CircularProgressIndicator(
+                  color: iconColor,
+                  strokeWidth: 2,
+                ),
+              )
+            : Icon(Icons.camera_alt, color: iconColor, size: size),
       ),
     );
   }
@@ -218,8 +203,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 return;
               }
 
-              final emailPattern =
-                  RegExp(r'^[\w.+-]+@([\w-]+\.)+[\w-]{2,}$');
+              final emailPattern = RegExp(r'^[\w.+-]+@([\w-]+\.)+[\w-]{2,}$');
 
               if (!emailPattern.hasMatch(newEmail)) {
                 ScaffoldMessenger.of(dialogContext).showSnackBar(
@@ -265,9 +249,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 });
 
                 ScaffoldMessenger.of(dialogContext).showSnackBar(
-                  SnackBar(
-                    content: Text('Unable to update profile: $e'),
-                  ),
+                  SnackBar(content: Text('Unable to update profile: $e')),
                 );
               }
             }
@@ -275,10 +257,7 @@ class _ProfilePageState extends State<ProfilePage> {
             return AlertDialog(
               title: const Text(
                 'Edit Profile',
-                style: TextStyle(
-                  color: darkPink,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
               ),
               content: SingleChildScrollView(
                 child: Column(
@@ -291,37 +270,35 @@ class _ProfilePageState extends State<ProfilePage> {
                           bottom: 0,
                           right: 0,
                           child: GestureDetector(
-                            onTap:
-                                dialogSaving || isUploadingImage
-                                    ? null
-                                    : () async {
-                                        await pickProfileImage();
+                            onTap: dialogSaving || isUploadingImage
+                                ? null
+                                : () async {
+                                    await pickProfileImage();
 
-                                        if (dialogContext.mounted) {
-                                          setDialogState(() {});
-                                        }
-                                      },
+                                    if (dialogContext.mounted) {
+                                      setDialogState(() {});
+                                    }
+                                  },
                             child: Container(
                               padding: const EdgeInsets.all(8),
                               decoration: const BoxDecoration(
                                 color: pink,
                                 shape: BoxShape.circle,
                               ),
-                              child:
-                                  isUploadingImage
-                                      ? const SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            color: Colors.white,
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Icon(
-                                          Icons.camera_alt,
-                                          color: Colors.white,
-                                          size: 18,
-                                        ),
+                              child: isUploadingImage
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.camera_alt,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
                             ),
                           ),
                         ),
@@ -338,10 +315,9 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               actions: [
                 TextButton(
-                  onPressed:
-                      dialogSaving || isUploadingImage
-                          ? null
-                          : () => Navigator.pop(dialogContext),
+                  onPressed: dialogSaving || isUploadingImage
+                      ? null
+                      : () => Navigator.pop(dialogContext),
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
@@ -349,21 +325,19 @@ class _ProfilePageState extends State<ProfilePage> {
                     backgroundColor: pink,
                     foregroundColor: Colors.white,
                   ),
-                  onPressed:
-                      dialogSaving || isUploadingImage
-                          ? null
-                          : saveProfile,
-                  child:
-                      dialogSaving
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text('Save'),
+                  onPressed: dialogSaving || isUploadingImage
+                      ? null
+                      : saveProfile,
+                  child: dialogSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Save'),
                 ),
               ],
             );
@@ -377,10 +351,7 @@ class _ProfilePageState extends State<ProfilePage> {
     phoneController.dispose();
   }
 
-  Widget _editField(
-    String label,
-    TextEditingController controller,
-  ) {
+  Widget _editField(String label, TextEditingController controller) {
     return TextField(
       controller: controller,
       decoration: InputDecoration(
@@ -389,9 +360,7 @@ class _ProfilePageState extends State<ProfilePage> {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: pink),
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -440,10 +409,7 @@ class _ProfilePageState extends State<ProfilePage> {
         return AlertDialog(
           title: const Text(
             'Log Out',
-            style: TextStyle(
-              color: darkPink,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
           ),
           content: const Text('Are you sure you want to log out?'),
           actions: [
@@ -479,9 +445,9 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Logout failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Logout failed: $e')));
     }
   }
 
@@ -490,70 +456,63 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       backgroundColor: lightPink,
       body: SafeArea(
-        child:
-            isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: pink),
-                  )
-                : loadError != null
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(25),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.error_outline,
-                                color: pink,
-                                size: 55,
-                              ),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'Unable to load profile',
-                                style: TextStyle(
-                                  color: darkPink,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                loadError!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.grey),
-                              ),
-                              const SizedBox(height: 15),
-                              ElevatedButton(
-                                onPressed: loadProfile,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: pink,
-                                  foregroundColor: Colors.white,
-                                ),
-                                child: const Text('Retry'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : RefreshIndicator(
-                        color: pink,
-                        onRefresh: loadProfile,
-                        child: SingleChildScrollView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          child: Column(
-                            children: [
-                              _buildHeader(),
-                              const SizedBox(height: 25),
-                              _buildProfileCard(),
-                              const SizedBox(height: 20),
-                              _buildAccountMenu(),
-                              const SizedBox(height: 20),
-                              _buildLogoutButton(),
-                              const SizedBox(height: 30),
-                            ],
-                          ),
+        child: isLoading
+            ? const Center(child: CircularProgressIndicator(color: pink))
+            : loadError != null
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(25),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline, color: pink, size: 55),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Unable to load profile',
+                        style: TextStyle(
+                          color: darkPink,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      Text(
+                        loadError!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                      const SizedBox(height: 15),
+                      ElevatedButton(
+                        onPressed: loadProfile,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: pink,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : RefreshIndicator(
+                color: pink,
+                onRefresh: loadProfile,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: Column(
+                    children: [
+                      _buildHeader(),
+                      const SizedBox(height: 25),
+                      _buildProfileCard(),
+                      const SizedBox(height: 20),
+                      _buildAccountMenu(),
+                      const SizedBox(height: 20),
+                      _buildLogoutButton(),
+                      const SizedBox(height: 30),
+                    ],
+                  ),
+                ),
+              ),
       ),
     );
   }
@@ -569,9 +528,7 @@ class _ProfilePageState extends State<ProfilePage> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.vertical(
-          bottom: Radius.circular(30),
-        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
       ),
       child: Column(
         children: [
@@ -686,26 +643,10 @@ class _ProfilePageState extends State<ProfilePage> {
               'My Tickets',
               openHistory,
             ),
-            _menuItem(
-              Icons.favorite_border,
-              'My Favorites',
-              openFavorites,
-            ),
-            _menuItem(
-              Icons.sell_outlined,
-              'My Reselling',
-              openReselling,
-            ),
-            _menuItem(
-              Icons.settings_outlined,
-              'Settings',
-              openSettings,
-            ),
-            _menuItem(
-              Icons.help_outline,
-              'Help & Support',
-              openHelp,
-            ),
+            _menuItem(Icons.favorite_border, 'My Favorites', openFavorites),
+            _menuItem(Icons.sell_outlined, 'My Reselling', openReselling),
+            _menuItem(Icons.settings_outlined, 'Settings', openSettings),
+            _menuItem(Icons.help_outline, 'Help & Support', openHelp),
           ],
         ),
       ),
@@ -805,173 +746,283 @@ class MyResellingPage extends StatefulWidget {
 }
 
 class _MyResellingPageState extends State<MyResellingPage> {
+  List<Map<String, dynamic>> myListings = [];
+  bool isLoading = true;
+  String? errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    loadMyListings();
+  }
+
+  // LOAD LISTINGS FROM BACKEND
+  Future<void> loadMyListings() async {
+    if (!mounted) return;
+
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final result = await ApiService.getMyResellListings();
+
+      if (!mounted) return;
+
+      setState(() {
+        myListings = result;
+        isLoading = false;
+      });
+
+      debugPrint('My resell listings: $result');
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+        errorMessage = e.toString();
+      });
+
+      debugPrint('Load my resell listings error: $e');
+    }
+  }
+
+  String getValue(
+    Map<String, dynamic> ticket,
+    List<String> keys, {
+    String fallback = '-',
+  }) {
+    for (final key in keys) {
+      final value = ticket[key];
+
+      if (value != null && value.toString().isNotEmpty) {
+        return value.toString();
+      }
+    }
+
+    return fallback;
+  }
+
+  Color getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'sold':
+        return Colors.orange;
+      case 'shipped':
+        return Colors.blue;
+      case 'completed':
+        return Colors.green;
+      case 'cancelled':
+        return Colors.grey;
+      default:
+        return pink;
+    }
+  }
+
+  Widget buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(25),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.sell_outlined, color: pink, size: 55),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'No tickets for sale yet',
+              style: TextStyle(
+                color: darkPink,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Your reselling tickets will appear here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+            const SizedBox(height: 18),
+            TextButton.icon(
+              onPressed: loadMyListings,
+              icon: const Icon(Icons.refresh, color: pink),
+              label: const Text('Refresh', style: TextStyle(color: pink)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(25),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, color: pink, size: 50),
+            const SizedBox(height: 12),
+            const Text(
+              'Unable to load your listings',
+              style: TextStyle(
+                color: darkPink,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              errorMessage ?? 'Something went wrong.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 15),
+            ElevatedButton(
+              onPressed: loadMyListings,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: pink,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Try Again'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget buildTicketCard(Map<String, dynamic> ticket) {
+    final status = getValue(ticket, [
+      'status',
+      'listing_status',
+    ], fallback: 'Available');
+
+    final concert = getValue(ticket, [
+      'concert',
+      'concert_name',
+      'title',
+    ], fallback: 'Concert Ticket');
+
+    final zone = getValue(ticket, ['zone', 'zone_name']);
+
+    final seat = getValue(ticket, ['seat', 'seat_number']);
+
+    final price = getValue(ticket, ['resell_price', 'price'], fallback: '0');
+
+    final statusColor = getStatusColor(status);
+
+    return Card(
+      color: Colors.white,
+      margin: const EdgeInsets.only(bottom: 14),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    concert,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: darkPink,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    status,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Zone: $zone',
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Seat: $seat',
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Resell Price: ฿$price',
+              style: const TextStyle(
+                color: pink,
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final myListings = CartService.resaleListings;
-
     return Scaffold(
       backgroundColor: lightPink,
       appBar: AppBar(
         title: const Text(
           'My Reselling',
-          style: TextStyle(
-            color: darkPink,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,
         foregroundColor: darkPink,
         elevation: 0,
+        actions: [
+          IconButton(
+            onPressed: isLoading ? null : loadMyListings,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+          ),
+        ],
       ),
-      body: myListings.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(30),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(25),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.sell_outlined,
-                        color: pink,
-                        size: 55,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'No tickets for sale yet',
-                      style: TextStyle(
-                        color: darkPink,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Your reselling tickets will appear here.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
-                    ),
-                  ],
-                ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator(color: pink))
+          : errorMessage != null
+          ? buildErrorState()
+          : myListings.isEmpty
+          ? buildEmptyState()
+          : RefreshIndicator(
+              color: pink,
+              onRefresh: loadMyListings,
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(20),
+                itemCount: myListings.length,
+                itemBuilder: (context, index) {
+                  return buildTicketCard(myListings[index]);
+                },
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(20),
-              itemCount: myListings.length,
-              itemBuilder: (context, index) {
-                final ticket = myListings[index];
-                final status = ticket['status'] ?? 'Available';
-                final listingId = ticket['listingId'] ?? '';
-
-                Color getStatusColor() {
-                  switch (status) {
-                    case 'Sold':
-                      return Colors.orange;
-                    case 'Shipped':
-                      return Colors.blue;
-                    case 'Completed':
-                      return Colors.green;
-                    default:
-                      return Colors.pink;
-                  }
-                }
-
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                ticket['concert'] ?? 'Concert Ticket',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  color: darkPink,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: getStatusColor().withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                status,
-                                style: TextStyle(
-                                  color: getStatusColor(),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Zone: ${ticket['zone']} | Seat: ${ticket['seat']}',
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 13,
-                          ),
-                        ),
-                        Text(
-                          'Price: ฿${ticket['price']}',
-                          style: const TextStyle(
-                            color: pink,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                        if (status == 'Sold') ...[
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              icon: const Icon(Icons.mark_email_read_outlined),
-                              label: const Text('Mark Ticket as Shipped'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: pink,
-                                foregroundColor: Colors.white,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  CartService.markTicketAsShipped(listingId);
-                                });
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Updated status: Ticket Shipped!',
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              },
             ),
     );
   }
@@ -1070,18 +1121,13 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  Widget _passwordField(
-    String label,
-    TextEditingController controller,
-  ) {
+  Widget _passwordField(String label, TextEditingController controller) {
     return TextField(
       controller: controller,
       obscureText: true,
       decoration: InputDecoration(
         labelText: label,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: pink),
@@ -1110,10 +1156,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _settingsCard([
             SwitchListTile(
               activeColor: pink,
-              secondary: const Icon(
-                Icons.notifications_outlined,
-                color: pink,
-              ),
+              secondary: const Icon(Icons.notifications_outlined, color: pink),
               title: const Text('Push Notifications'),
               subtitle: const Text('Receive app notifications'),
               value: notificationsEnabled,
@@ -1350,10 +1393,7 @@ class HelpSupportPage extends StatelessWidget {
               ),
               title: const Text(
                 'Contact Support',
-                style: TextStyle(
-                  color: darkPink,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
               ),
               subtitle: const Text('Send us a message about your problem'),
               trailing: const Icon(Icons.chevron_right, color: pink),
@@ -1497,15 +1537,16 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                 borderSide: BorderSide.none,
               ),
             ),
-            items: const [
-              'Buying Tickets',
-              'Selling Tickets',
-              'Payment',
-              'Account',
-              'Other',
-            ].map((topic) {
-              return DropdownMenuItem(value: topic, child: Text(topic));
-            }).toList(),
+            items:
+                const [
+                  'Buying Tickets',
+                  'Selling Tickets',
+                  'Payment',
+                  'Account',
+                  'Other',
+                ].map((topic) {
+                  return DropdownMenuItem(value: topic, child: Text(topic));
+                }).toList(),
             onChanged: (value) {
               if (value != null) {
                 setState(() => selectedTopic = value);
@@ -1574,11 +1615,7 @@ class InformationPage extends StatelessWidget {
           ),
           child: Text(
             content,
-            style: const TextStyle(
-              color: darkPink,
-              fontSize: 15,
-              height: 1.6,
-            ),
+            style: const TextStyle(color: darkPink, fontSize: 15, height: 1.6),
           ),
         ),
       ),
