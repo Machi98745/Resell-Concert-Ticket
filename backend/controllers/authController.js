@@ -105,6 +105,7 @@ exports.login = async (req, res) => {
         role: user.role,
         is_verified: user.is_verified,
         is_active: user.is_active,
+        profile_image: user.profile_image,
       },
     });
   } catch (err) {
@@ -116,11 +117,11 @@ exports.login = async (req, res) => {
 exports.getMe = async (req, res) => {
   try {
     const [users] = await db.query(
-      `SELECT user_id, username, email, full_name, phone, role, is_verified, is_active, created_at
-       FROM users WHERE user_id = ?`,
+      `SELECT user_id, username, email, full_name, phone,
+          profile_image, role, is_verified, is_active, created_at
+   FROM users WHERE user_id = ?`,
       [req.user.user_id]
     );
-
     if (users.length === 0) {
       return res.status(404).json({ message: 'User not found.' });
     }
@@ -146,7 +147,9 @@ exports.updateProfile = async (req, res) => {
     );
 
     const [updated] = await db.query(
-      'SELECT user_id, username, email, full_name, phone, role, is_verified, is_active FROM users WHERE user_id = ?',
+      `SELECT user_id, username, email, full_name, phone,
+          profile_image, role, is_verified, is_active
+   FROM users WHERE user_id = ?`,
       [req.user.user_id]
     );
 
@@ -246,5 +249,30 @@ exports.resetPassword = async (req, res) => {
     });
   } catch (err) {
     return res.status(500).json({ message: 'Database Error', error: err.message });
+  }
+};
+// 7. อัปโหลดรูปโปรไฟล์ (POST /api/auth/profile-image)
+exports.uploadProfileImage = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'Please select an image.' });
+  }
+
+  try {
+    const profileImage = `/uploads/profiles/${req.file.filename}`;
+
+    await db.query(
+      'UPDATE users SET profile_image = ? WHERE user_id = ?',
+      [profileImage, req.user.user_id]
+    );
+
+    return res.status(200).json({
+      message: 'Profile image uploaded successfully.',
+      profile_image: profileImage,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: 'Unable to save profile image.',
+      error: err.message,
+    });
   }
 };

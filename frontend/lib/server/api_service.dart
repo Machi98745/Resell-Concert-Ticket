@@ -1,5 +1,5 @@
 import 'dart:convert';
-
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
@@ -272,7 +272,56 @@ class ApiService {
     }
 
     throw Exception('Invalid updated profile data');
+  }// POST /api/auth/profile-image
+static Future<String> uploadProfileImage(XFile image) async {
+  final token = await _getToken();
+
+  if (token == null || token.isEmpty) {
+    throw Exception('Please log in again.');
   }
+
+  final uri = Uri.parse('$baseUrl/auth/profile-image');
+
+  final request = http.MultipartRequest('POST', uri);
+
+  request.headers.addAll({
+    'Accept': 'application/json',
+    'Authorization': 'Bearer $token',
+  });
+
+  final bytes = await image.readAsBytes();
+
+  request.files.add(
+    http.MultipartFile.fromBytes(
+      'profile_image',
+      bytes,
+      filename: image.name,
+    ),
+  );
+
+  final streamedResponse = await request.send();
+  final response = await http.Response.fromStream(streamedResponse);
+
+  final data = _handleResponse(response);
+
+  if (data is! Map || data['profile_image'] == null) {
+    throw Exception('Invalid profile image response.');
+  }
+
+  return data['profile_image'].toString();
+}
+
+// Convert relative image path to full URL
+static String getImageUrl(String imagePath) {
+  if (imagePath.startsWith('http://') ||
+      imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+
+  final serverUrl = baseUrl.replaceFirst(RegExp(r'/api/?$'), '');
+
+  return '$serverUrl$imagePath';
+}
   // ==========================================
   // SELLER REGISTRATION API
   // ==========================================

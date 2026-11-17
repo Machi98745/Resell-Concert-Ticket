@@ -3,6 +3,7 @@ import 'package:frontend/views/favorite_service.dart';
 import 'package:frontend/server/api_service.dart';
 import 'package:frontend/views/cart_service.dart';
 import 'package:frontend/views/payment_page.dart';
+
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
 const Color darkPink = Color(0xFF54283D);
@@ -48,27 +49,21 @@ class _DetailPageState extends State<DetailPage> {
   String get artist => (concert['artist'] ?? '').toString();
 
   String get eventDate =>
-      (concert['date'] ??
-              concert['show_datetime'] ??
-              'Date to be announced')
+      (concert['date'] ?? concert['show_datetime'] ?? 'Date to be announced')
           .toString();
 
   String get eventLocation =>
-      (concert['location'] ??
-              concert['venue'] ??
-              'Location to be announced')
+      (concert['location'] ?? concert['venue'] ?? 'Location to be announced')
           .toString();
 
   String get eventImage =>
       (concert['image'] ?? concert['poster_url'] ?? '').toString();
 
   String get eventDescription =>
-      (concert['description'] ??
-              'Enjoy an unforgettable concert experience.')
+      (concert['description'] ?? 'Enjoy an unforgettable concert experience.')
           .toString();
 
-  int? get concertId =>
-      int.tryParse((concert['concert_id'] ?? '').toString());
+  int? get concertId => int.tryParse((concert['concert_id'] ?? '').toString());
 
   // ==========================================
   // LOAD TICKETS FROM BACKEND
@@ -135,9 +130,7 @@ class _DetailPageState extends State<DetailPage> {
     final zones = <String>{};
 
     for (final ticket in ticketMaps) {
-      zones.add(
-        (ticket['zone'] ?? 'General').toString(),
-      );
+      zones.add((ticket['zone'] ?? 'General').toString());
     }
 
     return zones.toList();
@@ -227,18 +220,13 @@ class _DetailPageState extends State<DetailPage> {
     final number = double.tryParse(price?.toString() ?? '') ?? 0;
     final value = number.toStringAsFixed(0);
 
-    return '฿${value.replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (match) => ',',
-    )}';
+    return '฿${value.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => ',')}';
   }
 
   String _ticketPriceText() {
     if (ticketMaps.isEmpty) return 'Price unavailable';
 
-    return ticketMaps
-        .map((ticket) => formatPrice(ticket['price']))
-        .join(' / ');
+    return ticketMaps.map((ticket) => formatPrice(ticket['price'])).join(' / ');
   }
 
   // ==========================================
@@ -262,9 +250,7 @@ class _DetailPageState extends State<DetailPage> {
   // CREATE CART ITEM
   // ==========================================
 
-  Map<String, dynamic> createTicketItem(
-    Map<String, dynamic> ticket,
-  ) {
+  Map<String, dynamic> createTicketItem(Map<String, dynamic> ticket) {
     final selectedSeat = getSelectedSeat(ticket);
 
     return {
@@ -374,9 +360,7 @@ class _DetailPageState extends State<DetailPage> {
     final checkoutItem = createTicketItem(ticket);
 
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PaymentPage(items: [checkoutItem]),
-      ),
+      MaterialPageRoute(builder: (_) => PaymentPage(items: [checkoutItem])),
     );
   }
 
@@ -425,10 +409,7 @@ class _DetailPageState extends State<DetailPage> {
                 : null,
           ),
         ),
-        Container(
-          height: 310,
-          color: darkPink.withOpacity(0.86),
-        ),
+        Container(height: 310, color: darkPink.withOpacity(0.86)),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 15, 16, 25),
           child: Column(
@@ -497,9 +478,7 @@ class _DetailPageState extends State<DetailPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: isFinished || isSoldOut
-                      ? null
-                      : scrollToTickets,
+                  onPressed: isFinished || isSoldOut ? null : scrollToTickets,
                   icon: const Icon(Icons.keyboard_arrow_down),
                   label: const Text('Choose Tickets'),
                   style: ElevatedButton.styleFrom(
@@ -539,10 +518,7 @@ class _DetailPageState extends State<DetailPage> {
                 : null,
           ),
         ),
-        Container(
-          height: 480,
-          color: darkPink.withOpacity(0.84),
-        ),
+        Container(height: 480, color: darkPink.withOpacity(0.84)),
         Padding(
           padding: const EdgeInsets.fromLTRB(35, 20, 35, 30),
           child: Column(
@@ -652,9 +628,7 @@ class _DetailPageState extends State<DetailPage> {
         const Spacer(),
         IconButton(
           onPressed: toggleFavorite,
-          tooltip: isFavorite
-              ? 'Remove from Favorites'
-              : 'Add to Favorites',
+          tooltip: isFavorite ? 'Remove from Favorites' : 'Add to Favorites',
           icon: Icon(
             isFavorite ? Icons.favorite : Icons.favorite_border,
             color: isFavorite ? pink : Colors.white,
@@ -670,15 +644,9 @@ class _DetailPageState extends State<DetailPage> {
       crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 8,
       children: [
-        Text(
-          'Home',
-          style: TextStyle(color: Colors.white70, fontSize: 13),
-        ),
+        Text('Home', style: TextStyle(color: Colors.white70, fontSize: 13)),
         Icon(Icons.chevron_right, color: Colors.white54, size: 16),
-        Text(
-          'Concerts',
-          style: TextStyle(color: Colors.white70, fontSize: 13),
-        ),
+        Text('Concerts', style: TextStyle(color: Colors.white70, fontSize: 13)),
         Icon(Icons.chevron_right, color: Colors.white54, size: 16),
         Text(
           'Event Details',
@@ -705,9 +673,7 @@ class _DetailPageState extends State<DetailPage> {
   Widget _imagePlaceholder() {
     return Container(
       color: lightPink,
-      child: const Center(
-        child: Icon(Icons.music_note, size: 55, color: pink),
-      ),
+      child: const Center(child: Icon(Icons.music_note, size: 55, color: pink)),
     );
   }
 
@@ -719,8 +685,8 @@ class _DetailPageState extends State<DetailPage> {
     final badgeColor = isFinished
         ? Colors.grey
         : isSoldOut
-            ? Colors.red
-            : Colors.green;
+        ? Colors.red
+        : Colors.green;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -765,11 +731,7 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
-  Widget _desktopInfo(
-    IconData icon,
-    String title,
-    String value,
-  ) {
+  Widget _desktopInfo(IconData icon, String title, String value) {
     return SizedBox(
       width: 260,
       child: Row(
@@ -783,18 +745,12 @@ class _DetailPageState extends State<DetailPage> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
                 const SizedBox(height: 5),
                 Text(
                   value,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
                 ),
               ],
             ),
@@ -916,10 +872,7 @@ class _DetailPageState extends State<DetailPage> {
         children: [
           Icon(icon, color: pink, size: 22),
           const SizedBox(height: 8),
-          Text(
-            title,
-            style: const TextStyle(color: Colors.grey, fontSize: 11),
-          ),
+          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 11)),
           const SizedBox(height: 4),
           Text(
             value,
@@ -1213,10 +1166,7 @@ class _DetailPageState extends State<DetailPage> {
                     const SizedBox(height: 5),
                     Text(
                       'Seller: ${ticket['seller'] ?? 'Ticket Pink'}',
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
-                      ),
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
                     const SizedBox(height: 5),
                     Text(
@@ -1260,7 +1210,15 @@ class _DetailPageState extends State<DetailPage> {
                 return GestureDetector(
                   onTap: () {
                     setState(() {
-                      selectedSeats[ticketKey(ticket)] = seat;
+                      final key = ticketKey(ticket);
+
+                      if (selectedSeats[key] == seat) {
+                        // กดที่นั่งเดิมซ้ำ = ยกเลิกการเลือก
+                        selectedSeats.remove(key);
+                      } else {
+                        // กดที่นั่งใหม่ = เลือกที่นั่งนั้น
+                        selectedSeats[key] = seat;
+                      }
                     });
                   },
                   child: Container(
@@ -1304,20 +1262,14 @@ class _DetailPageState extends State<DetailPage> {
               ticket['seat'] != null
                   ? 'Seat: ${ticket['seat']}'
                   : 'Seat details have not been provided by the seller.',
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 12,
-              ),
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ],
           const SizedBox(height: 15),
           if (sold)
             const Text(
               'SOLD OUT',
-              style: TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
             )
           else
             LayoutBuilder(
@@ -1334,10 +1286,7 @@ class _DetailPageState extends State<DetailPage> {
                         outlined: true,
                       ),
                       const SizedBox(height: 8),
-                      _actionButton(
-                        'Buy Now',
-                        () => buyNow(ticket),
-                      ),
+                      _actionButton('Buy Now', () => buyNow(ticket)),
                     ],
                   );
                 }
@@ -1353,10 +1302,7 @@ class _DetailPageState extends State<DetailPage> {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: _actionButton(
-                        'Buy Now',
-                        () => buyNow(ticket),
-                      ),
+                      child: _actionButton('Buy Now', () => buyNow(ticket)),
                     ),
                   ],
                 );
@@ -1371,10 +1317,7 @@ class _DetailPageState extends State<DetailPage> {
   // UNAVAILABLE MESSAGE
   // ==========================================
 
-  Widget _unavailableMessage(
-    String message, {
-    bool showRetry = false,
-  }) {
+  Widget _unavailableMessage(String message, {bool showRetry = false}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -1431,20 +1374,13 @@ class _DetailPageState extends State<DetailPage> {
         style: ElevatedButton.styleFrom(
           backgroundColor: outlined ? Colors.white : pink,
           foregroundColor: outlined ? pink : Colors.white,
-          side: outlined
-              ? const BorderSide(color: pink)
-              : BorderSide.none,
+          side: outlined ? const BorderSide(color: pink) : BorderSide.none,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           minimumSize: Size.zero,
           elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
-        child: Text(
-          label,
-          style: const TextStyle(fontSize: 12),
-        ),
+        child: Text(label, style: const TextStyle(fontSize: 12)),
       ),
     );
   }
@@ -1519,8 +1455,7 @@ class _DetailPageState extends State<DetailPage> {
                         child: Image.network(
                           eventImage,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const SizedBox.shrink(),
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                         ),
                       ),
                     ),

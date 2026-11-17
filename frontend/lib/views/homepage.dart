@@ -68,35 +68,24 @@ class _HomePageState extends State<HomePage> {
   }
 
   // ==========================================
-  // RESOLVE POSTER URL
-  // ==========================================
+// RESOLVE POSTER FROM LOCAL ASSETS
+// ==========================================
 
-  String _resolvePosterUrl(dynamic rawUrl, int concertId) {
-    final url = rawUrl?.toString().trim() ?? '';
+String _resolvePosterUrl(dynamic rawUrl, int concertId) {
+  switch (concertId) {
+    case 1:
+      return 'assets/images/body.jpeg';
 
-    if (url.isNotEmpty && !url.contains('via.placeholder.com')) {
-      if (url.startsWith('http://') ||
-          url.startsWith('https://') ||
-          url.startsWith('assets/')) {
-        return url;
-      }
-      final serverBase =
-          ApiService.baseUrl.replaceFirst(RegExp(r'/api/?$'), '');
-      return url.startsWith('/') ? '$serverBase$url' : '$serverBase/$url';
-    }
+    case 2:
+      return 'assets/images/threemandown.jpg';
 
-    switch (concertId) {
-      case 1:
-        return 'assets/images/body.jpeg';
-      case 2:
-        return 'assets/images/threemandown.jpg';
-      case 3:
-        return 'assets/images/jeff.png';
-      default:
-        return 'assets/images/concert.jpg';
-    }
+    case 3:
+      return 'assets/images/jeff.png';
+
+    default:
+      return 'assets/images/concert.jpg';
   }
-
+}
   // ==========================================
   // LOAD CONCERTS & RESELL LISTINGS
   // ==========================================
