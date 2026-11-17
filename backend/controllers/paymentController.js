@@ -464,11 +464,12 @@ exports.cancelPayment = async (req, res) => {
 
 // 4. ดึงประวัติคำสั่งซื้อของผู้ใช้
 // GET /api/payments/my-orders
+
 exports.getMyOrders = async (req, res) => {
   const buyerId = req.user.user_id;
 
   try {
-    // อัปเดตออเดอร์ที่หมดเวลาเป็น expired
+    // เปลี่ยนรายการ Pending ที่หมดเวลาเป็น Expired
     await db.query(
       `UPDATE payments
        SET status = 'expired',
@@ -482,19 +483,21 @@ exports.getMyOrders = async (req, res) => {
     const sql = `
       SELECT
         p.*,
+
         GREATEST(
           0,
           TIMESTAMPDIFF(SECOND, NOW(), p.expires_at)
         ) AS remaining_seconds,
 
         rl.resell_price,
+        rl.ticket_id,
 
-        t.ticket_id,
+        t.ticket_id AS actual_ticket_id,
 
         CASE
-          WHEN p.status = 'completed'
+          WHEN p.status IN ('completed', 'paid')
           THEN t.ticket_code
-          ELSE CONCAT(LEFT(t.ticket_code, 4), '-****')
+          ELSE CONCAT(LEFT(COALESCE(t.ticket_code, ''), 4), '-****')
         END AS ticket_code,
 
         t.zone_name,
@@ -510,13 +513,13 @@ exports.getMyOrders = async (req, res) => {
 
       FROM payments p
 
-      JOIN resell_listings rl
+      LEFT JOIN resell_listings rl
         ON p.listing_id = rl.listing_id
 
-      JOIN tickets t
+      LEFT JOIN tickets t
         ON rl.ticket_id = t.ticket_id
 
-      JOIN concerts c
+      LEFT JOIN concerts c
         ON t.concert_id = c.concert_id
 
       WHERE p.buyer_id = ?
@@ -527,6 +530,7 @@ exports.getMyOrders = async (req, res) => {
     const [orders] = await db.query(sql, [buyerId]);
 
     return res.status(200).json(orders);
+
   } catch (err) {
     console.error('Get my orders error:', err);
 

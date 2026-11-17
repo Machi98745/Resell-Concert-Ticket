@@ -1,3 +1,4 @@
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:frontend/controller/payment_controller.dart';
@@ -22,6 +23,7 @@ class _HistoryPageState extends State<HistoryPage>
   List<Map<String, dynamic>> allOrders = [];
   bool isLoading = true;
   String? errorMessage;
+  Timer? countdownTimer;
 
   final List<String> statuses = [
     'To Pay',
@@ -40,35 +42,54 @@ class _HistoryPageState extends State<HistoryPage>
       vsync: this,
     );
 
+    // Update countdown every second.
+    countdownTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (timer) {
+        if (mounted) {
+          setState(() {});
+        }
+      },
+    );
+
     loadOrders();
   }
 
   @override
   void dispose() {
+    countdownTimer?.cancel();
     tabController.dispose();
     super.dispose();
   }
 
-  // แปลง status + shipping_status จาก DB ให้ตรงกับแท็บ 5 สถานะ
+  // Convert database status into the five order tabs.
   String _mapOrderTabStatus(Map<String, dynamic> raw) {
     final status = (raw['status'] ?? '').toString().toLowerCase();
-    final shipStatus = (raw['shipping_status'] ?? '').toString().toLowerCase();
+    final shipStatus =
+        (raw['shipping_status'] ?? '').toString().toLowerCase();
 
     if (status == 'cancelled' || status == 'expired') {
       return 'Cancelled';
     }
+
     if (status == 'pending') {
       return 'To Pay';
     }
+
     if (status == 'completed' || status == 'paid') {
-      if (shipStatus.contains('deliver') || shipStatus.contains('complete')) {
+      if (shipStatus.contains('deliver') ||
+          shipStatus.contains('complete')) {
         return 'Completed';
       }
-      if (shipStatus.contains('ship') || shipStatus.contains('transit')) {
+
+      if (shipStatus.contains('ship') ||
+          shipStatus.contains('transit')) {
         return 'To Receive';
       }
+
       return 'To Ship';
     }
+
     return 'To Pay';
   }
 
@@ -85,33 +106,47 @@ class _HistoryPageState extends State<HistoryPage>
 
       final mapped = rawOrders.map((row) {
         final tabStatus = _mapOrderTabStatus(row);
+
         final showDate = DateTime.tryParse(
           row['show_datetime']?.toString() ?? '',
         );
 
         final dateText = showDate != null
-            ? '${showDate.day.toString().padLeft(2, '0')}/${showDate.month.toString().padLeft(2, '0')}/${showDate.year}'
+            ? '${showDate.day.toString().padLeft(2, '0')}/'
+                '${showDate.month.toString().padLeft(2, '0')}/'
+                '${showDate.year}'
             : '-';
 
         final timeText = showDate != null
-            ? '${showDate.hour.toString().padLeft(2, '0')}:${showDate.minute.toString().padLeft(2, '0')}'
+            ? '${showDate.hour.toString().padLeft(2, '0')}:'
+                '${showDate.minute.toString().padLeft(2, '0')}'
             : '-';
 
         return {
           ...row,
+
           'orderId': 'ORD-${row['payment_id']}',
           'status': tabStatus,
-          'orderDate': row['paid_at'] ?? row['created_at'] ?? row['expires_at'],
+
+          'orderDate': row['paid_at'] ??
+              row['created_at'] ??
+              row['expires_at'],
+
           'totalPrice': row['amount'] ?? 0,
           'paymentStatus': row['status'] ?? '-',
           'shippingStatus': row['shipping_status'] ?? '-',
+
+          // Keep the original expires_at from the database.
+          'expires_at': row['expires_at'],
+
           'items': [
             {
               'listing_id': row['listing_id'],
               'payment_id': row['payment_id'],
               'ticket_id': row['ticket_id'],
               'ticket_code': row['ticket_code'],
-              'concertName': row['concert_title'] ?? 'Concert Ticket',
+              'concertName':
+                  row['concert_title'] ?? 'Concert Ticket',
               'artist': row['artist'] ?? '',
               'zone': row['zone_name'] ?? '-',
               'seat': row['seat_number'] ?? '-',
@@ -119,21 +154,24 @@ class _HistoryPageState extends State<HistoryPage>
               'date': dateText,
               'time': timeText,
               'price': row['resell_price'] ?? row['amount'] ?? 0,
-            }
+            },
           ],
         };
       }).toList();
 
       if (!mounted) return;
+
       setState(() {
         allOrders = mapped;
         isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
+
       setState(() {
         isLoading = false;
-        errorMessage = e.toString().replaceAll('Exception: ', '');
+        errorMessage =
+            e.toString().replaceAll('Exception: ', '');
       });
     }
   }
@@ -161,6 +199,114 @@ class _HistoryPageState extends State<HistoryPage>
   String money(dynamic value) {
     final price = double.tryParse(value.toString()) ?? 0;
     return '฿${price.toStringAsFixed(0)}';
+  }
+
+  // Countdown widget for To Pay orders.
+  Widget _buildCountdown(Map<String, dynamic> order) {
+    final expiresAt = order['expires_at']?.toString();
+
+    if (expiresAt == null || expiresAt.isEmpty) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.orange.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.info_outline, color: Colors.orange),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Payment expiration time is unavailable.',
+                style: TextStyle(
+                  color: darkPink,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final remainingSeconds =
+        PaymentController.getRemainingSeconds(expiresAt);
+
+    if (remainingSeconds <= 0) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.timer_off, color: Colors.red),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Payment time expired',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final minutes = remainingSeconds ~/ 60;
+    final seconds = remainingSeconds % 60;
+
+    final timeText =
+        '${minutes.toString().padLeft(2, '0')}:'
+        '${seconds.toString().padLeft(2, '0')}';
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.orange.withOpacity(0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.timer_outlined,
+            color: Colors.deepOrange,
+          ),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'Complete payment within',
+              style: TextStyle(
+                color: darkPink,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Text(
+            timeText,
+            style: const TextStyle(
+              color: Colors.deepOrange,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   List<Map<String, dynamic>> ordersFor(String status) {
@@ -199,7 +345,9 @@ class _HistoryPageState extends State<HistoryPage>
         ),
       ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator(color: pink))
+          ? const Center(
+              child: CircularProgressIndicator(color: pink),
+            )
           : errorMessage != null
               ? Center(
                   child: Padding(
@@ -207,9 +355,16 @@ class _HistoryPageState extends State<HistoryPage>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.error_outline, size: 50, color: pink),
+                        const Icon(
+                          Icons.error_outline,
+                          size: 50,
+                          color: pink,
+                        ),
                         const SizedBox(height: 12),
-                        Text(errorMessage!, textAlign: TextAlign.center),
+                        Text(
+                          errorMessage!,
+                          textAlign: TextAlign.center,
+                        ),
                         const SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: loadOrders,
@@ -334,6 +489,9 @@ class _HistoryPageState extends State<HistoryPage>
 
             const Divider(height: 25),
 
+            // Show countdown only in To Pay.
+            if (status == 'To Pay') _buildCountdown(order),
+
             ...orderItems.map((item) {
               final ticket = Map<String, dynamic>.from(item);
               return _buildTicketItem(ticket);
@@ -429,7 +587,8 @@ class _HistoryPageState extends State<HistoryPage>
   }
 
   Widget _buildTicketItem(Map<String, dynamic> ticket) {
-    final concertName = ticket['concertName'] ?? 'Concert Ticket';
+    final concertName =
+        ticket['concertName'] ?? 'Concert Ticket';
     final artist = ticket['artist'] ?? '';
     final zone = ticket['zone'] ?? 'General Zone';
     final price = ticket['price'] ?? 0;
@@ -500,7 +659,9 @@ class _HistoryPageState extends State<HistoryPage>
               ),
             ],
           ),
+
           const SizedBox(height: 15),
+
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
@@ -520,30 +681,35 @@ class _HistoryPageState extends State<HistoryPage>
                   ),
                 ),
                 const SizedBox(height: 10),
+
                 _ticketInfoRow(
                   Icons.qr_code_2,
                   'Code',
                   code.toString(),
                 ),
                 const SizedBox(height: 8),
+
                 _ticketInfoRow(
                   Icons.event_seat_outlined,
                   'Seat',
                   seat.toString(),
                 ),
                 const SizedBox(height: 8),
+
                 _ticketInfoRow(
                   Icons.location_on_outlined,
                   'Venue',
                   location.toString(),
                 ),
                 const SizedBox(height: 8),
+
                 _ticketInfoRow(
                   Icons.calendar_month_outlined,
                   'Date',
                   date.toString(),
                 ),
                 const SizedBox(height: 8),
+
                 _ticketInfoRow(
                   Icons.access_time,
                   'Time',
@@ -571,7 +737,10 @@ class _HistoryPageState extends State<HistoryPage>
           width: 55,
           child: Text(
             title,
-            style: const TextStyle(color: Colors.grey, fontSize: 12),
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 12,
+            ),
           ),
         ),
         Expanded(
@@ -619,7 +788,10 @@ class _HistoryPageState extends State<HistoryPage>
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 order['shipping_info'].toString(),
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                ),
               ),
             ),
         ],
@@ -638,13 +810,19 @@ class _HistoryPageState extends State<HistoryPage>
         const SizedBox(width: 8),
         Text(
           '$title: ',
-          style: const TextStyle(color: Colors.grey, fontSize: 12),
+          style: const TextStyle(
+            color: Colors.grey,
+            fontSize: 12,
+          ),
         ),
         Expanded(
           child: Text(
             value,
             textAlign: TextAlign.right,
-            style: const TextStyle(color: darkPink, fontSize: 12),
+            style: const TextStyle(
+              color: darkPink,
+              fontSize: 12,
+            ),
           ),
         ),
       ],
@@ -669,8 +847,11 @@ class _HistoryPageState extends State<HistoryPage>
   }
 
   void _payOrder(Map<String, dynamic> order) {
-    final orderItems = (order['items'] as List?)
-            ?.map((item) => Map<String, dynamic>.from(item))
+    final orderItems =
+        (order['items'] as List?)
+            ?.map(
+              (item) => Map<String, dynamic>.from(item),
+            )
             .toList() ??
         [];
 
@@ -684,22 +865,37 @@ class _HistoryPageState extends State<HistoryPage>
     });
   }
 
-  Future<void> _cancelOrder(Map<String, dynamic> order) async {
-    final paymentId = int.tryParse(order['payment_id']?.toString() ?? '');
+  Future<void> _cancelOrder(
+    Map<String, dynamic> order,
+  ) async {
+    final paymentId = int.tryParse(
+      order['payment_id']?.toString() ?? '',
+    );
+
     if (paymentId == null) return;
 
     try {
-      await _paymentController.cancelPayment(paymentId: paymentId);
+      await _paymentController.cancelPayment(
+        paymentId: paymentId,
+      );
+
       await loadOrders();
+
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Order cancelled.')),
+        const SnackBar(
+          content: Text('Order cancelled.'),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString().replaceAll('Exception: ', '')),
+          content: Text(
+            e.toString().replaceAll('Exception: ', ''),
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -712,7 +908,9 @@ class _HistoryPageState extends State<HistoryPage>
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(22),
+        ),
       ),
       builder: (context) {
         return SafeArea(
@@ -733,37 +931,45 @@ class _HistoryPageState extends State<HistoryPage>
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 20),
+
                   _infoRow(
                     Icons.receipt,
                     'Order ID',
                     order['orderId']?.toString() ?? '-',
                   ),
                   const SizedBox(height: 12),
+
                   _infoRow(
                     Icons.payment,
                     'Payment method',
                     order['payment_method']?.toString() ?? '-',
                   ),
                   const SizedBox(height: 12),
+
                   _infoRow(
                     Icons.verified,
                     'Payment status',
                     order['paymentStatus']?.toString() ?? '-',
                   ),
                   const SizedBox(height: 12),
+
                   _infoRow(
                     Icons.local_shipping,
                     'Shipping status',
                     order['shippingStatus']?.toString() ?? '-',
                   ),
                   const SizedBox(height: 12),
+
                   _infoRow(
                     Icons.attach_money,
                     'Total',
                     money(order['totalPrice'] ?? 0),
                   ),
+
                   const SizedBox(height: 20),
+
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(

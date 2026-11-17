@@ -3,6 +3,7 @@ import 'package:frontend/views/favorite_service.dart';
 import 'package:frontend/server/api_service.dart';
 import 'package:frontend/views/cart_service.dart';
 import 'package:frontend/views/payment_page.dart';
+import 'package:frontend/controller/payment_controller.dart';
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -348,21 +349,74 @@ class _DetailPageState extends State<DetailPage> {
   // BUY NOW
   // ==========================================
 
-  void buyNow(Map<String, dynamic> ticket) {
-    if (isFinished || !CartService.canBuy(ticket)) {
-      showUnavailableMessage();
-      setState(() {});
-      return;
+ Future<void> buyNow(Map<String, dynamic> ticket) async {
+  if (isFinished || !CartService.canBuy(ticket)) {
+    showUnavailableMessage();
+    setState(() {});
+    return;
+  }
+
+  if (!validateSeatSelection(ticket)) return;
+
+  final checkoutItem = createTicketItem(ticket);
+
+  final listingId = int.tryParse(
+    (checkoutItem['listing_id'] ?? '').toString(),
+  );
+
+  if (listingId == null || listingId <= 0) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Invalid ticket listing ID'),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return;
+  }
+
+  try {
+    final paymentController = PaymentController();
+
+    final result = await paymentController.checkout(
+      listingId: listingId,
+      paymentMethod: 'PromptPay',
+      deliveryMethod: 'Parcel Shipping',
+      shippingInfo: 'Pending payment',
+    );
+
+    final paymentData = result['payment'] is Map
+        ? Map<String, dynamic>.from(result['payment'])
+        : Map<String, dynamic>.from(result);
+
+    final paymentId = paymentData['payment_id'];
+
+    if (paymentId == null) {
+      throw Exception('Payment ID not found');
     }
 
-    if (!validateSeatSelection(ticket)) return;
+    checkoutItem['payment_id'] = paymentId;
 
-    final checkoutItem = createTicketItem(ticket);
+    if (!mounted) return;
 
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => PaymentPage(items: [checkoutItem])),
+      MaterialPageRoute(
+        builder: (_) => PaymentPage(items: [checkoutItem]),
+      ),
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          e.toString().replaceAll('Exception: ', ''),
+        ),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 5),
+      ),
     );
   }
+}
 
   // ==========================================
   // BUILD

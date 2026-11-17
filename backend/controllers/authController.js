@@ -260,15 +260,16 @@ exports.uploadProfileImage = async (req, res) => {
   try {
     const profileImage = `/uploads/profiles/${req.file.filename}`;
 
-    await db.query(
-      'UPDATE users SET profile_image = ? WHERE user_id = ?',
-      [profileImage, req.user.user_id]
-    );
+await db.query(
+  'UPDATE users SET profile_image = ? WHERE user_id = ?',
+  [profileImage, req.user.user_id]
+);
 
-    return res.status(200).json({
-      message: 'Profile image uploaded successfully.',
-      profile_image: profileImage,
-    });
+return res.status(200).json({
+  message: 'Profile image uploaded successfully.',
+  profile_image: profileImage,
+});
+
   } catch (err) {
     return res.status(500).json({
       message: 'Unable to save profile image.',
