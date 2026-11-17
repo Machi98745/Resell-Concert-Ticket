@@ -1,5 +1,5 @@
+
 import 'package:flutter/material.dart';
-import 'cart_service.dart';
 import 'package:frontend/server/api_service.dart';
 
 class SellPage extends StatefulWidget {
@@ -15,20 +15,15 @@ class _SellPageState extends State<SellPage> {
 
   int page = 0; // 0 = form, 1 = review, 2 = success
 
-  // ==========================================
-  // TICKET DATA FROM DATABASE
-  // ==========================================
-
   List<Map<String, dynamic>> myTickets = [];
   Map<String, dynamic>? selectedTicket;
 
   bool isLoadingTickets = false;
   bool isSubmitting = false;
 
-  // ==========================================
-  // TEXT CONTROLLERS
-  // ==========================================
+  int? createdListingId;
 
+  // Text controllers
   final concert = TextEditingController();
   final date = TextEditingController();
   final venue = TextEditingController();
@@ -45,12 +40,11 @@ class _SellPageState extends State<SellPage> {
   final accName = TextEditingController();
   final accNumber = TextEditingController();
 
+  // Delivery choices
   String delivery = 'Parcel Shipping';
   String company = 'Thailand Post';
   String channel = 'Email (PDF)';
   String? bank;
-
-  int? createdListingId;
 
   double get priceNum => double.tryParse(price.text) ?? 0;
 
@@ -62,10 +56,6 @@ class _SellPageState extends State<SellPage> {
   }
 
   double get total => priceNum + shipNum;
-
-  // ==========================================
-  // INIT
-  // ==========================================
 
   @override
   void initState() {
@@ -92,7 +82,6 @@ class _SellPageState extends State<SellPage> {
 
   // ==========================================
   // LOAD MY TICKETS
-  // GET /api/resell/my-tickets
   // ==========================================
 
   Future<void> loadMyTickets() async {
@@ -481,9 +470,8 @@ class _SellPageState extends State<SellPage> {
       child: TextField(
         controller: controller,
         maxLines: lines,
-        keyboardType: number
-            ? TextInputType.number
-            : TextInputType.text,
+        keyboardType:
+            number ? TextInputType.number : TextInputType.text,
         onChanged: (_) => setState(() {}),
         decoration: InputDecoration(
           labelText: label,
@@ -610,21 +598,14 @@ class _SellPageState extends State<SellPage> {
             row('Venue', venue.text),
             row('Zone', zone.text),
             row('Seat', seat.text),
-            row(
-              'Original Price',
-              'THB ${originalPrice.text}',
-            ),
+            row('Original Price', 'THB ${originalPrice.text}'),
           ]),
           const SizedBox(height: 15),
         ],
 
         title('Selling Price'),
 
-        field(
-          'Selling Price (THB)',
-          price,
-          number: true,
-        ),
+        field('Selling Price (THB)', price, number: true),
 
         title('Ticket Delivery Method'),
 
@@ -678,17 +659,10 @@ class _SellPageState extends State<SellPage> {
 
           const SizedBox(height: 15),
 
-          field(
-            'Shipping Fee (THB)',
-            shipping,
-            number: true,
-          ),
+          field('Shipping Fee (THB)', shipping, number: true),
         ] else
           Container(
-            margin: const EdgeInsets.only(
-              left: 16,
-              bottom: 15,
-            ),
+            margin: const EdgeInsets.only(left: 16, bottom: 15),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: lightPink,
@@ -700,11 +674,8 @@ class _SellPageState extends State<SellPage> {
               children: [
                 const Text(
                   'Select transfer channel',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
-
                 for (final app in [
                   'Email (PDF)',
                   'Eventpop App',
@@ -724,21 +695,13 @@ class _SellPageState extends State<SellPage> {
                       }
                     },
                   ),
-
                 if (channel == 'Other Application')
-                  field(
-                    'Application Name',
-                    appName,
-                  ),
+                  field('Application Name', appName),
               ],
             ),
           ),
 
-        field(
-          'Delivery Notes (Optional)',
-          note,
-          lines: 2,
-        ),
+        field('Delivery Notes (Optional)', note, lines: 2),
 
         title('Payout Account'),
 
@@ -767,49 +730,27 @@ class _SellPageState extends State<SellPage> {
 
         const SizedBox(height: 15),
 
-        field(
-          'Account Holder Name',
-          accName,
-        ),
+        field('Account Holder Name', accName),
 
-        field(
-          'Bank Account Number',
-          accNumber,
-          number: true,
-        ),
+        field('Bank Account Number', accNumber, number: true),
 
         const Text(
           'Demo only. Do not enter real bank details.',
-          style: TextStyle(
-            color: Colors.grey,
-            fontSize: 12,
-          ),
+          style: TextStyle(color: Colors.grey, fontSize: 12),
         ),
 
         const SizedBox(height: 20),
 
         pinkBox([
-          row(
-            'Selling Price',
-            'THB ${priceNum.toStringAsFixed(2)}',
-          ),
-          row(
-            'Shipping Fee',
-            'THB ${shipNum.toStringAsFixed(2)}',
-          ),
+          row('Selling Price', 'THB ${priceNum.toStringAsFixed(2)}'),
+          row('Shipping Fee', 'THB ${shipNum.toStringAsFixed(2)}'),
           const Divider(),
-          row(
-            'Buyer Total',
-            'THB ${total.toStringAsFixed(2)}',
-          ),
+          row('Buyer Total', 'THB ${total.toStringAsFixed(2)}'),
         ]),
 
         const SizedBox(height: 20),
 
-        button(
-          'Continue to Review',
-          goToReview,
-        ),
+        button('Continue to Review', goToReview),
       ],
     );
   }
@@ -832,32 +773,20 @@ class _SellPageState extends State<SellPage> {
           row('Venue', venue.text.trim()),
           row('Zone', zone.text.trim()),
           row('Seat', seat.text.trim()),
-          row(
-            'Original Price',
-            'THB ${originalPrice.text}',
-          ),
+          row('Original Price', 'THB ${originalPrice.text}'),
 
           const Divider(),
 
-          row(
-            'Selling Price',
-            'THB ${priceNum.toStringAsFixed(2)}',
-          ),
-
+          row('Selling Price', 'THB ${priceNum.toStringAsFixed(2)}'),
           row('Delivery Method', delivery),
 
           if (delivery == 'Parcel Shipping') ...[
             row('Shipping Company', company),
-            row(
-              'Shipping Fee',
-              'THB ${shipNum.toStringAsFixed(2)}',
-            ),
+            row('Shipping Fee', 'THB ${shipNum.toStringAsFixed(2)}'),
           ] else
             row(
               'Transfer Channel',
-              channel == 'Other Application'
-                  ? appName.text
-                  : channel,
+              channel == 'Other Application' ? appName.text : channel,
             ),
 
           if (note.text.trim().isNotEmpty)
@@ -867,7 +796,6 @@ class _SellPageState extends State<SellPage> {
 
           row('Bank', bank ?? ''),
           row('Account Holder', accName.text.trim()),
-
           row(
             'Account Number',
             'Ending in ${acc.substring(acc.length - 4)}',
@@ -875,10 +803,7 @@ class _SellPageState extends State<SellPage> {
 
           const Divider(),
 
-          row(
-            'Buyer Total',
-            'THB ${total.toStringAsFixed(2)}',
-          ),
+          row('Buyer Total', 'THB ${total.toStringAsFixed(2)}'),
         ]),
 
         const SizedBox(height: 20),
@@ -895,14 +820,10 @@ class _SellPageState extends State<SellPage> {
                 child: const Text('Back'),
               ),
             ),
-
             const SizedBox(width: 10),
-
             Expanded(
               child: ElevatedButton(
-                onPressed: isSubmitting
-                    ? null
-                    : submitListing,
+                onPressed: isSubmitting ? null : submitListing,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: pink,
                   foregroundColor: Colors.white,
@@ -963,15 +884,9 @@ class _SellPageState extends State<SellPage> {
             'Ticket',
             '${concert.text.trim()} - ${seat.text.trim()}',
           ),
-          row(
-            'Selling Price',
-            'THB ${priceNum.toStringAsFixed(2)}',
-          ),
+          row('Selling Price', 'THB ${priceNum.toStringAsFixed(2)}'),
           if (createdListingId != null)
-            row(
-              'Listing ID',
-              createdListingId.toString(),
-            ),
+            row('Listing ID', createdListingId.toString()),
         ]),
 
         const SizedBox(height: 20),
