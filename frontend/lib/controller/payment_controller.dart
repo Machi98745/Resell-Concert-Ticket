@@ -1,10 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+import 'package:frontend/server/api_service.dart';
 
 class PaymentController {
-  static const String baseUrl = 'http://localhost:3000/api/payments';
-  static const Duration _timeout = Duration(seconds: 15);
   static const List<String> allowedDeliveryMethods = [
     'delivery',
     'meetup',
@@ -13,7 +10,7 @@ class PaymentController {
   ];
 
   // ==========================================================================
-  // 1. Business Logic: ตรวจสอบข้อมูลการชำระเงินและที่อยู่/สถานที่นัดรับ
+  // 1. Business Logic: ตรวจสอบข้อมูลการชำระเงินและที่อยู่/อีเมลจัดส่ง
   // ==========================================================================
   static String? validateCheckoutInput({
     required int? listingId,
@@ -34,7 +31,8 @@ class PaymentController {
     }
 
     if (shippingInfo.trim().isEmpty) {
-      return (deliveryMethod == 'meetup' || deliveryMethod == 'Digital Transfer')
+      return (deliveryMethod == 'meetup' ||
+              deliveryMethod == 'Digital Transfer')
           ? 'Please specify the location/time or email for ticket pickup'
           : 'Please enter the shipping address for ticket delivery';
     }
@@ -64,7 +62,7 @@ class PaymentController {
   // 3. สร้างรายการจองและรอชำระเงิน 15 นาที (POST /api/payments/create)
   // ==========================================================================
   Future<Map<String, dynamic>> checkout({
-    required String token,
+    String? token,
     required int listingId,
     required String paymentMethod,
     required String deliveryMethod,
@@ -81,32 +79,14 @@ class PaymentController {
     }
 
     try {
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/create'),
-            headers: {
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode({
-              'listing_id': listingId,
-              'payment_method': paymentMethod.trim(),
-              'delivery_method': deliveryMethod,
-              'shipping_info': shippingInfo.trim(),
-              'receive_method': deliveryMethod,
-              'receive_details': shippingInfo.trim(),
-            }),
-          )
-          .timeout(_timeout);
-
-      final body = jsonDecode(response.body);
-
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        return Map<String, dynamic>.from(body);
-      } else {
-        final msg = body is Map ? body['message'] : null;
-        throw Exception(msg ?? 'Unable to create payment request');
-      }
+      return await ApiService.createPayment({
+        'listing_id': listingId,
+        'payment_method': paymentMethod.trim(),
+        'delivery_method': deliveryMethod,
+        'shipping_info': shippingInfo.trim(),
+        'receive_method': deliveryMethod,
+        'receive_details': shippingInfo.trim(),
+      });
     } catch (e) {
       debugPrint('PaymentController.checkout error: $e');
       throw Exception(_cleanErrorMessage(e));
@@ -117,7 +97,7 @@ class PaymentController {
   // 4. ยืนยันการชำระเงินภายใน 15 นาที + โอนสิทธิ์ตั๋ว (POST /api/payments/:id/confirm)
   // ==========================================================================
   Future<Map<String, dynamic>> confirmPayment({
-    required String token,
+    String? token,
     required int paymentId,
   }) async {
     if (paymentId <= 0) {
@@ -125,24 +105,11 @@ class PaymentController {
     }
 
     try {
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/$paymentId/confirm'),
-            headers: {
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer $token',
-            },
-          )
-          .timeout(_timeout);
-
-      final body = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        return Map<String, dynamic>.from(body);
-      } else {
-        final msg = body is Map ? body['message'] : null;
-        throw Exception(msg ?? 'Unable to confirm payment');
+      final res = await ApiService.confirmPayment(paymentId);
+      if (res is Map) {
+        return Map<String, dynamic>.from(res);
       }
+      return {'status': 'completed', 'payment_id': paymentId};
     } catch (e) {
       debugPrint('PaymentController.confirmPayment error: $e');
       throw Exception(_cleanErrorMessage(e));
@@ -153,28 +120,14 @@ class PaymentController {
   // 5. ยกเลิกรายการสั่งซื้อที่ยังไม่ชำระเงิน (POST /api/payments/:id/cancel)
   // ==========================================================================
   Future<Map<String, dynamic>> cancelPayment({
-    required String token,
     required int paymentId,
   }) async {
     try {
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/$paymentId/cancel'),
-            headers: {
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer $token',
-            },
-          )
-          .timeout(_timeout);
-
-      final body = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        return Map<String, dynamic>.from(body);
-      } else {
-        final msg = body is Map ? body['message'] : null;
-        throw Exception(msg ?? 'Unable to cancel order');
+      final res = await ApiService.cancelPayment(paymentId);
+      if (res is Map) {
+        return Map<String, dynamic>.from(res);
       }
+      return {'status': 'cancelled', 'payment_id': paymentId};
     } catch (e) {
       debugPrint('PaymentController.cancelPayment error: $e');
       throw Exception(_cleanErrorMessage(e));
@@ -184,27 +137,9 @@ class PaymentController {
   // ==========================================================================
   // 6. ดึงประวัติคำสั่งซื้อของฉัน (GET /api/payments/my-orders)
   // ==========================================================================
-  Future<List<Map<String, dynamic>>> getMyOrders(String token) async {
+  Future<List<Map<String, dynamic>>> getMyOrders() async {
     try {
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl/my-orders'),
-            headers: {
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer $token',
-            },
-          )
-          .timeout(_timeout);
-
-      final body = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        final List<dynamic> rawList = body is List ? body : (body['data'] ?? []);
-        return rawList.cast<Map<String, dynamic>>();
-      } else {
-        final msg = body is Map ? body['message'] : null;
-        throw Exception(msg ?? 'Unable to fetch orders');
-      }
+      return await ApiService.getMyOrders();
     } catch (e) {
       debugPrint('PaymentController.getMyOrders error: $e');
       throw Exception(_cleanErrorMessage(e));
@@ -212,33 +147,51 @@ class PaymentController {
   }
 
   // ==========================================================================
-  // 7. เช็กสถานะคำสั่งซื้อและเวลาที่เหลือตาม ID (GET /api/payments/:id)
+  // 7. เช็กสถานะคำสั่งซื้อตาม ID (GET /api/payments/:id)
   // ==========================================================================
   Future<Map<String, dynamic>> getPaymentById({
-    required String token,
     required int paymentId,
   }) async {
     try {
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl/$paymentId'),
-            headers: {
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer $token',
-            },
-          )
-          .timeout(_timeout);
-
-      final body = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        return Map<String, dynamic>.from(body);
-      } else {
-        final msg = body is Map ? body['message'] : null;
-        throw Exception(msg ?? 'Unable to fetch payment status');
+      final res = await ApiService.get('/payments/$paymentId');
+      if (res is Map) {
+        return Map<String, dynamic>.from(res);
       }
+      throw Exception('Invalid payment detail');
     } catch (e) {
       debugPrint('PaymentController.getPaymentById error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
+  // ==========================================================================
+  // 8. ผู้ขายกดส่งบัตร (POST /api/payments/:id/ship)
+  // ==========================================================================
+  Future<Map<String, dynamic>> shipOrder({
+    required int paymentId,
+    String? trackingNumber,
+  }) async {
+    try {
+      return await ApiService.shipOrder(
+        paymentId,
+        trackingNumber: trackingNumber,
+      );
+    } catch (e) {
+      debugPrint('PaymentController.shipOrder error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
+  // ==========================================================================
+  // 9. ผู้ซื้อกดยืนยันรับบัตร (POST /api/payments/:id/receive)
+  // ==========================================================================
+  Future<Map<String, dynamic>> confirmReceived({
+    required int paymentId,
+  }) async {
+    try {
+      return await ApiService.confirmReceived(paymentId);
+    } catch (e) {
+      debugPrint('PaymentController.confirmReceived error: $e');
       throw Exception(_cleanErrorMessage(e));
     }
   }

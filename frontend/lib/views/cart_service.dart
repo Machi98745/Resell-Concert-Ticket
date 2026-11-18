@@ -1,13 +1,45 @@
+
 import 'dart:math';
 
 class CartService {
   // ==========================================
-  // CART & RESALE DATA
+  // CART & RESALE DATA (แยกตะกร้าและประวัติตาม User แต่ละคน ห้ามเชื่อมกัน)
   // ==========================================
 
-  static final List<Map<String, dynamic>> items = [];
-  static final List<Map<String, dynamic>> history = [];
-  
+  static String _currentUserKey = 'guest';
+
+  static final Map<String, List<Map<String, dynamic>>> _cartsByUser = {
+    'guest': <Map<String, dynamic>>[],
+  };
+
+  static final Map<String, List<Map<String, dynamic>>> _historyByUser = {
+    'guest': <Map<String, dynamic>>[],
+  };
+
+  static String get currentUserKey => _currentUserKey;
+
+  /// ตั้งค่า User ปัจจุบันเพื่อให้ตะกร้าสินค้าแยกตามบัญชีผู้ใช้แต่ละคน
+  static void setCurrentUser(dynamic userIdentifier) {
+    final raw = userIdentifier?.toString().trim() ?? '';
+    final key = raw.isEmpty ? 'guest' : raw;
+    _currentUserKey = key;
+    _cartsByUser.putIfAbsent(key, () => <Map<String, dynamic>>[]);
+    _historyByUser.putIfAbsent(key, () => <Map<String, dynamic>>[]);
+  }
+
+  /// ล้าง Session ตะกร้าเมื่อ Log Out (ข้อมูลของ User เดิมยังคงเก็บแยกไว้ใน key ของ User นั้น)
+  static void logoutUser() {
+    _currentUserKey = 'guest';
+    _cartsByUser['guest'] = <Map<String, dynamic>>[];
+    _historyByUser['guest'] = <Map<String, dynamic>>[];
+  }
+
+  static List<Map<String, dynamic>> get items =>
+      _cartsByUser.putIfAbsent(_currentUserKey, () => <Map<String, dynamic>>[]);
+
+  static List<Map<String, dynamic>> get history =>
+      _historyByUser.putIfAbsent(_currentUserKey, () => <Map<String, dynamic>>[]);
+
   // รายการตั๋วที่ผู้ใช้งานนำมาประกาศขาย
   static final List<Map<String, dynamic>> resaleListings = [];
 
@@ -15,10 +47,9 @@ class CartService {
   static int _orderCounter = 1;
 
   // ==========================================
-  // UNPAID ORDER CHECK (เช็ครายการค้างชำระ)
+  // UNPAID ORDER CHECK
   // ==========================================
 
-  // เช็คว่ามีรายการที่รอชำระเงิน (To Pay) อยู่แล้วหรือไม่
   static bool hasActiveUnpaidOrder() {
     refreshExpiredOrders();
     final unpaid = getOrdersByStatus('To Pay');
@@ -29,7 +60,9 @@ class CartService {
   // RESALE TICKET MANAGEMENT
   // ==========================================
 
-  static void createResaleListing(Map<String, dynamic> listingData) {
+  static void createResaleListing(
+    Map<String, dynamic> listingData,
+  ) {
     final newListing = {
       ...listingData,
       'listingId': 'LIST_${DateTime.now().millisecondsSinceEpoch}',
@@ -37,42 +70,62 @@ class CartService {
       'createdDate': DateTime.now(),
       'isShippedBySeller': false,
     };
+
     resaleListings.add(newListing);
   }
 
-  static List<Map<String, dynamic>> getResaleListingsForConcert(String concertName) {
+  static List<Map<String, dynamic>> getResaleListingsForConcert(
+    String concertName,
+  ) {
     final target = concertName.trim().toLowerCase();
-    
-    return resaleListings.where((item) {
-      final itemConcert = (item['concert'] ?? item['concertName'] ?? '').toString().trim().toLowerCase();
-      final status = (item['status'] ?? 'Available').toString().toLowerCase();
 
-      final isMatch = itemConcert.contains(target) || target.contains(itemConcert);
-      
+    return resaleListings.where((item) {
+      final itemConcert = (
+        item['concert'] ?? item['concertName'] ?? ''
+      ).toString().trim().toLowerCase();
+
+      final status = (item['status'] ?? 'Available')
+          .toString()
+          .toLowerCase();
+
+      final isMatch =
+          itemConcert.contains(target) || target.contains(itemConcert);
+
       return isMatch && status == 'available';
     }).toList();
   }
 
   static bool markTicketAsShipped(String listingId) {
-    final index = resaleListings.indexWhere((item) => item['listingId'] == listingId);
+    final index = resaleListings.indexWhere(
+      (item) => item['listingId'] == listingId,
+    );
+
     if (index != -1) {
       resaleListings[index]['status'] = 'Shipped';
       resaleListings[index]['isShippedBySeller'] = true;
 
       for (final order in history) {
         final orderItems = order['items'] as List?;
+
         if (orderItems != null) {
           for (final item in orderItems) {
             if (item['listingId'] == listingId) {
               order['status'] = 'To Receive';
-              order['shippingStatus'] = 'Seller has shipped your ticket';
-              _addTimeline(order, 'Seller confirmed ticket shipment.');
+              order['shippingStatus'] =
+                  'Seller has shipped your ticket';
+
+              _addTimeline(
+                order,
+                'Seller confirmed ticket shipment.',
+              );
             }
           }
         }
       }
+
       return true;
     }
+
     return false;
   }
 
@@ -126,7 +179,9 @@ class CartService {
     return DateTime(year, month, day);
   }
 
-  static bool isConcertFinished(Map<String, dynamic> concert) {
+  static bool isConcertFinished(
+    Map<String, dynamic> concert,
+  ) {
     final date = _parseConcertDate(
       concert['date'] ?? concert['concertDate'],
     );
@@ -135,13 +190,24 @@ class CartService {
 
     final today = DateTime.now();
 
-    final concertDay = DateTime(date.year, date.month, date.day);
-    final currentDay = DateTime(today.year, today.month, today.day);
+    final concertDay = DateTime(
+      date.year,
+      date.month,
+      date.day,
+    );
+
+    final currentDay = DateTime(
+      today.year,
+      today.month,
+      today.day,
+    );
 
     return concertDay.isBefore(currentDay);
   }
 
-  static bool isTicketSold(Map<String, dynamic> ticket) {
+  static bool isTicketSold(
+    Map<String, dynamic> ticket,
+  ) {
     final status = ticket['status']
         ?.toString()
         .trim()
@@ -152,7 +218,9 @@ class CartService {
         status == 'sold out';
   }
 
-  static bool isConcertSoldOut(Map<String, dynamic> concert) {
+  static bool isConcertSoldOut(
+    Map<String, dynamic> concert,
+  ) {
     final tickets = concert['tickets'];
 
     if (tickets is! List || tickets.isEmpty) {
@@ -162,11 +230,15 @@ class CartService {
     return tickets.every(
       (ticket) =>
           ticket is Map &&
-          isTicketSold(Map<String, dynamic>.from(ticket)),
+          isTicketSold(
+            Map<String, dynamic>.from(ticket),
+          ),
     );
   }
 
-  static String getConcertStatus(Map<String, dynamic> concert) {
+  static String getConcertStatus(
+    Map<String, dynamic> concert,
+  ) {
     if (isConcertFinished(concert)) {
       return 'Finished';
     }
@@ -210,27 +282,55 @@ class CartService {
       }
     }
 
-    items.add(Map<String, dynamic>.from(ticket));
+    final newTicket = Map<String, dynamic>.from(ticket);
+
+    // Standardize ticket details
+    newTicket['seat'] = ticket['seat'] ??
+        ticket['selectedSeat'] ??
+        ticket['seatNumber'] ??
+        '-';
+
+    newTicket['zone'] = ticket['zone'] ??
+        ticket['ticketZone'] ??
+        'General Zone';
+
+    newTicket['location'] = ticket['location'] ??
+        ticket['venue'] ??
+        ticket['concertLocation'] ??
+        '-';
+
+    newTicket['date'] = ticket['date'] ??
+        ticket['concertDate'] ??
+        ticket['eventDate'] ??
+        '-';
+
+    newTicket['time'] = ticket['time'] ??
+        ticket['concertTime'] ??
+        ticket['eventTime'] ??
+        '-';
+
+    items.add(newTicket);
 
     return true;
   }
 
+  // ลบสินค้าออกจาก Cart
   static void removeFromCart(int index) {
     if (index >= 0 && index < items.length) {
       items.removeAt(index);
     }
   }
 
+  // คำนวณราคารวมใน Cart
   static double get totalPrice {
-    return items.fold<double>(
-      0,
-      (total, item) {
-        final price =
-            double.tryParse(item['price'].toString()) ?? 0;
+    return items.fold<double>(0, (total, item) {
+      final price = double.tryParse(
+            item['price']?.toString() ?? '0',
+          ) ??
+          0;
 
-        return total + price;
-      },
-    );
+      return total + price;
+    });
   }
 
   // ==========================================
@@ -262,8 +362,10 @@ class CartService {
     final orderTotal = orderItems.fold<double>(
       0,
       (total, item) {
-        final price =
-            double.tryParse(item['price'].toString()) ?? 0;
+        final price = double.tryParse(
+              item['price']?.toString() ?? '0',
+            ) ??
+            0;
 
         return total + price;
       },
@@ -405,11 +507,16 @@ class CartService {
     );
 
     final orderItems = order['items'] as List?;
+
     if (orderItems != null) {
       for (final item in orderItems) {
         final listingId = item['listingId'];
+
         if (listingId != null) {
-          final resIndex = resaleListings.indexWhere((res) => res['listingId'] == listingId);
+          final resIndex = resaleListings.indexWhere(
+            (res) => res['listingId'] == listingId,
+          );
+
           if (resIndex != -1) {
             resaleListings[resIndex]['status'] = 'Sold';
           }
@@ -441,9 +548,11 @@ class CartService {
     );
 
     final orderItems = order['items'] as List?;
+
     if (orderItems != null) {
       for (final item in orderItems) {
         final listingId = item['listingId'];
+
         if (listingId != null) {
           markTicketAsShipped(listingId.toString());
         }
@@ -470,11 +579,16 @@ class CartService {
     );
 
     final orderItems = order['items'] as List?;
+
     if (orderItems != null) {
       for (final item in orderItems) {
         final listingId = item['listingId'];
+
         if (listingId != null) {
-          final resIndex = resaleListings.indexWhere((res) => res['listingId'] == listingId);
+          final resIndex = resaleListings.indexWhere(
+            (res) => res['listingId'] == listingId,
+          );
+
           if (resIndex != -1) {
             resaleListings[resIndex]['status'] = 'Completed';
           }
@@ -502,6 +616,10 @@ class CartService {
     return true;
   }
 
+  // ==========================================
+  // ORDER TIMELINE
+  // ==========================================
+
   static void _addTimeline(
     Map<String, dynamic> order,
     String message,
@@ -523,6 +641,10 @@ class CartService {
     }
   }
 
+  // ==========================================
+  // GET ORDERS BY STATUS
+  // ==========================================
+
   static List<Map<String, dynamic>> getOrdersByStatus(
     String status,
   ) {
@@ -534,6 +656,10 @@ class CartService {
         .reversed
         .toList();
   }
+
+  // ==========================================
+  // COMPLETE PURCHASE
+  // ==========================================
 
   static void completePurchase() {
     final order = createOrder();

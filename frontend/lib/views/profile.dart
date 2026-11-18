@@ -1,10 +1,10 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'cart_service.dart';
 import 'historypage.dart';
 import 'favorite.dart';
 import 'login.dart';
+import 'package:frontend/server/api_service.dart';
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -22,36 +22,113 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  String name = 'Ticket Pink User';
-  String email = 'user@email.com';
-  String phone = '080-123-4567';
+  String username = '';
+  String name = '';
+  String email = '';
+  String phone = '';
 
-  Uint8List? profileImageBytes;
+  String? profileImageUrl;
+  bool isUploadingImage = false;
 
   final ImagePicker picker = ImagePicker();
 
-  // SELECT PROFILE IMAGE
+  bool isLoading = true;
+  bool isSaving = false;
+  String? loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    loadProfile();
+  }
+
+  // LOAD PROFILE FROM MYSQL
+  Future<void> loadProfile() async {
+    if (!mounted) return;
+
+    setState(() {
+      isLoading = true;
+      loadError = null;
+    });
+
+    try {
+      final user = await ApiService.getProfile();
+
+      if (!mounted) return;
+
+      final imagePath = user['profile_image']?.toString();
+
+      setState(() {
+        username = user['username']?.toString() ?? '';
+        name = user['full_name']?.toString() ?? '';
+        email = user['email']?.toString() ?? '';
+        phone = user['phone']?.toString() ?? '';
+
+        profileImageUrl = imagePath == null || imagePath.isEmpty
+            ? null
+            : _withCacheBuster(ApiService.getImageUrl(imagePath));
+
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+        loadError = e.toString();
+      });
+    }
+  }
+
+  // PREVENT OLD IMAGE FROM BEING CACHED
+  String _withCacheBuster(String url) {
+    final separator = url.contains('?') ? '&' : '?';
+    return '$url${separator}v=${DateTime.now().millisecondsSinceEpoch}';
+  }
+
+  // SELECT AND UPLOAD PROFILE IMAGE
   Future<void> pickProfileImage() async {
+    if (isUploadingImage) return;
+
     try {
       final XFile? image = await picker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 80,
       );
 
-      if (image == null) return;
+      if (image == null || !mounted) return;
 
-      final bytes = await image.readAsBytes();
+      setState(() {
+        isUploadingImage = true;
+      });
+
+      final imagePath = await ApiService.uploadProfileImage(image);
 
       if (!mounted) return;
 
       setState(() {
-        profileImageBytes = bytes;
+        profileImageUrl = _withCacheBuster(ApiService.getImageUrl(imagePath));
+        isUploadingImage = false;
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile picture updated successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
 
+      setState(() {
+        isUploadingImage = false;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to select image: $e')),
+        SnackBar(
+          content: Text('Unable to upload image: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -61,37 +138,132 @@ class _ProfilePageState extends State<ProfilePage> {
     return CircleAvatar(
       radius: radius,
       backgroundColor: Colors.white,
-      backgroundImage: profileImageBytes != null
-          ? MemoryImage(profileImageBytes!)
+      backgroundImage: profileImageUrl != null
+          ? NetworkImage(profileImageUrl!)
           : null,
-      child: profileImageBytes == null
-          ? Icon(
-              Icons.person,
-              size: radius * 1.15,
-              color: pink,
-            )
+      child: profileImageUrl == null
+          ? Icon(Icons.person, size: radius * 1.15, color: pink)
           : null,
     );
   }
 
-  // EDIT PROFILE
-  void editProfile() {
+  // UPLOAD BUTTON
+  Widget cameraButton({
+    double size = 18,
+    Color backgroundColor = pink,
+    Color iconColor = Colors.white,
+  }) {
+    return GestureDetector(
+      onTap: isUploadingImage ? null : pickProfileImage,
+      child: Container(
+        padding: const EdgeInsets.all(7),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          shape: BoxShape.circle,
+        ),
+        child: isUploadingImage
+            ? SizedBox(
+                width: size,
+                height: size,
+                child: CircularProgressIndicator(
+                  color: iconColor,
+                  strokeWidth: 2,
+                ),
+              )
+            : Icon(Icons.camera_alt, color: iconColor, size: size),
+      ),
+    );
+  }
+
+  // EDIT PROFILE AND SAVE TO MYSQL
+  Future<void> editProfile() async {
+    if (isLoading || isSaving) return;
+
+    final usernameController = TextEditingController(text: username);
     final nameController = TextEditingController(text: name);
     final emailController = TextEditingController(text: email);
     final phoneController = TextEditingController(text: phone);
 
-    showDialog(
+    bool dialogSaving = false;
+
+    await showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            Future<void> saveProfile() async {
+              final newUsername = usernameController.text.trim();
+              final newName = nameController.text.trim();
+              final newEmail = emailController.text.trim();
+              final newPhone = phoneController.text.trim();
+
+              if (newUsername.isEmpty || newName.isEmpty || newEmail.isEmpty) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Username, name, and email cannot be empty.'),
+                  ),
+                );
+                return;
+              }
+
+              final emailPattern = RegExp(r'^[\w.+-]+@([\w-]+\.)+[\w-]{2,}$');
+
+              if (!emailPattern.hasMatch(newEmail)) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter a valid email address.'),
+                  ),
+                );
+                return;
+              }
+
+              setDialogState(() {
+                dialogSaving = true;
+              });
+
+              try {
+                final updatedUser = await ApiService.updateProfile({
+                  'username': newUsername,
+                  'full_name': newName,
+                  'email': newEmail,
+                  'phone': newPhone,
+                });
+
+                if (!mounted || !dialogContext.mounted) return;
+
+                setState(() {
+                  username = updatedUser['username']?.toString() ?? newUsername;
+                  name = updatedUser['full_name']?.toString() ?? newName;
+                  email = updatedUser['email']?.toString() ?? newEmail;
+                  phone = updatedUser['phone']?.toString() ?? newPhone;
+                });
+
+                Navigator.pop(dialogContext);
+
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Profile updated successfully!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                if (!dialogContext.mounted) return;
+
+                setDialogState(() {
+                  dialogSaving = false;
+                });
+
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  SnackBar(content: Text('Unable to update profile: $e')),
+                );
+              }
+            }
+
             return AlertDialog(
               title: const Text(
                 'Edit Profile',
-                style: TextStyle(
-                  color: darkPink,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
               ),
               content: SingleChildScrollView(
                 child: Column(
@@ -104,26 +276,42 @@ class _ProfilePageState extends State<ProfilePage> {
                           bottom: 0,
                           right: 0,
                           child: GestureDetector(
-                            onTap: () async {
-                              await pickProfileImage();
-                              setDialogState(() {});
-                            },
+                            onTap: dialogSaving || isUploadingImage
+                                ? null
+                                : () async {
+                                    await pickProfileImage();
+
+                                    if (dialogContext.mounted) {
+                                      setDialogState(() {});
+                                    }
+                                  },
                             child: Container(
                               padding: const EdgeInsets.all(8),
                               decoration: const BoxDecoration(
                                 color: pink,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(
-                                Icons.camera_alt,
-                                color: Colors.white,
-                                size: 18,
-                              ),
+                              child: isUploadingImage
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.camera_alt,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
                             ),
                           ),
                         ),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    _editField('Username', usernameController),
                     const SizedBox(height: 12),
                     _editField('Full Name', nameController),
                     const SizedBox(height: 12),
@@ -135,7 +323,9 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
+                  onPressed: dialogSaving || isUploadingImage
+                      ? null
+                      : () => Navigator.pop(dialogContext),
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
@@ -143,43 +333,193 @@ class _ProfilePageState extends State<ProfilePage> {
                     backgroundColor: pink,
                     foregroundColor: Colors.white,
                   ),
-                  onPressed: () {
-                    if (nameController.text.trim().isEmpty ||
-                        emailController.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(dialogContext).showSnackBar(
-                        const SnackBar(
-                          content: Text('Name and email cannot be empty.'),
-                        ),
-                      );
-                      return;
-                    }
-
-                    setState(() {
-                      name = nameController.text.trim();
-                      email = emailController.text.trim();
-                      phone = phoneController.text.trim();
-                    });
-
-                    Navigator.pop(dialogContext);
-                  },
-                  child: const Text('Save'),
+                  onPressed: dialogSaving || isUploadingImage
+                      ? null
+                      : saveProfile,
+                  child: dialogSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Save'),
                 ),
               ],
             );
           },
         );
       },
-    ).then((_) {
-      nameController.dispose();
-      emailController.dispose();
-      phoneController.dispose();
-    });
+    );
+
+    usernameController.dispose();
+    nameController.dispose();
+    emailController.dispose();
+    phoneController.dispose();
   }
 
-  Widget _editField(
-    String label,
-    TextEditingController controller,
-  ) {
+  // CHANGE PASSWORD FROM PROFILE PAGE
+  Future<void> openChangePasswordDialog() async {
+    final currentController = TextEditingController();
+    final newController = TextEditingController();
+    final confirmController = TextEditingController();
+    bool dialogSaving = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text(
+                'Change Password',
+                style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: currentController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'Current Password',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: pink),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: newController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'New Password (min 6 chars)',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: pink),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: confirmController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'Confirm New Password',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: pink),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: dialogSaving
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: pink,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: dialogSaving
+                      ? null
+                      : () async {
+                          final currentPass = currentController.text;
+                          final newPass = newController.text;
+                          final confirmPass = confirmController.text;
+
+                          if (currentPass.isEmpty ||
+                              newPass.length < 6 ||
+                              newPass != confirmPass) {
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Check your password. New password must be at least 6 characters and match.',
+                                ),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() {
+                            dialogSaving = true;
+                          });
+
+                          try {
+                            await ApiService.changePassword(
+                              currentPassword: currentPass,
+                              newPassword: newPass,
+                            );
+
+                            if (!mounted || !dialogContext.mounted) return;
+                            Navigator.pop(dialogContext);
+
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Password changed successfully!'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          } catch (e) {
+                            if (!dialogContext.mounted) return;
+                            setDialogState(() {
+                              dialogSaving = false;
+                            });
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  e.toString().replaceAll('Exception: ', ''),
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                  child: dialogSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Update Password'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    currentController.dispose();
+    newController.dispose();
+    confirmController.dispose();
+  }
+
+  Widget _editField(String label, TextEditingController controller) {
     return TextField(
       controller: controller,
       decoration: InputDecoration(
@@ -188,9 +528,7 @@ class _ProfilePageState extends State<ProfilePage> {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: pink),
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -232,22 +570,19 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   // LOG OUT
-  void logout() {
-    showDialog(
+  Future<void> logout() async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text(
             'Log Out',
-            style: TextStyle(
-              color: darkPink,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
           ),
           content: const Text('Are you sure you want to log out?'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
+              onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -255,20 +590,33 @@ class _ProfilePageState extends State<ProfilePage> {
                 backgroundColor: pink,
                 foregroundColor: Colors.white,
               ),
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const Login()),
-                  (route) => false,
-                );
-              },
+              onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text('Log Out'),
             ),
           ],
         );
       },
     );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await ApiService.clearToken();
+
+      if (!mounted) return;
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const Login()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Logout failed: $e')));
+    }
   }
 
   @override
@@ -276,20 +624,63 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       backgroundColor: lightPink,
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 25),
-              _buildProfileCard(),
-              const SizedBox(height: 20),
-              _buildAccountMenu(),
-              const SizedBox(height: 20),
-              _buildLogoutButton(),
-              const SizedBox(height: 30),
-            ],
-          ),
-        ),
+        child: isLoading
+            ? const Center(child: CircularProgressIndicator(color: pink))
+            : loadError != null
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(25),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline, color: pink, size: 55),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Unable to load profile',
+                        style: TextStyle(
+                          color: darkPink,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        loadError!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                      const SizedBox(height: 15),
+                      ElevatedButton(
+                        onPressed: loadProfile,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: pink,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : RefreshIndicator(
+                color: pink,
+                onRefresh: loadProfile,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: Column(
+                    children: [
+                      _buildHeader(),
+                      const SizedBox(height: 25),
+                      _buildProfileCard(),
+                      const SizedBox(height: 20),
+                      _buildAccountMenu(),
+                      const SizedBox(height: 20),
+                      _buildLogoutButton(),
+                      const SizedBox(height: 30),
+                    ],
+                  ),
+                ),
+              ),
       ),
     );
   }
@@ -305,9 +696,7 @@ class _ProfilePageState extends State<ProfilePage> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.vertical(
-          bottom: Radius.circular(30),
-        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
       ),
       child: Column(
         children: [
@@ -341,16 +730,9 @@ class _ProfilePageState extends State<ProfilePage> {
               Positioned(
                 bottom: 0,
                 right: 0,
-                child: GestureDetector(
-                  onTap: pickProfileImage,
-                  child: Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.camera_alt, color: pink, size: 18),
-                  ),
+                child: cameraButton(
+                  backgroundColor: Colors.white,
+                  iconColor: pink,
                 ),
               ),
             ],
@@ -392,11 +774,21 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
             const SizedBox(height: 18),
+            _infoRow(
+              Icons.alternate_email,
+              'Username',
+              username.isEmpty ? '-' : username,
+            ),
+            const Divider(height: 25),
             _infoRow(Icons.person_outline, 'Full Name', name),
             const Divider(height: 25),
             _infoRow(Icons.email_outlined, 'Email', email),
             const Divider(height: 25),
-            _infoRow(Icons.phone_outlined, 'Phone Number', phone),
+            _infoRow(
+              Icons.phone_outlined,
+              'Phone Number',
+              phone.isEmpty ? '-' : phone,
+            ),
           ],
         ),
       ),
@@ -425,26 +817,15 @@ class _ProfilePageState extends State<ProfilePage> {
               'My Tickets',
               openHistory,
             ),
+            _menuItem(Icons.favorite_border, 'My Favorites', openFavorites),
+            _menuItem(Icons.sell_outlined, 'My Reselling', openReselling),
             _menuItem(
-              Icons.favorite_border,
-              'My Favorites',
-              openFavorites,
+              Icons.lock_outline,
+              'Change Password',
+              openChangePasswordDialog,
             ),
-            _menuItem(
-              Icons.sell_outlined,
-              'My Reselling',
-              openReselling,
-            ),
-            _menuItem(
-              Icons.settings_outlined,
-              'Settings',
-              openSettings,
-            ),
-            _menuItem(
-              Icons.help_outline,
-              'Help & Support',
-              openHelp,
-            ),
+            _menuItem(Icons.settings_outlined, 'Settings', openSettings),
+            _menuItem(Icons.help_outline, 'Help & Support', openHelp),
           ],
         ),
       ),
@@ -533,7 +914,7 @@ class _ProfilePageState extends State<ProfilePage> {
 }
 
 // =====================================================
-// MY RESELLING PAGE (หน้าจัดการตั๋วฝั่งผู้ขาย)
+// MY RESELLING PAGE
 // =====================================================
 
 class MyResellingPage extends StatefulWidget {
@@ -544,170 +925,449 @@ class MyResellingPage extends StatefulWidget {
 }
 
 class _MyResellingPageState extends State<MyResellingPage> {
+  List<Map<String, dynamic>> myListings = [];
+  bool isLoading = true;
+  String? errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    loadMyListings();
+  }
+
+  // LOAD LISTINGS FROM BACKEND
+  Future<void> loadMyListings() async {
+    if (!mounted) return;
+
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final result = await ApiService.getMyResellListings();
+
+      if (!mounted) return;
+
+      setState(() {
+        myListings = result;
+        isLoading = false;
+      });
+
+      debugPrint('My resell listings: $result');
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+        errorMessage = e.toString();
+      });
+
+      debugPrint('Load my resell listings error: $e');
+    }
+  }
+
+  String getValue(
+    Map<String, dynamic> ticket,
+    List<String> keys, {
+    String fallback = '-',
+  }) {
+    for (final key in keys) {
+      final value = ticket[key];
+
+      if (value != null && value.toString().isNotEmpty) {
+        return value.toString();
+      }
+    }
+
+    return fallback;
+  }
+
+  Color getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'sold':
+        return Colors.orange;
+      case 'shipped':
+        return Colors.blue;
+      case 'completed':
+        return Colors.green;
+      case 'cancelled':
+        return Colors.grey;
+      default:
+        return pink;
+    }
+  }
+
+  Widget buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(25),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.sell_outlined, color: pink, size: 55),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'No tickets for sale yet',
+              style: TextStyle(
+                color: darkPink,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Your reselling tickets will appear here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+            const SizedBox(height: 18),
+            TextButton.icon(
+              onPressed: loadMyListings,
+              icon: const Icon(Icons.refresh, color: pink),
+              label: const Text('Refresh', style: TextStyle(color: pink)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(25),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, color: pink, size: 50),
+            const SizedBox(height: 12),
+            const Text(
+              'Unable to load your listings',
+              style: TextStyle(
+                color: darkPink,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              errorMessage ?? 'Something went wrong.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 15),
+            ElevatedButton(
+              onPressed: loadMyListings,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: pink,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Try Again'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDateTime(dynamic raw) {
+    if (raw == null || raw.toString().trim().isEmpty) return '-';
+    final parsed = DateTime.tryParse(raw.toString());
+    if (parsed == null) return raw.toString();
+    final local = parsed.toLocal();
+    final d = local.day.toString().padLeft(2, '0');
+    final m = local.month.toString().padLeft(2, '0');
+    final y = local.year;
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return '$d/$m/$y $hh:$mm';
+  }
+
+  String _formatMoney(dynamic raw) {
+    final val = double.tryParse(raw?.toString() ?? '');
+    if (val == null) return '฿0.00';
+    return '฿${val.toStringAsFixed(2)}';
+  }
+
+  Widget _detailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: pink),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 115,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 12.5,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: darkPink,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // แสดงข้อมูลตั๋วใบนั้นทั้งหมด ยกเว้น Ticket Code
+  Widget buildTicketCard(Map<String, dynamic> ticket) {
+    final status = getValue(ticket, [
+      'status',
+      'listing_status',
+    ], fallback: 'Available');
+
+    final concert = getValue(ticket, [
+      'concert_title',
+      'concert',
+      'concert_name',
+      'title',
+    ], fallback: 'Concert Ticket');
+
+    final artist = getValue(ticket, ['artist']);
+    final category = getValue(ticket, ['category']);
+    final venue = getValue(ticket, ['venue', 'location']);
+    final showDateTime = _formatDateTime(
+      ticket['show_datetime'] ?? ticket['date'],
+    );
+    final zone = getValue(ticket, ['zone_name', 'zone']);
+    final seat = getValue(ticket, ['seat_number', 'seat']);
+
+    final originalPrice = _formatMoney(
+      ticket['original_price'] ?? ticket['originalPrice'],
+    );
+    final resellPrice = _formatMoney(
+      ticket['resell_price'] ?? ticket['price'] ?? 0,
+    );
+    final shippingFee = _formatMoney(
+      ticket['shipping_fee'] ?? ticket['shippingFee'] ?? 0,
+    );
+
+    final deliveryType = getValue(ticket, [
+      'delivery_type',
+      'deliveryMethod',
+      'delivery',
+    ]);
+    final shippingCompany = getValue(ticket, [
+      'shipping_company',
+      'shippingChannel',
+      'channel',
+    ]);
+    final deliveryNote = getValue(ticket, [
+      'delivery_note',
+      'note',
+    ]);
+    final createdAt = _formatDateTime(
+      ticket['created_at'] ?? ticket['createdDate'],
+    );
+
+    final statusColor = getStatusColor(status);
+
+    return Card(
+      color: Colors.white,
+      margin: const EdgeInsets.only(bottom: 14),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        concert,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: darkPink,
+                        ),
+                      ),
+                      if (artist != '-') ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          artist,
+                          style: const TextStyle(
+                            color: pink,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    status.toUpperCase(),
+                    style: TextStyle(
+                      color: statusColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 22),
+
+            // ข้อมูลตั๋วทั้งหมด (ยกเว้น Ticket Code)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: lightPink,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Ticket & Listing Details',
+                    style: TextStyle(
+                      color: darkPink,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (category != '-')
+                    _detailRow(Icons.category_outlined, 'Category', category),
+                  _detailRow(
+                    Icons.calendar_today_outlined,
+                    'Show Date & Time',
+                    showDateTime,
+                  ),
+                  _detailRow(Icons.location_on_outlined, 'Venue', venue),
+                  _detailRow(Icons.grid_view_outlined, 'Zone', zone),
+                  _detailRow(Icons.event_seat_outlined, 'Seat Number', seat),
+                  _detailRow(
+                    Icons.sell_outlined,
+                    'Original Price',
+                    originalPrice,
+                  ),
+                  _detailRow(
+                    Icons.local_shipping_outlined,
+                    'Delivery Type',
+                    deliveryType,
+                  ),
+                  if (shippingCompany != '-')
+                    _detailRow(
+                      Icons.storefront_outlined,
+                      'Channel / Carrier',
+                      shippingCompany,
+                    ),
+                  _detailRow(
+                    Icons.payments_outlined,
+                    'Shipping Fee',
+                    shippingFee,
+                  ),
+                  if (deliveryNote != '-')
+                    _detailRow(Icons.notes_outlined, 'Note', deliveryNote),
+                  if (createdAt != '-')
+                    _detailRow(Icons.access_time, 'Listed On', createdAt),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Resell Price',
+                  style: TextStyle(
+                    color: darkPink,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  resellPrice,
+                  style: const TextStyle(
+                    color: pink,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 17,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final myListings = CartService.resaleListings;
-
     return Scaffold(
       backgroundColor: lightPink,
       appBar: AppBar(
         title: const Text(
           'My Reselling',
-          style: TextStyle(
-            color: darkPink,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,
         foregroundColor: darkPink,
         elevation: 0,
+        actions: [
+          IconButton(
+            onPressed: isLoading ? null : loadMyListings,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+          ),
+        ],
       ),
-      body: myListings.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(30),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(25),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.sell_outlined,
-                        color: pink,
-                        size: 55,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'No tickets for sale yet',
-                      style: TextStyle(
-                        color: darkPink,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Your reselling tickets will appear here.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
-                    ),
-                  ],
-                ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator(color: pink))
+          : errorMessage != null
+          ? buildErrorState()
+          : myListings.isEmpty
+          ? buildEmptyState()
+          : RefreshIndicator(
+              color: pink,
+              onRefresh: loadMyListings,
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(20),
+                itemCount: myListings.length,
+                itemBuilder: (context, index) {
+                  return buildTicketCard(myListings[index]);
+                },
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(20),
-              itemCount: myListings.length,
-              itemBuilder: (context, index) {
-                final ticket = myListings[index];
-                final status = ticket['status'] ?? 'Available';
-                final listingId = ticket['listingId'] ?? '';
-
-                Color getStatusColor() {
-                  switch (status) {
-                    case 'Sold':
-                      return Colors.orange;
-                    case 'Shipped':
-                      return Colors.blue;
-                    case 'Completed':
-                      return Colors.green;
-                    default:
-                      return Colors.pink;
-                  }
-                }
-
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                ticket['concert'] ?? 'Concert Ticket',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  color: darkPink,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: getStatusColor().withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                status,
-                                style: TextStyle(
-                                  color: getStatusColor(),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Zone: ${ticket['zone']} | Seat: ${ticket['seat']}',
-                          style: const TextStyle(color: Colors.grey, fontSize: 13),
-                        ),
-                        Text(
-                          'Price: ฿${ticket['price']}',
-                          style: const TextStyle(
-                            color: pink,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-
-                        // ปุ่มสำหรับผู้ขายกดยืนยันจัดส่งบัตร
-                        if (status == 'Sold') ...[
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              icon: const Icon(Icons.mark_email_read_outlined),
-                              label: const Text('Mark Ticket as Shipped'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: pink,
-                                foregroundColor: Colors.white,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  CartService.markTicketAsShipped(listingId);
-                                });
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Updated status: Ticket Shipped!'),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              },
             ),
     );
   }
@@ -744,56 +1404,101 @@ class _SettingsPageState extends State<SettingsPage> {
     final currentController = TextEditingController();
     final newController = TextEditingController();
     final confirmController = TextEditingController();
+    bool isUpdating = false;
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Change Password', style: TextStyle(color: darkPink)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _passwordField('Current Password', currentController),
-                const SizedBox(height: 12),
-                _passwordField('New Password', newController),
-                const SizedBox(height: 12),
-                _passwordField('Confirm New Password', confirmController),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: pink,
-                foregroundColor: Colors.white,
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text(
+                'Change Password',
+                style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
               ),
-              onPressed: () {
-                if (currentController.text.isEmpty ||
-                    newController.text.length < 6 ||
-                    newController.text != confirmController.text) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Check your password. New password must be at least 6 characters and match.',
-                      ),
-                    ),
-                  );
-                  return;
-                }
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _passwordField('Current Password', currentController),
+                    const SizedBox(height: 12),
+                    _passwordField('New Password', newController),
+                    const SizedBox(height: 12),
+                    _passwordField('Confirm New Password', confirmController),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isUpdating
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: pink,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: isUpdating
+                      ? null
+                      : () async {
+                          if (currentController.text.isEmpty ||
+                              newController.text.length < 6 ||
+                              newController.text != confirmController.text) {
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Check your password. New password must be at least 6 characters and match.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
 
-                Navigator.pop(dialogContext);
-                showMessage(
-                  'Password change UI completed. Connect to your API to save it.',
-                );
-              },
-              child: const Text('Update'),
-            ),
-          ],
+                          setDialogState(() {
+                            isUpdating = true;
+                          });
+
+                          try {
+                            await ApiService.changePassword(
+                              currentPassword: currentController.text,
+                              newPassword: newController.text,
+                            );
+
+                            if (!mounted || !dialogContext.mounted) return;
+                            Navigator.pop(dialogContext);
+                            showMessage('Password updated successfully!');
+                          } catch (e) {
+                            if (!dialogContext.mounted) return;
+                            setDialogState(() {
+                              isUpdating = false;
+                            });
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  e.toString().replaceAll('Exception: ', ''),
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                  child: isUpdating
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Update'),
+                ),
+              ],
+            );
+          },
         );
       },
     ).then((_) {
@@ -842,7 +1547,9 @@ class _SettingsPageState extends State<SettingsPage> {
               title: const Text('Push Notifications'),
               subtitle: const Text('Receive app notifications'),
               value: notificationsEnabled,
-              onChanged: (value) => setState(() => notificationsEnabled = value),
+              onChanged: (value) {
+                setState(() => notificationsEnabled = value);
+              },
             ),
             const Divider(height: 1),
             SwitchListTile(
@@ -851,7 +1558,9 @@ class _SettingsPageState extends State<SettingsPage> {
               title: const Text('Email Notifications'),
               subtitle: const Text('Receive updates by email'),
               value: emailNotifications,
-              onChanged: (value) => setState(() => emailNotifications = value),
+              onChanged: (value) {
+                setState(() => emailNotifications = value);
+              },
             ),
           ]),
           const SizedBox(height: 25),
@@ -1215,15 +1924,16 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                 borderSide: BorderSide.none,
               ),
             ),
-            items: const [
-              'Buying Tickets',
-              'Selling Tickets',
-              'Payment',
-              'Account',
-              'Other',
-            ].map((topic) {
-              return DropdownMenuItem(value: topic, child: Text(topic));
-            }).toList(),
+            items:
+                const [
+                  'Buying Tickets',
+                  'Selling Tickets',
+                  'Payment',
+                  'Account',
+                  'Other',
+                ].map((topic) {
+                  return DropdownMenuItem(value: topic, child: Text(topic));
+                }).toList(),
             onChanged: (value) {
               if (value != null) {
                 setState(() => selectedTopic = value);

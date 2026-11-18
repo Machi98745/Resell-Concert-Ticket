@@ -5,7 +5,9 @@ const JWT_KEY = process.env.JWT_SECRET || 'thisisthesecretforjwt_concert_app';
 // ตรวจสอบ JWT Token (บังคับต้องล็อกอิน)
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : null;
 
   if (!token) {
     return res.status(401).json({ message: 'Access denied. No token provided.' });
@@ -23,12 +25,15 @@ const verifyToken = (req, res, next) => {
 // ตรวจสอบ JWT Token แบบไม่บังคับ (ถ้ามีก็แกะให้ ถ้าไม่มีก็ไปต่อได้)
 const optionalVerifyToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : null;
+
   if (token) {
     try {
       req.user = jwt.verify(token, JWT_KEY);
     } catch (_) {
-      // ignore invalid optional token
+      req.user = null;
     }
   }
   next();

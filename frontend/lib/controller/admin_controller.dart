@@ -9,26 +9,26 @@ class AdminController {
   static const String baseUrl = 'http://localhost:3000/api/admin';
   static const Duration _timeout = Duration(seconds: 15);
 
-  // ==========================================================================
-  // 1. Business Logic: ตรวจสอบความถูกต้องของสิทธิ์และพารามิเตอร์แอดมิน (Validation)
-  // ==========================================================================
   static String? validateAdminAction({
     required String token,
-    required int? userId,
-    int? currentAdminId,
+    required dynamic userId,
+    dynamic currentAdminId,
     bool preventSelfAction = false,
   }) {
     if (token.trim().isEmpty) {
       return 'Please log in as an administrator';
     }
 
-    if (userId == null || userId <= 0) {
+    final parsedId = userId is int ? userId : int.tryParse(userId?.toString().trim() ?? '');
+    if (userId == null ||
+        userId.toString().trim().isEmpty ||
+        (parsedId != null && parsedId <= 0)) {
       return 'Invalid user ID';
     }
 
     if (preventSelfAction &&
         currentAdminId != null &&
-        userId == currentAdminId) {
+        userId.toString().trim() == currentAdminId.toString().trim()) {
       return 'Admin cannot suspend or delete their own account';
     }
 
@@ -36,13 +36,9 @@ class AdminController {
   }
 
   // ==========================================================================
-  // 2. ดึงรายชื่อผู้ใช้ทั้งหมด พร้อมยอดตั๋วที่ขาย/ซื้อ (GET /api/admin/users)
+  // 1. ฟังก์ชันดึงรายชื่อผู้ใช้ทั้งหมด (GET /api/admin/users)
   // ==========================================================================
   Future<List<Map<String, dynamic>>> getAllUsers(String token) async {
-    if (token.trim().isEmpty) {
-      throw Exception('Please log in as an administrator');
-    }
-
     try {
       final response = await _client
           .get(
@@ -54,18 +50,17 @@ class AdminController {
           )
           .timeout(_timeout);
 
-      final dynamic body = _safeDecode(response.body);
-
       if (response.statusCode == 200) {
-        if (body is List) {
-          return body.cast<Map<String, dynamic>>();
-        } else if (body is Map && body['data'] is List) {
-          return (body['data'] as List).cast<Map<String, dynamic>>();
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return decoded
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
         }
         return [];
       } else {
-        final msg = body is Map ? body['message'] : null;
-        throw Exception(msg ?? 'Unable to fetch user list');
+        final data = _safeDecodeMap(response.body);
+        throw Exception(data['message'] ?? 'Unable to fetch users list');
       }
     } catch (e) {
       debugPrint('AdminController.getAllUsers error: $e');
@@ -74,39 +69,32 @@ class AdminController {
   }
 
   // ==========================================================================
-  // 3. ระงับ / ปลดระงับบัญชีผู้ใช้ (PATCH /api/admin/users/:id/status)
+  // 2. ฟังก์ชันระงับ / ปลดระงับบัญชีผู้ใช้ (PATCH /api/admin/users/:id/status)
   // ==========================================================================
   Future<Map<String, dynamic>> updateUserStatus({
     required String token,
-    required int userId,
+    required dynamic userId,
     required bool isActive,
-    int? currentAdminId,
+    dynamic currentAdminId,
   }) async {
-    final validationError = validateAdminAction(
-      token: token,
-      userId: userId,
-      currentAdminId: currentAdminId,
-      preventSelfAction: !isActive,
-    );
-    if (validationError != null) {
-      throw Exception(validationError);
+    final idStr = userId.toString().trim();
+    if (idStr.isEmpty) {
+      throw Exception('User ID is required.');
     }
 
     try {
       final response = await _client
           .patch(
-            Uri.parse('$baseUrl/users/$userId/status'),
+            Uri.parse('$baseUrl/users/$idStr/status'),
             headers: {
               'Content-Type': 'application/json; charset=UTF-8',
               'Authorization': 'Bearer ${token.trim()}',
             },
-            body: jsonEncode({
-              'is_active': isActive ? 1 : 0,
-            }),
+            body: jsonEncode({'is_active': isActive ? 1 : 0}),
           )
           .timeout(_timeout);
 
-      final Map<String, dynamic> data = _safeDecodeMap(response.body);
+      final data = _safeDecodeMap(response.body);
 
       if (response.statusCode == 200) {
         return data;
@@ -120,41 +108,38 @@ class AdminController {
   }
 
   // ==========================================================================
-  // 4. ยืนยันตัวตนผู้ขาย KYC (PATCH /api/admin/users/:id/verify)
+  // 3. ฟังก์ชันยืนยันตัวตนผู้ขาย KYC (PATCH /api/admin/users/:id/verify)
   // ==========================================================================
   Future<Map<String, dynamic>> verifySeller({
     required String token,
-    required int userId,
+    required dynamic userId,
     required bool isVerified,
   }) async {
-    final validationError = validateAdminAction(
-      token: token,
-      userId: userId,
-    );
-    if (validationError != null) {
-      throw Exception(validationError);
+    final idStr = userId.toString().trim();
+    if (idStr.isEmpty) {
+      throw Exception('User ID is required.');
     }
 
     try {
       final response = await _client
           .patch(
-            Uri.parse('$baseUrl/users/$userId/verify'),
+            Uri.parse('$baseUrl/users/$idStr/verify'),
             headers: {
               'Content-Type': 'application/json; charset=UTF-8',
               'Authorization': 'Bearer ${token.trim()}',
             },
-            body: jsonEncode({
-              'is_verified': isVerified ? 1 : 0,
-            }),
+            body: jsonEncode({'is_verified': isVerified ? 1 : 0}),
           )
           .timeout(_timeout);
 
-      final Map<String, dynamic> data = _safeDecodeMap(response.body);
+      final data = _safeDecodeMap(response.body);
 
       if (response.statusCode == 200) {
         return data;
       } else {
-        throw Exception(data['message'] ?? 'Unable to update seller verification');
+        throw Exception(
+          data['message'] ?? 'Unable to update seller verification status',
+        );
       }
     } catch (e) {
       debugPrint('AdminController.verifySeller error: $e');
@@ -163,27 +148,22 @@ class AdminController {
   }
 
   // ==========================================================================
-  // 5. ลบบัญชีผู้ใช้ (DELETE /api/admin/users/:id)
+  // 4. ฟังก์ชันลบบัญชีผู้ใช้ (DELETE /api/admin/users/:id)
   // ==========================================================================
   Future<Map<String, dynamic>> deleteUser({
     required String token,
-    required int userId,
-    int? currentAdminId,
+    required dynamic userId,
+    dynamic currentAdminId,
   }) async {
-    final validationError = validateAdminAction(
-      token: token,
-      userId: userId,
-      currentAdminId: currentAdminId,
-      preventSelfAction: true,
-    );
-    if (validationError != null) {
-      throw Exception(validationError);
+    final idStr = userId.toString().trim();
+    if (idStr.isEmpty) {
+      throw Exception('User ID is required.');
     }
 
     try {
       final response = await _client
           .delete(
-            Uri.parse('$baseUrl/users/$userId'),
+            Uri.parse('$baseUrl/users/$idStr'),
             headers: {
               'Content-Type': 'application/json; charset=UTF-8',
               'Authorization': 'Bearer ${token.trim()}',
@@ -191,7 +171,7 @@ class AdminController {
           )
           .timeout(_timeout);
 
-      final Map<String, dynamic> data = _safeDecodeMap(response.body);
+      final data = _safeDecodeMap(response.body);
 
       if (response.statusCode == 200) {
         return data;
@@ -205,29 +185,200 @@ class AdminController {
   }
 
   // ==========================================================================
-  // Helper: แปลง JSON และจัดการข้อความ Error
+  // 5. ฟังก์ชันอัปโหลดรูปภาพโปสเตอร์คอนเสิร์ต (POST /api/admin/concerts/upload-poster)
   // ==========================================================================
-  dynamic _safeDecode(String rawBody) {
+  Future<String> uploadConcertPoster({
+    required String token,
+    required Uint8List fileBytes,
+    required String fileName,
+  }) async {
     try {
-      return jsonDecode(rawBody);
-    } catch (_) {
-      throw const FormatException('Invalid response from server.');
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/concerts/upload-poster'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'poster',
+          fileBytes,
+          filename: fileName,
+        ),
+      );
+
+      final streamedResponse = await request.send().timeout(_timeout);
+      final response = await http.Response.fromStream(streamedResponse);
+      final data = _safeDecodeMap(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return (data['poster_url'] ?? '').toString();
+      } else {
+        throw Exception(data['message'] ?? 'Unable to upload poster image');
+      }
+    } catch (e) {
+      debugPrint('AdminController.uploadConcertPoster error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
+  // ==========================================================================
+  // 6. ฟังก์ชันดึงรายการคอนเสิร์ตทั้งหมด (GET /api/admin/concerts)
+  // ==========================================================================
+  Future<List<Map<String, dynamic>>> getAllConcerts(String token) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/concerts'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return decoded
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
+        } else if (decoded is Map) {
+          final list = decoded['concerts'] ?? decoded['data'] ?? [];
+          if (list is List) {
+            return list
+                .map((item) => Map<String, dynamic>.from(item as Map))
+                .toList();
+          }
+        }
+        return [];
+      } else {
+        final data = _safeDecodeMap(response.body);
+        throw Exception(data['message'] ?? 'Unable to fetch concerts list');
+      }
+    } catch (e) {
+      debugPrint('AdminController.getAllConcerts error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
+  // ==========================================================================
+  // 7. ฟังก์ชันเพิ่มคอนเสิร์ตใหม่ (POST /api/admin/concerts)
+  // ==========================================================================
+  Future<Map<String, dynamic>> createConcert({
+    required String token,
+    required Map<String, dynamic> payload,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/concerts'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(_timeout);
+
+      final data = _safeDecodeMap(response.body);
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return data;
+      } else {
+        throw Exception(data['message'] ?? 'Unable to create concert');
+      }
+    } catch (e) {
+      debugPrint('AdminController.createConcert error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
+  // ==========================================================================
+  // 8. ฟังก์ชันแก้ไขข้อมูลคอนเสิร์ต (PUT /api/admin/concerts/:id)
+  // ==========================================================================
+  Future<Map<String, dynamic>> updateConcert({
+    required String token,
+    required String concertId,
+    required Map<String, dynamic> payload,
+  }) async {
+    if (concertId.trim().isEmpty) {
+      throw Exception('Concert ID is required.');
+    }
+
+    try {
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/concerts/$concertId'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(_timeout);
+
+      final data = _safeDecodeMap(response.body);
+
+      if (response.statusCode == 200) {
+        return data;
+      } else {
+        throw Exception(data['message'] ?? 'Unable to update concert');
+      }
+    } catch (e) {
+      debugPrint('AdminController.updateConcert error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
+  // ==========================================================================
+  // 9. ฟังก์ชันลบคอนเสิร์ต (DELETE /api/admin/concerts/:id)
+  // ==========================================================================
+  Future<Map<String, dynamic>> deleteConcert({
+    required String token,
+    required String concertId,
+  }) async {
+    if (concertId.trim().isEmpty) {
+      throw Exception('Concert ID is required.');
+    }
+
+    try {
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/concerts/$concertId'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(_timeout);
+
+      final data = _safeDecodeMap(response.body);
+
+      if (response.statusCode == 200) {
+        return data;
+      } else {
+        throw Exception(data['message'] ?? 'Unable to delete concert');
+      }
+    } catch (e) {
+      debugPrint('AdminController.deleteConcert error: $e');
+      throw Exception(_cleanErrorMessage(e));
     }
   }
 
   Map<String, dynamic> _safeDecodeMap(String rawBody) {
-    final decoded = _safeDecode(rawBody);
-    if (decoded is Map<String, dynamic>) {
-      return decoded;
+    try {
+      final decoded = jsonDecode(rawBody);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      return {};
+    } catch (_) {
+      return {};
     }
-    if (decoded is Map) {
-      return Map<String, dynamic>.from(decoded);
-    }
-    throw const FormatException('Invalid response format from server.');
   }
 
   String _cleanErrorMessage(Object error) {
-    final String msg = error.toString().replaceAll('Exception: ', '').trim();
+    final msg = error.toString().replaceAll('Exception: ', '').trim();
     if (msg.contains('SocketException') ||
         msg.contains('Failed host lookup') ||
         msg.contains('ClientException') ||

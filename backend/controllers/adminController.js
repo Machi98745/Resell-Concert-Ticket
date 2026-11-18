@@ -1,8 +1,8 @@
 const db = require('../db_config');
 
-// 1. ดึงรายชื่อผู้ใช้ทั้งหมด พร้อมจำนวนตั๋วที่ขาย/ซื้อ (GET /api/admin/users)
+// 1. ดึงรายชื่อผู้ใช้ทั้งหมด พร้อมรายการตั๋วที่ถือครองและรายการขายต่อ (GET /api/admin/users)
 exports.getAllUsers = async (req, res) => {
-  const sql = `
+  const usersSql = `
     SELECT 
       u.user_id,
       u.username,
@@ -18,9 +18,80 @@ exports.getAllUsers = async (req, res) => {
     FROM users u
     ORDER BY u.user_id ASC
   `;
+
+  const ticketsSql = `
+    SELECT 
+      t.ticket_id,
+      t.user_id,
+      t.ticket_code AS ticketCode,
+      t.zone_name AS zone,
+      t.seat_number AS seat,
+      t.original_price AS originalPrice,
+      c.title AS concert,
+      c.venue,
+      p.amount AS paidAmount,
+      p.shipping_fee AS shippingFee,
+      p.delivery_method,
+      p.payment_method AS paymentMethod,
+      p.paid_at AS paidAt,
+      seller.full_name AS sellerName,
+      seller.email AS sellerEmail,
+      seller.phone AS sellerPhone
+    FROM tickets t
+    JOIN concerts c ON t.concert_id = c.concert_id
+    LEFT JOIN resell_listings rl ON rl.ticket_id = t.ticket_id AND rl.status = 'sold'
+    LEFT JOIN payments p ON p.listing_id = rl.listing_id AND p.buyer_id = t.user_id AND p.status IN ('completed', 'paid')
+    LEFT JOIN users seller ON rl.seller_id = seller.user_id
+    ORDER BY t.ticket_id DESC
+  `;
+
+  const resellSql = `
+    SELECT 
+      rl.listing_id AS listingId,
+      rl.seller_id,
+      rl.resell_price AS resellPrice,
+      rl.delivery_type AS deliveryType,
+      rl.shipping_fee AS shippingFee,
+      rl.status,
+      t.ticket_code AS ticketCode,
+      t.zone_name AS zone,
+      t.seat_number AS seat,
+      c.title AS concert,
+      p.shipping_status AS shippingStatus
+    FROM resell_listings rl
+    JOIN tickets t ON rl.ticket_id = t.ticket_id
+    JOIN concerts c ON t.concert_id = c.concert_id
+    LEFT JOIN payments p ON p.listing_id = rl.listing_id AND p.status IN ('completed', 'paid')
+    ORDER BY rl.listing_id DESC
+  `;
+
   try {
-    const [results] = await db.query(sql);
-    return res.status(200).json(results);
+    const [users] = await db.query(usersSql);
+    const [tickets] = await db.query(ticketsSql);
+    const [listings] = await db.query(resellSql);
+
+    const enrichedUsers = users.map((u) => ({
+      ...u,
+      tickets_sold: Number(u.tickets_sold || 0),
+      tickets_bought: Number(u.tickets_bought || 0),
+      ownedTickets: tickets
+        .filter((t) => t.user_id === u.user_id)
+        .map((t) => ({
+          ...t,
+          originalPrice: Number(t.originalPrice || 0),
+          paidAmount: t.paidAmount != null ? Number(t.paidAmount) : null,
+          shippingFee: Number(t.shippingFee || 0),
+        })),
+      resellListings: listings
+        .filter((l) => l.seller_id === u.user_id)
+        .map((l) => ({
+          ...l,
+          resellPrice: Number(l.resellPrice || 0),
+          shippingFee: Number(l.shippingFee || 0),
+        })),
+    }));
+
+    return res.status(200).json(enrichedUsers);
   } catch (err) {
     return res.status(500).json({ message: 'Database Error', error: err.message });
   }
@@ -118,7 +189,6 @@ exports.deleteUser = async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // ยกเลิกประกาศขายที่ยังค้างอยู่ของผู้ใช้นี้ก่อนลบ
     await conn.query(
       "UPDATE resell_listings SET status = 'cancelled' WHERE seller_id = ? AND status = 'available'",
       [userId]

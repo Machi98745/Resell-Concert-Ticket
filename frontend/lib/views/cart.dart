@@ -1,4 +1,8 @@
+
 import 'package:flutter/material.dart';
+import 'package:frontend/controller/payment_controller.dart';
+import 'package:frontend/server/api_service.dart';
+
 import 'cart_service.dart';
 import 'payment_page.dart';
 import 'historypage.dart';
@@ -15,8 +19,19 @@ class CartPage extends StatefulWidget {
 }
 
 class _CartPageState extends State<CartPage> {
+  final PaymentController _paymentController = PaymentController();
 
-  // POP-UP DIALOG (แจ้งเตือนรายการค้างชำระ)
+  bool isCheckingOut = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ApiService.ensureCurrentUserCart().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  // แจ้งเตือนเมื่อมีรายการค้างชำระ
   void _showPendingOrderDialog() {
     showDialog(
       context: context,
@@ -26,7 +41,11 @@ class _CartPageState extends State<CartPage> {
         ),
         title: const Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.orange,
+              size: 28,
+            ),
             SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -41,13 +60,21 @@ class _CartPageState extends State<CartPage> {
           ],
         ),
         content: const Text(
-          'You already have a pending ticket reservation. Please complete payment or cancel your previous order before reserving new tickets.',
-          style: TextStyle(color: Colors.black87, height: 1.4),
+          'You already have a pending ticket reservation. '
+          'Please complete payment or cancel your previous order '
+          'before reserving new tickets.',
+          style: TextStyle(
+            color: Colors.black87,
+            height: 1.4,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -58,10 +85,13 @@ class _CartPageState extends State<CartPage> {
               ),
             ),
             onPressed: () {
-              Navigator.pop(dialogContext); // ปิด Dialog
+              Navigator.pop(dialogContext);
+
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const HistoryPage()),
+                MaterialPageRoute(
+                  builder: (_) => const HistoryPage(),
+                ),
               );
             },
             child: const Text('Go to My Orders'),
@@ -71,8 +101,10 @@ class _CartPageState extends State<CartPage> {
     );
   }
 
-  // Navigate to Payment Page
+  // ยืนยันคำสั่งซื้อและบันทึกลง MySQL
   Future<void> _checkout() async {
+    if (isCheckingOut) return;
+
     if (CartService.items.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -82,12 +114,13 @@ class _CartPageState extends State<CartPage> {
       return;
     }
 
-    // ตรวจสอบว่าผู้ใช้มีรายการค้างชำระเดิมอยู่แล้วหรือไม่
+    // ตรวจสอบรายการค้างชำระ
     if (CartService.hasActiveUnpaidOrder()) {
       _showPendingOrderDialog();
       return;
     }
 
+    // ยืนยันก่อนสร้างรายการ
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -107,7 +140,7 @@ class _CartPageState extends State<CartPage> {
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.of(dialogContext).pop(false);
+              Navigator.pop(dialogContext, false);
             },
             child: const Text(
               'Cancel',
@@ -120,7 +153,7 @@ class _CartPageState extends State<CartPage> {
               foregroundColor: Colors.white,
             ),
             onPressed: () {
-              Navigator.of(dialogContext).pop(true);
+              Navigator.pop(dialogContext, true);
             },
             child: const Text('Confirm'),
           ),
@@ -134,13 +167,85 @@ class _CartPageState extends State<CartPage> {
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PaymentPage(
-          items: checkoutItems,
+    setState(() {
+      isCheckingOut = true;
+    });
+
+    try {
+      // สร้างรายการ Pending ในฐานข้อมูล
+      for (final item in checkoutItems) {
+        final rawListingId = item['listing_id'] ?? item['id'];
+
+        final listingId = int.tryParse(
+          rawListingId?.toString() ?? '',
+        );
+
+        if (listingId == null || listingId <= 0) {
+          throw Exception(
+            'Unable to find ticket listing ID.',
+          );
+        }
+
+        final result = await _paymentController.checkout(
+          listingId: listingId,
+          paymentMethod: 'PromptPay',
+          deliveryMethod: 'Parcel Shipping',
+          shippingInfo: 'To be provided',
+        );
+
+        final paymentData = result['payment'] is Map
+            ? Map<String, dynamic>.from(result['payment'])
+            : result;
+
+        final paymentId = paymentData['payment_id'];
+
+        if (paymentId == null) {
+          throw Exception(
+            'Unable to create payment record.',
+          );
+        }
+
+        // ส่ง payment_id ไปยัง PaymentPage
+        item['payment_id'] = paymentId;
+      }
+
+      // ล้างตะกร้าของ User ปัจจุบันหลังสร้างรายการรอชำระเงินแล้ว
+      CartService.items.clear();
+
+      if (!mounted) return;
+
+      // เปิดหน้าชำระเงินหลังสร้างรายการสำเร็จ
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PaymentPage(
+            items: checkoutItems,
+          ),
         ),
-      ),
-    );
+      );
+
+      if (!mounted) return;
+
+      setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceAll('Exception: ', ''),
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isCheckingOut = false;
+        });
+      }
+    }
   }
 
   @override
@@ -197,9 +302,9 @@ class _CartPageState extends State<CartPage> {
                     itemBuilder: (context, index) {
                       final item = items[index];
 
-                      final price =
-                          double.tryParse(
-                            item['price'].toString(),
+                      final price = double.tryParse(
+                            (item['price'] ?? item['resell_price'] ?? 0)
+                                .toString(),
                           ) ??
                           0;
 
@@ -222,8 +327,9 @@ class _CartPageState extends State<CartPage> {
                                         width: 85,
                                         height: 100,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) =>
-                                            _imagePlaceholder(),
+                                        errorBuilder: (_, __, ___) {
+                                          return _imagePlaceholder();
+                                        },
                                       )
                                     : _imagePlaceholder(),
                               ),
@@ -246,25 +352,19 @@ class _CartPageState extends State<CartPage> {
                                     const SizedBox(height: 5),
                                     Text(
                                       'Artist: ${item['artist'] ?? '-'}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                      ),
+                                      style: const TextStyle(fontSize: 12),
                                     ),
                                     Text(
                                       'Seller: ${item['seller'] ?? '-'}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                      ),
+                                      style: const TextStyle(fontSize: 12),
                                     ),
                                     Text(
-                                      'Seat: ${item['seat'] ?? '-'}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                      ),
+                                      'Seat: ${item['seat'] ?? item['seat_number'] ?? '-'}',
+                                      style: const TextStyle(fontSize: 12),
                                     ),
                                     const SizedBox(height: 5),
                                     Text(
-                                      '฿${price.toStringAsFixed(0)}',
+                                      '฿${price.toStringAsFixed(2)}',
                                       style: const TextStyle(
                                         color: pink,
                                         fontWeight: FontWeight.bold,
@@ -276,11 +376,13 @@ class _CartPageState extends State<CartPage> {
                               ),
                               IconButton(
                                 tooltip: 'Remove',
-                                onPressed: () {
-                                  setState(() {
-                                    CartService.removeFromCart(index);
-                                  });
-                                },
+                                onPressed: isCheckingOut
+                                    ? null
+                                    : () {
+                                        setState(() {
+                                          CartService.removeFromCart(index);
+                                        });
+                                      },
                                 icon: const Icon(
                                   Icons.delete_outline,
                                   color: Colors.redAccent,
@@ -297,7 +399,10 @@ class _CartPageState extends State<CartPage> {
                 // Total and Checkout Button
                 Container(
                   padding: const EdgeInsets.fromLTRB(
-                    20, 16, 20, 24,
+                    20,
+                    16,
+                    20,
+                    24,
                   ),
                   decoration: const BoxDecoration(
                     color: Colors.white,
@@ -308,8 +413,7 @@ class _CartPageState extends State<CartPage> {
                   child: Column(
                     children: [
                       Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text(
                             'Total',
@@ -320,7 +424,7 @@ class _CartPageState extends State<CartPage> {
                             ),
                           ),
                           Text(
-                            '฿${CartService.totalPrice.toStringAsFixed(0)}',
+                            '฿${CartService.totalPrice.toStringAsFixed(2)}',
                             style: const TextStyle(
                               fontSize: 21,
                               color: pink,
@@ -334,7 +438,7 @@ class _CartPageState extends State<CartPage> {
                         width: double.infinity,
                         height: 50,
                         child: ElevatedButton(
-                          onPressed: _checkout,
+                          onPressed: isCheckingOut ? null : _checkout,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: pink,
                             foregroundColor: Colors.white,
@@ -342,13 +446,22 @@ class _CartPageState extends State<CartPage> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text(
-                            'Proceed to Payment',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          child: isCheckingOut
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text(
+                                  'Proceed to Payment',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                         ),
                       ),
                     ],

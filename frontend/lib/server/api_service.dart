@@ -1,0 +1,466 @@
+import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
+import 'package:frontend/views/cart_service.dart';
+
+class ApiService {
+  // ==========================================
+  // BASE URL
+  // ==========================================
+
+  // Chrome / Windows
+  static const String baseUrl = 'http://localhost:3000/api';
+
+  // Android Emulator:
+  // หากรันบน Android Emulator ให้เปลี่ยนเป็น:
+  // static const String baseUrl = 'http://10.0.2.2:3000/api';
+
+  // ==========================================
+  // TOKEN (ใช้ FlutterSecureStorage ร่วมกับหน้า Login / Admin)
+  // ==========================================
+  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+
+  /// ดึง user_id จาก JWT Token เพื่อแยกตะกร้าสินค้า (Cart) ของแต่ละ User
+  static void syncCartUserFromToken(String? token) {
+    if (token == null || token.trim().isEmpty) {
+      return;
+    }
+    try {
+      final parts = token.split('.');
+      if (parts.length == 3) {
+        final normalized = base64Url.normalize(parts[1]);
+        final payloadJson = utf8.decode(base64Url.decode(normalized));
+        final payload = jsonDecode(payloadJson);
+        if (payload is Map) {
+          final uid =
+              payload['user_id'] ?? payload['id'] ?? payload['username'];
+          if (uid != null && uid.toString().trim().isNotEmpty) {
+            CartService.setCurrentUser('user_$uid');
+          }
+        }
+      }
+    } catch (_) {
+      // Ignore malformed token in tests
+    }
+  }
+
+  static Future<void> ensureCurrentUserCart() async {
+    try {
+      final token = await _storage.read(key: 'jwt_token');
+      syncCartUserFromToken(token);
+    } catch (_) {}
+  }
+
+  static Future<String?> _getToken() async {
+    final token = await _storage.read(key: 'jwt_token');
+    syncCartUserFromToken(token);
+    return token;
+  }
+
+  static Future<void> saveToken(String token) async {
+    await _storage.write(key: 'jwt_token', value: token);
+    syncCartUserFromToken(token);
+  }
+
+  static Future<void> clearToken() async {
+    await _storage.delete(key: 'jwt_token');
+    CartService.logoutUser();
+  }
+
+  // ==========================================
+  // HEADERS
+  // ==========================================
+
+  static Future<Map<String, String>> _authHeaders() async {
+    final token = await _getToken();
+
+    return {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
+  }
+
+  // ==========================================
+  // RESPONSE HANDLER
+  // ==========================================
+
+  static dynamic _handleResponse(http.Response response) {
+    dynamic data;
+
+    try {
+      data = response.body.isNotEmpty ? jsonDecode(response.body) : null;
+    } catch (_) {
+      throw Exception('Invalid response from server: ${response.body}');
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final message = data is Map
+          ? data['message'] ?? 'Request failed'
+          : response.body;
+
+      throw Exception(message.toString());
+    }
+
+    return data;
+  }
+
+  // ==========================================
+  // HTTP GET
+  // ==========================================
+
+  static Future<dynamic> get(String endpoint) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: await _authHeaders(),
+    );
+
+    return _handleResponse(response);
+  }
+
+  // ==========================================
+  // HTTP POST
+  // ==========================================
+
+  static Future<dynamic> post(
+    String endpoint,
+    Map<String, dynamic> body,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
+    );
+
+    return _handleResponse(response);
+  }
+
+  // ==========================================
+  // HTTP PUT
+  // ==========================================
+
+  static Future<dynamic> put(String endpoint, Map<String, dynamic> body) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
+    );
+
+    return _handleResponse(response);
+  }
+
+  // ==========================================
+  // HTTP PATCH
+  // ==========================================
+
+  static Future<dynamic> patch(
+    String endpoint,
+    Map<String, dynamic> body,
+  ) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: await _authHeaders(),
+      body: jsonEncode(body),
+    );
+
+    return _handleResponse(response);
+  }
+
+  // ==========================================
+  // CONCERT API
+  // ==========================================
+
+  // GET /api/concerts
+  static Future<List<Map<String, dynamic>>> getConcerts() async {
+    // get() แปลง Response เป็น JSON แล้ว
+    // ไม่ต้องเรียก _handleResponse() ซ้ำ
+
+    final data = await get('/concerts');
+
+    if (data is List) {
+      return data.map((item) {
+        return Map<String, dynamic>.from(item);
+      }).toList();
+    }
+
+    // รองรับกรณี Backend ส่ง Object มา 1 รายการ
+    if (data is Map) {
+      return [Map<String, dynamic>.from(data)];
+    }
+
+    throw Exception('Invalid concert data');
+  }
+
+  // GET /api/concerts/:id
+  static Future<Map<String, dynamic>> getConcertById(int id) async {
+    final data = await get('/concerts/$id');
+
+    if (data is! Map) {
+      throw Exception('Invalid concert detail');
+    }
+
+    return Map<String, dynamic>.from(data);
+  }
+
+  // ==========================================
+  // MY TICKETS API
+  // ==========================================
+
+  // GET /api/user/my-tickets
+  static Future<List<Map<String, dynamic>>> getMyTickets() async {
+    final data = await get('/user/my-tickets');
+
+    if (data is! List) {
+      throw Exception('Invalid my tickets data');
+    }
+
+    return data.map((item) {
+      return Map<String, dynamic>.from(item);
+    }).toList();
+  }
+
+  // ==========================================
+  // CREATE RESELL LISTING API
+  // ==========================================
+
+  // POST /api/resell/create
+  static Future<Map<String, dynamic>> createResellListing(
+    Map<String, dynamic> body,
+  ) async {
+    final data = await post('/resell/create', body);
+
+    if (data is! Map) {
+      throw Exception('Invalid resell listing response');
+    }
+
+    return Map<String, dynamic>.from(data);
+  }
+
+  // ==========================================
+  // MY RESELL LISTINGS API
+  // ==========================================
+
+  // GET /api/resell/my-listings
+  static Future<List<Map<String, dynamic>>> getMyResellListings() async {
+    final data = await get('/resell/my-listings');
+
+    if (data is! List) {
+      throw Exception('Invalid my resell listings data');
+    }
+
+    return data.map((item) {
+      return Map<String, dynamic>.from(item);
+    }).toList();
+  }
+  // ==========================================
+  // RESELL LISTING API
+  // ==========================================
+
+  // GET /api/resell/listings?concert_id=:id
+  static Future<List<Map<String, dynamic>>> getResellListings(
+    int concertId,
+  ) async {
+    final uri = Uri.parse(
+      '$baseUrl/resell/listings',
+    ).replace(queryParameters: {'concert_id': concertId.toString()});
+
+    final response = await http.get(uri, headers: await _authHeaders());
+
+    final data = _handleResponse(response);
+
+    if (data is! List) {
+      throw Exception('Invalid resell listing data');
+    }
+
+    return data.map((item) {
+      return Map<String, dynamic>.from(item);
+    }).toList();
+  }
+
+  // ==========================================
+  // PROFILE API
+  // ==========================================
+
+  // GET /api/auth/me
+  static Future<Map<String, dynamic>> getProfile() async {
+    final data = await get('/auth/me');
+
+    if (data is! Map) {
+      throw Exception('Invalid profile data');
+    }
+
+    return Map<String, dynamic>.from(data);
+  }
+
+  // PUT /api/auth/profile
+  static Future<Map<String, dynamic>> updateProfile(
+    Map<String, dynamic> body,
+  ) async {
+    final data = await put('/auth/profile', body);
+
+    if (data is Map && data['user'] is Map) {
+      return Map<String, dynamic>.from(data['user']);
+    }
+
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    throw Exception('Invalid updated profile data');
+  }// POST /api/auth/profile-image
+static Future<String> uploadProfileImage(XFile image) async {
+  final token = await _getToken();
+
+  if (token == null || token.isEmpty) {
+    throw Exception('Please log in again.');
+  }
+
+  final uri = Uri.parse('$baseUrl/auth/profile-image');
+
+  final request = http.MultipartRequest('POST', uri);
+
+  request.headers.addAll({
+    'Accept': 'application/json',
+    'Authorization': 'Bearer $token',
+  });
+
+  final bytes = await image.readAsBytes();
+
+  request.files.add(
+    http.MultipartFile.fromBytes(
+      'profile_image',
+      bytes,
+      filename: image.name,
+    ),
+  );
+
+  final streamedResponse = await request.send();
+  final response = await http.Response.fromStream(streamedResponse);
+
+  final data = _handleResponse(response);
+
+  if (data is! Map || data['profile_image'] == null) {
+    throw Exception('Invalid profile image response.');
+  }
+
+  return data['profile_image'].toString();
+}
+
+// Convert relative image path to full URL
+static String getImageUrl(String imagePath) {
+  if (imagePath.startsWith('http://') ||
+      imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+
+  final serverUrl = baseUrl.replaceFirst(RegExp(r'/api/?$'), '');
+
+  return '$serverUrl$imagePath';
+}
+  // ==========================================
+  // SELLER REGISTRATION API
+  // ==========================================
+
+  // GET /api/resell/seller/status
+  static Future<Map<String, dynamic>> getSellerStatus() async {
+    final data = await get('/resell/seller/status');
+
+    if (data is! Map) {
+      throw Exception('Invalid seller status');
+    }
+
+    return Map<String, dynamic>.from(data);
+  }
+
+  // POST /api/resell/seller/register
+  static Future<Map<String, dynamic>> registerSeller(
+    Map<String, dynamic> body,
+  ) async {
+    final data = await post('/resell/seller/register', body);
+
+    if (data is! Map) {
+      throw Exception('Invalid seller registration response');
+    }
+
+    return Map<String, dynamic>.from(data);
+  }
+  // ==========================================
+  // PAYMENT / HISTORY API
+  // ==========================================
+
+  // GET /api/payments/my-orders
+  static Future<List<Map<String, dynamic>>> getMyOrders() async {
+    final data = await get('/payments/my-orders');
+
+    if (data is! List) {
+      throw Exception('Invalid order history data');
+    }
+
+    return data.map((item) {
+      return Map<String, dynamic>.from(item);
+    }).toList();
+  }
+
+  // POST /api/payments/create
+  static Future<Map<String, dynamic>> createPayment(
+    Map<String, dynamic> body,
+  ) async {
+    final data = await post('/payments/create', body);
+
+    if (data is! Map) {
+      throw Exception('Invalid payment response');
+    }
+
+    return Map<String, dynamic>.from(data);
+  }
+
+  // POST /api/payments/:id/confirm
+  static Future<dynamic> confirmPayment(int paymentId) async {
+    return post('/payments/$paymentId/confirm', {});
+  }
+
+  // POST /api/payments/:id/cancel
+  static Future<dynamic> cancelPayment(int paymentId) async {
+    return post('/payments/$paymentId/cancel', {});
+  }
+
+  // POST /api/payments/:id/ship (ผู้ขายกดส่งบัตร)
+  static Future<Map<String, dynamic>> shipOrder(
+    int paymentId, {
+    String? trackingNumber,
+  }) async {
+    final data = await post('/payments/$paymentId/ship', {
+      if (trackingNumber != null && trackingNumber.trim().isNotEmpty)
+        'tracking_number': trackingNumber.trim(),
+    });
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    return {'status': 'shipped', 'payment_id': paymentId};
+  }
+
+  // POST /api/payments/:id/receive (ผู้ซื้อกดรับบัตร)
+  static Future<Map<String, dynamic>> confirmReceived(int paymentId) async {
+    final data = await post('/payments/$paymentId/receive', {});
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    return {'status': 'completed', 'payment_id': paymentId};
+  }
+
+  // PUT /api/auth/change-password (เปลี่ยนรหัสผ่านในหน้า Profile)
+  static Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final data = await put('/auth/change-password', {
+      'current_password': currentPassword,
+      'new_password': newPassword,
+    });
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    return {'message': 'Password updated successfully.'};
+  }
+}
