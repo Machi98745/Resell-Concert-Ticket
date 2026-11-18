@@ -84,7 +84,7 @@ class ResellController {
     }
 
     if (concertId == null || concertId <= 0) {
-      return 'Please select a concert';
+      return 'Please select a concert.';
     }
 
     if (ticketCode == null || ticketCode.trim().isEmpty) {

@@ -30,14 +30,37 @@ class _HomePageState extends State<HomePage> {
   String selectedCategory = 'All';
   int currentBannerIndex = 0;
   bool showBannerControls = false;
-  bool isLoading = true;
+  bool isLoading = false;
 
   bool isCheckingSeller = true;
   bool isRegisteredSeller = false;
   String sellerVerificationStatus = 'not_submitted';
   String? errorMessage;
 
-  List<Map<String, dynamic>> concerts = [];
+  List<Map<String, dynamic>> concerts = [
+    {
+      'id': 1,
+      'concert_id': 1,
+      'name': 'BLACKPINK WORLD TOUR',
+      'artist': 'BLACKPINK',
+      'date': '15 December 2026',
+      'time': '19:00',
+      'location': 'Rajamangala National Stadium, Bangkok',
+      'category': 'K-Pop',
+      'image': 'assets/images/blackpink.jpg',
+      'description': 'Experience an unforgettable night with BLACKPINK.',
+      'tickets': [
+        {
+          'seller': 'BlackPinkFan',
+          'zone': 'VIP Zone',
+          'price': 6500,
+          'condition': 'Available',
+          'status': 'available',
+          'seats': ['VIP-A1'],
+        },
+      ],
+    },
+  ];
 
   @override
   void initState() {
@@ -102,7 +125,7 @@ class _HomePageState extends State<HomePage> {
   // ==========================================
 
   Future<void> loadConcerts() async {
-    if (mounted) {
+    if (mounted && concerts.isEmpty) {
       setState(() {
         isLoading = true;
         errorMessage = null;
@@ -174,8 +197,11 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
 
       setState(() {
-        concerts = loadedConcerts;
+        if (loadedConcerts.isNotEmpty) {
+          concerts = loadedConcerts;
+        }
         isLoading = false;
+        errorMessage = null;
         currentBannerIndex = 0;
       });
 
@@ -187,7 +213,9 @@ class _HomePageState extends State<HomePage> {
 
       setState(() {
         isLoading = false;
-        errorMessage = e.toString();
+        if (concerts.isEmpty) {
+          errorMessage = e.toString();
+        }
       });
     }
   }
@@ -876,8 +904,8 @@ class _HomePageState extends State<HomePage> {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                Colors.black.withOpacity(0.75),
-                                Colors.black.withOpacity(0.35),
+                                Colors.black.withValues(alpha: 0.75),
+                                Colors.black.withValues(alpha: 0.35),
                                 Colors.transparent,
                               ],
                               begin: Alignment.centerLeft,
@@ -1050,7 +1078,7 @@ class _HomePageState extends State<HomePage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.35),
+        color: Colors.black.withValues(alpha: 0.35),
         shape: BoxShape.circle,
       ),
       child: IconButton(

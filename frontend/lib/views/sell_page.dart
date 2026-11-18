@@ -744,7 +744,7 @@ class _SellPageState extends State<SellPage> {
 
         if (delivery == 'Parcel Shipping') ...[
           DropdownButtonFormField<String>(
-            value: company,
+            initialValue: company,
             decoration: const InputDecoration(
               labelText: 'Shipping Company',
               border: OutlineInputBorder(),
@@ -815,7 +815,7 @@ class _SellPageState extends State<SellPage> {
         title('5. Payout Account'),
 
         DropdownButtonFormField<String>(
-          value: bank,
+          initialValue: bank,
           decoration: const InputDecoration(
             labelText: 'Bank Name',
             border: OutlineInputBorder(),
@@ -1053,7 +1053,10 @@ class _SellPageState extends State<SellPage> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(18),
             ),
-            child: body,
+            child: Material(
+              color: Colors.transparent,
+              child: body,
+            ),
           ),
         ),
       ),

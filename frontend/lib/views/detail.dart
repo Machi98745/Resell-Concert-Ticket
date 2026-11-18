@@ -463,7 +463,7 @@ class _DetailPageState extends State<DetailPage> {
                 : null,
           ),
         ),
-        Container(height: 310, color: darkPink.withOpacity(0.86)),
+        Container(height: 310, color: darkPink.withValues(alpha: 0.86)),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 15, 16, 25),
           child: Column(
@@ -572,7 +572,7 @@ class _DetailPageState extends State<DetailPage> {
                 : null,
           ),
         ),
-        Container(height: 480, color: darkPink.withOpacity(0.84)),
+        Container(height: 480, color: darkPink.withValues(alpha: 0.84)),
         Padding(
           padding: const EdgeInsets.fromLTRB(35, 20, 35, 30),
           child: Column(
@@ -745,7 +745,7 @@ class _DetailPageState extends State<DetailPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: badgeColor.withOpacity(0.15),
+        color: badgeColor.withValues(alpha: 0.15),
         border: Border.all(color: badgeColor),
         borderRadius: BorderRadius.circular(6),
       ),

@@ -4,16 +4,30 @@ import 'package:frontend/views/admin_page.dart';
 import 'package:frontend/views/cart.dart';
 import 'package:frontend/views/cart_service.dart';
 import 'package:frontend/views/checkout.dart';
+import 'package:frontend/views/detail.dart';
+import 'package:frontend/views/favorite.dart';
+import 'package:frontend/views/favorite_service.dart';
 import 'package:frontend/views/historypage.dart';
+import 'package:frontend/views/homepage.dart';
 import 'package:frontend/views/login.dart';
 import 'package:frontend/views/payment_page.dart';
 import 'package:frontend/views/register.dart';
+import 'package:frontend/views/sell_page.dart';
+
+Finder _searchField() {
+  return find.byWidgetPredicate(
+    (widget) =>
+        widget is TextField &&
+        widget.decoration?.hintText == 'Search concerts, artists...',
+  );
+}
 
 void main() {
   setUp(() {
     CartService.items.clear();
     CartService.history.clear();
     CartService.resaleListings.clear();
+    FavoriteService.favorites.clear();
   });
 
   // ฟังก์ชันช่วยกำหนดขนาดหน้าจอจำลองให้กว้างพอ ไม่เกิด RenderFlex overflow
@@ -303,8 +317,104 @@ void main() {
 
   // ============================================================================
   // 🧑‍💻 [ส่วนที่ 3: รับผิดชอบโดย คนที่ 3 - ระบบ Concert, Resell & Favorite UI]
-  // (เว้นไว้ให้คนที่ 3 เขียนและ Push เพิ่มเข้ามา)
+  // ครอบคลุมหน้าจอ: HomePage, DetailPage, SellPage และ FavoritePage
+  // จำนวนเคสทดสอบ: 4 ข้อ
   // ============================================================================
+
+  group('Person 3 - Concert, Resell & Favorite UI', () {
+    testWidgets('HomePage shows concerts and filters by search', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const MaterialApp(home: HomePage()));
+      await tester.pump();
+
+      expect(find.text('BLACKPINK WORLD TOUR'), findsWidgets);
+      expect(_searchField(), findsOneWidget);
+
+      await tester.enterText(
+        _searchField(),
+        'concert-does-not-exist',
+      );
+      await tester.pump();
+
+      expect(find.text('No upcoming concerts found.'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('DetailPage can add a concert to favorites', (
+      WidgetTester tester,
+    ) async {
+      final concert = <String, dynamic>{
+        'name': 'Test Concert',
+        'artist': 'Test Artist',
+        'date': '25 December 2026',
+        'time': '19:00',
+        'location': 'Bangkok',
+        'category': 'Pop',
+        'image': '',
+        'description': 'A test concert',
+        'tickets': [
+          {
+            'seller': 'Test Seller',
+            'zone': 'VIP Zone',
+            'price': 1000,
+            'condition': 'Available',
+            'status': 'available',
+            'seats': ['A1'],
+          },
+        ],
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(home: DetailPage(concert: concert)),
+      );
+      await tester.pump();
+
+      expect(find.text('Test Concert'), findsWidgets);
+      expect(find.byTooltip('Add to Favorites'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Add to Favorites'));
+      await tester.pump();
+
+      expect(FavoriteService.isFavorite(concert), isTrue);
+      expect(find.text('Added to My Favorites!'), findsOneWidget);
+    });
+
+    testWidgets('SellPage validates required ticket information', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const MaterialApp(home: SellPage()));
+      await tester.pump();
+
+      expect(find.text('Sell Your Ticket'), findsOneWidget);
+      expect(find.text('Ticket Details'), findsOneWidget);
+      expect(find.text('Continue to Review'), findsOneWidget);
+
+      await tester.ensureVisible(find.text('Continue to Review'));
+      await tester.tap(find.text('Continue to Review'));
+      await tester.pump();
+
+      expect(find.text('Please select a concert.'), findsOneWidget);
+    });
+
+    testWidgets('FavoritePage displays saved concerts', (
+      WidgetTester tester,
+    ) async {
+      FavoriteService.favorites.add({
+        'name': 'Saved Concert',
+        'artist': 'Saved Artist',
+        'date': '1 January 2027',
+        'image': '',
+      });
+
+      await tester.pumpWidget(const MaterialApp(home: FavoritePage()));
+      await tester.pump();
+
+      expect(find.text('My Favorites'), findsOneWidget);
+      expect(find.text('Saved Concert'), findsOneWidget);
+      expect(find.text('Saved Artist'), findsOneWidget);
+    });
+  });
 }
 
 Map<String, dynamic> _order(String orderId, String status) => {
