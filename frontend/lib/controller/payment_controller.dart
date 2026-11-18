@@ -62,6 +62,7 @@ class PaymentController {
   // 3. สร้างรายการจองและรอชำระเงิน 15 นาที (POST /api/payments/create)
   // ==========================================================================
   Future<Map<String, dynamic>> checkout({
+    String? token,
     required int listingId,
     required String paymentMethod,
     required String deliveryMethod,
@@ -96,6 +97,7 @@ class PaymentController {
   // 4. ยืนยันการชำระเงินภายใน 15 นาที + โอนสิทธิ์ตั๋ว (POST /api/payments/:id/confirm)
   // ==========================================================================
   Future<Map<String, dynamic>> confirmPayment({
+    String? token,
     required int paymentId,
   }) async {
     if (paymentId <= 0) {

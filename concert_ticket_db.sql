@@ -68,8 +68,7 @@ CREATE TABLE `payments` (
   `tracking_number` varchar(100) DEFAULT NULL COMMENT 'หมายเลขพัสดุ',
   `status` enum('pending','completed','failed','expired','cancelled') NOT NULL DEFAULT 'pending',
   `expires_at` datetime DEFAULT NULL COMMENT 'เวลาหมดอายุชำระเงิน (15 นาที)',
-  `paid_at` ALTER TABLE payments
-MODIFY paid_at TIMESTAMP NULL DEFAULT NULL;
+  `paid_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -142,10 +141,28 @@ CREATE TABLE `users` (
   `password_hash` varchar(255) NOT NULL,
   `full_name` varchar(100) NOT NULL,
   `phone` varchar(20) DEFAULT NULL,
+  `profile_image` varchar(255) DEFAULT NULL,
   `role` enum('customer','admin') NOT NULL DEFAULT 'customer',
   `is_verified` tinyint(1) NOT NULL DEFAULT 0 COMMENT '0=ยังไม่ยืนยันคนจริง, 1=ยืนยันตัวตนแล้ว',
   `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1=เปิดใช้งานปกติ, 0=ถูกระงับบัญชี',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `seller_verifications`
+--
+
+CREATE TABLE IF NOT EXISTS `seller_verifications` (
+  `verification_id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `full_name` varchar(100) NOT NULL,
+  `national_id_encrypted` varchar(255) NOT NULL,
+  `verification_status` varchar(50) NOT NULL DEFAULT 'approved',
+  `reviewed_at` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`verification_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --

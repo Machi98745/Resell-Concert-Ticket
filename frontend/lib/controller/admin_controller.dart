@@ -3,20 +3,49 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class AdminController {
+  AdminController({http.Client? client}) : _client = client ?? http.Client();
+
+  final http.Client _client;
   static const String baseUrl = 'http://localhost:3000/api/admin';
   static const Duration _timeout = Duration(seconds: 15);
+
+  static String? validateAdminAction({
+    required String token,
+    required dynamic userId,
+    dynamic currentAdminId,
+    bool preventSelfAction = false,
+  }) {
+    if (token.trim().isEmpty) {
+      return 'Please log in as an administrator';
+    }
+
+    final parsedId = userId is int ? userId : int.tryParse(userId?.toString().trim() ?? '');
+    if (userId == null ||
+        userId.toString().trim().isEmpty ||
+        (parsedId != null && parsedId <= 0)) {
+      return 'Invalid user ID';
+    }
+
+    if (preventSelfAction &&
+        currentAdminId != null &&
+        userId.toString().trim() == currentAdminId.toString().trim()) {
+      return 'Admin cannot suspend or delete their own account';
+    }
+
+    return null;
+  }
 
   // ==========================================================================
   // 1. ฟังก์ชันดึงรายชื่อผู้ใช้ทั้งหมด (GET /api/admin/users)
   // ==========================================================================
   Future<List<Map<String, dynamic>>> getAllUsers(String token) async {
     try {
-      final response = await http
+      final response = await _client
           .get(
             Uri.parse('$baseUrl/users'),
             headers: {
               'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer $token',
+              'Authorization': 'Bearer ${token.trim()}',
             },
           )
           .timeout(_timeout);
@@ -44,20 +73,22 @@ class AdminController {
   // ==========================================================================
   Future<Map<String, dynamic>> updateUserStatus({
     required String token,
-    required String userId,
+    required dynamic userId,
     required bool isActive,
+    dynamic currentAdminId,
   }) async {
-    if (userId.trim().isEmpty) {
+    final idStr = userId.toString().trim();
+    if (idStr.isEmpty) {
       throw Exception('User ID is required.');
     }
 
     try {
-      final response = await http
+      final response = await _client
           .patch(
-            Uri.parse('$baseUrl/users/$userId/status'),
+            Uri.parse('$baseUrl/users/$idStr/status'),
             headers: {
               'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer $token',
+              'Authorization': 'Bearer ${token.trim()}',
             },
             body: jsonEncode({'is_active': isActive ? 1 : 0}),
           )
@@ -81,20 +112,21 @@ class AdminController {
   // ==========================================================================
   Future<Map<String, dynamic>> verifySeller({
     required String token,
-    required String userId,
+    required dynamic userId,
     required bool isVerified,
   }) async {
-    if (userId.trim().isEmpty) {
+    final idStr = userId.toString().trim();
+    if (idStr.isEmpty) {
       throw Exception('User ID is required.');
     }
 
     try {
-      final response = await http
+      final response = await _client
           .patch(
-            Uri.parse('$baseUrl/users/$userId/verify'),
+            Uri.parse('$baseUrl/users/$idStr/verify'),
             headers: {
               'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer $token',
+              'Authorization': 'Bearer ${token.trim()}',
             },
             body: jsonEncode({'is_verified': isVerified ? 1 : 0}),
           )
@@ -120,19 +152,21 @@ class AdminController {
   // ==========================================================================
   Future<Map<String, dynamic>> deleteUser({
     required String token,
-    required String userId,
+    required dynamic userId,
+    dynamic currentAdminId,
   }) async {
-    if (userId.trim().isEmpty) {
+    final idStr = userId.toString().trim();
+    if (idStr.isEmpty) {
       throw Exception('User ID is required.');
     }
 
     try {
-      final response = await http
+      final response = await _client
           .delete(
-            Uri.parse('$baseUrl/users/$userId'),
+            Uri.parse('$baseUrl/users/$idStr'),
             headers: {
               'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer $token',
+              'Authorization': 'Bearer ${token.trim()}',
             },
           )
           .timeout(_timeout);

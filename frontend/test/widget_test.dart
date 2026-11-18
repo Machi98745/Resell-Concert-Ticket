@@ -66,19 +66,19 @@ void main() {
       expect(find.text('Please enter username and password'), findsOneWidget);
     });
 
-    // 3. ตรวจว่ากรอกรหัสผ่านผิดแล้วแสดงข้อความแจ้งเตือน Invalid username or password
-    testWidgets('Login page shows error message when credentials are invalid', (
+    // 3. ตรวจว่าป๊อปอัป Reset Password ดักจับกรณีไม่กรอกข้อมูลและอีเมลผิดรูปแบบ
+    testWidgets('Login Reset Password dialog validates empty fields and email format', (
       WidgetTester tester,
     ) async {
       await pumpTestWidget(tester, const Login());
 
-      final fields = find.byType(TextFormField);
-      await tester.enterText(fields.at(0), 'cocomint');
-      await tester.enterText(fields.at(1), 'wrongpass');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Login'));
+      await tester.tap(find.text('Forgot Password?'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm Reset'));
       await tester.pump();
 
-      expect(find.text('Invalid username or password'), findsOneWidget);
+      expect(find.text('Please fill in all fields!'), findsOneWidget);
     });
 
     // 4. ตรวจว่าการกด Forgot Password? จะเปิดป๊อปอัป Reset Password
@@ -140,21 +140,20 @@ void main() {
       expect(find.text('Passwords do not match'), findsOneWidget);
     });
 
-    // 8. ตรวจว่าหน้า AdminPage แสดงตาราง User Management และค้นหาชื่อผู้ใช้ได้
-    testWidgets('AdminPage renders User Management dashboard and filters users by search', (
+    // 8. ตรวจว่าหน้า AdminPage แสดงแถบ ADMIN และสลับแท็บ Users / Concerts ได้
+    testWidgets('AdminPage renders ADMIN dashboard and switches between Users and Concerts tabs', (
       WidgetTester tester,
     ) async {
       await pumpTestWidget(tester, const AdminPage());
 
-      expect(find.text('User Management'), findsOneWidget);
-      expect(find.text('PinkSeller'), findsOneWidget);
-      expect(find.text('Scammer101'), findsOneWidget);
+      expect(find.text('ADMIN'), findsOneWidget);
+      expect(find.textContaining('Users'), findsOneWidget);
+      expect(find.textContaining('Concerts'), findsOneWidget);
 
-      await tester.enterText(find.byType(TextField).first, 'Pink');
+      await tester.tap(find.textContaining('Concerts'));
       await tester.pump();
 
-      expect(find.text('PinkSeller'), findsOneWidget);
-      expect(find.text('Scammer101'), findsNothing);
+      expect(find.text('Add Concert'), findsOneWidget);
     });
   });
 

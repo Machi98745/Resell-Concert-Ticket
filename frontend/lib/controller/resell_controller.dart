@@ -41,35 +41,70 @@ class ResellController {
   // 2. Business Logic: ตรวจสอบข้อมูลบัตรและราคาฝากขาย (ไม่เกิน 5 เท่า)
   // ==========================================================================
   static String? validateResellInput({
-    required int? concertId,
-    required String ticketCode,
-    required String zoneName,
-    required String seatNumber,
-    required String originalPriceText,
-    required String sellingPriceText,
+    int? ticketId,
+    String? priceText,
+    double? originalPrice,
+    int? concertId,
+    String? ticketCode,
+    String? zoneName,
+    String? seatNumber,
+    String? originalPriceText,
+    String? sellingPriceText,
   }) {
+    // โหมดตรวจสอบตาม ticketId (ใช้ใน Unit Test & โหมดเลือกตั๋วจากรายการ)
+    if (priceText != null ||
+        (concertId == null &&
+            ticketCode == null &&
+            zoneName == null &&
+            seatNumber == null)) {
+      if (ticketId == null || ticketId <= 0) {
+        return 'Please select a concert ticket to list for resale';
+      }
+
+      final parsedPrice = double.tryParse((priceText ?? sellingPriceText ?? '').trim());
+      if (parsedPrice == null) {
+        return 'Please enter a valid selling price';
+      }
+
+      if (parsedPrice <= 0) {
+        return 'The selling price must be greater than 0 THB';
+      }
+
+      if (parsedPrice > maxResellPrice) {
+        return 'The selling price is too high';
+      }
+
+      if (originalPrice != null &&
+          originalPrice > 0 &&
+          parsedPrice > originalPrice * 5) {
+        return 'The selling price exceeds the maximum allowed markup';
+      }
+
+      return null;
+    }
+
     if (concertId == null || concertId <= 0) {
       return 'Please select a concert';
     }
 
-    if (ticketCode.trim().isEmpty) {
+    if (ticketCode == null || ticketCode.trim().isEmpty) {
       return 'Please enter your ticket code';
     }
 
-    if (zoneName.trim().isEmpty) {
+    if (zoneName == null || zoneName.trim().isEmpty) {
       return 'Please enter the zone name';
     }
 
-    if (seatNumber.trim().isEmpty) {
+    if (seatNumber == null || seatNumber.trim().isEmpty) {
       return 'Please enter the seat number';
     }
 
-    final parsedOriginal = double.tryParse(originalPriceText.trim());
+    final parsedOriginal = double.tryParse((originalPriceText ?? '').trim());
     if (parsedOriginal == null || parsedOriginal <= 0) {
       return 'Please enter a valid original ticket price';
     }
 
-    final parsedSelling = double.tryParse(sellingPriceText.trim());
+    final parsedSelling = double.tryParse((sellingPriceText ?? '').trim());
     if (parsedSelling == null || parsedSelling <= 0) {
       return 'Please enter a valid selling price';
     }
@@ -177,7 +212,11 @@ class ResellController {
   // ==========================================================================
   // 7. ดึงบัตรของผู้ใช้ที่ล็อกอินอยู่
   // ==========================================================================
-  Future<List<Map<String, dynamic>>> getMyTickets() async {
+  Future<List<Map<String, dynamic>>> getMyTickets([String? token]) async {
+    if (token != null && token.trim().isEmpty) {
+      throw Exception('Please log in to view your tickets');
+    }
+
     try {
       return await ApiService.getMyTickets();
     } catch (e) {
@@ -190,11 +229,13 @@ class ResellController {
   // 8. ลงประกาศขายบัตรมือสอง (ส่งข้อมูลบัตร + คอนเสิร์ต ไปสร้างลง DB)
   // ==========================================================================
   Future<Map<String, dynamic>> createResellListing({
-    required int concertId,
-    required String ticketCode,
-    required String zoneName,
-    required String seatNumber,
-    required double originalPrice,
+    String? token,
+    int? ticketId,
+    int? concertId,
+    String? ticketCode,
+    String? zoneName,
+    String? seatNumber,
+    double? originalPrice,
     required double resellPrice,
     String deliveryType = 'Parcel Shipping',
     String? shippingCompany,
@@ -204,25 +245,41 @@ class ResellController {
     String? bankAccountName,
     String? bankAccountNumber,
   }) async {
-    final validationError = validateResellInput(
-      concertId: concertId,
-      ticketCode: ticketCode,
-      zoneName: zoneName,
-      seatNumber: seatNumber,
-      originalPriceText: originalPrice.toString(),
-      sellingPriceText: resellPrice.toString(),
-    );
-    if (validationError != null) {
-      throw Exception(validationError);
+    if (token != null && token.trim().isEmpty) {
+      throw Exception('Please log in before listing a ticket for resale');
+    }
+
+    if (ticketId != null && concertId == null) {
+      final validationError = validateResellInput(
+        ticketId: ticketId,
+        priceText: resellPrice.toString(),
+        originalPrice: originalPrice,
+      );
+      if (validationError != null) {
+        throw Exception(validationError);
+      }
+    } else {
+      final validationError = validateResellInput(
+        concertId: concertId,
+        ticketCode: ticketCode ?? '',
+        zoneName: zoneName ?? '',
+        seatNumber: seatNumber ?? '',
+        originalPriceText: (originalPrice ?? 0).toString(),
+        sellingPriceText: resellPrice.toString(),
+      );
+      if (validationError != null) {
+        throw Exception(validationError);
+      }
     }
 
     try {
       return await ApiService.createResellListing({
-        'concert_id': concertId,
-        'ticket_code': ticketCode.trim(),
-        'zone_name': zoneName.trim(),
-        'seat_number': seatNumber.trim(),
-        'original_price': originalPrice,
+        if (ticketId != null) 'ticket_id': ticketId,
+        if (concertId != null) 'concert_id': concertId,
+        if (ticketCode != null) 'ticket_code': ticketCode.trim(),
+        if (zoneName != null) 'zone_name': zoneName.trim(),
+        if (seatNumber != null) 'seat_number': seatNumber.trim(),
+        if (originalPrice != null) 'original_price': originalPrice,
         'resell_price': resellPrice,
         'delivery_type': deliveryType,
         'shipping_company': shippingCompany,

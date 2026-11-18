@@ -146,7 +146,27 @@ exports.createPayment = async (req, res) => {
         });
       }
 
-      // ผู้ซื้อคนเดิมกดซ้ำ ให้คืนออเดอร์เดิม
+      // ผู้ซื้อคนเดิมกดซ้ำ ให้อัปเดตข้อมูลวิธีจัดส่ง/ชำระเงินในออเดอร์เดิม
+      await conn.query(
+        `UPDATE payments
+         SET amount = ?, commission_fee = ?, shipping_fee = ?, payment_method = ?, delivery_method = ?, shipping_info = ?
+         WHERE payment_id = ?`,
+        [
+          totalAmount,
+          commissionFee,
+          shippingFee,
+          paymentMethod,
+          rawDeliveryMethod,
+          String(shippingInfo).trim(),
+          activePayments[0].payment_id,
+        ]
+      );
+
+      const [updatedPending] = await conn.query(
+        'SELECT *, GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), expires_at)) AS remaining_seconds FROM payments WHERE payment_id = ?',
+        [activePayments[0].payment_id]
+      );
+
       await conn.commit();
 
       return res.status(200).json({
@@ -159,20 +179,6 @@ exports.createPayment = async (req, res) => {
         },
       });
     }
-
-    // คำนวณราคา
-    const basePrice = Number(listing.resell_price);
-
-    const commissionFee = Math.round(
-      basePrice * COMMISSION_RATE
-    );
-
-    const shippingFee = isParcel
-      ? PARCEL_SHIPPING_FEE
-      : 0;
-
-    const totalAmount =
-      basePrice + commissionFee + shippingFee;
 
     // สร้างรายการชำระเงินใหม่
     const [result] = await conn.query(

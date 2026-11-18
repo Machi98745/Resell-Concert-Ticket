@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:frontend/controller/payment_controller.dart';
+import 'cart_service.dart';
 import 'payment_page.dart';
 
 const Color pink = Color(0xFFE85D9E);
@@ -41,6 +42,11 @@ class _HistoryPageState extends State<HistoryPage>
       length: statuses.length,
       vsync: this,
     );
+
+    if (CartService.history.isNotEmpty) {
+      allOrders = List<Map<String, dynamic>>.from(CartService.history);
+      isLoading = false;
+    }
 
     // Update countdown every second.
     countdownTimer = Timer.periodic(
@@ -94,7 +100,7 @@ class _HistoryPageState extends State<HistoryPage>
   }
 
   Future<void> loadOrders() async {
-    if (mounted) {
+    if (mounted && CartService.history.isEmpty) {
       setState(() {
         isLoading = true;
         errorMessage = null;
@@ -162,7 +168,9 @@ class _HistoryPageState extends State<HistoryPage>
       if (!mounted) return;
 
       setState(() {
-        allOrders = mapped;
+        allOrders = mapped.isNotEmpty || CartService.history.isEmpty
+            ? mapped
+            : List<Map<String, dynamic>>.from(CartService.history);
         isLoading = false;
       });
     } catch (e) {
@@ -170,8 +178,13 @@ class _HistoryPageState extends State<HistoryPage>
 
       setState(() {
         isLoading = false;
-        errorMessage =
-            e.toString().replaceAll('Exception: ', '');
+        if (CartService.history.isNotEmpty) {
+          allOrders = List<Map<String, dynamic>>.from(CartService.history);
+          errorMessage = null;
+        } else {
+          errorMessage =
+              e.toString().replaceAll('Exception: ', '');
+        }
       });
     }
   }
