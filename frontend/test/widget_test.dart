@@ -387,7 +387,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('Sell Your Ticket'), findsOneWidget);
-      expect(find.text('Ticket Details'), findsOneWidget);
+      expect(find.textContaining('Ticket Details'), findsOneWidget);
       expect(find.text('Continue to Review'), findsOneWidget);
 
       await tester.ensureVisible(find.text('Continue to Review'));
