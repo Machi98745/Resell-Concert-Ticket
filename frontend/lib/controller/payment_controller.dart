@@ -164,6 +164,38 @@ class PaymentController {
     }
   }
 
+  // ==========================================================================
+  // 8. ผู้ขายกดส่งบัตร (POST /api/payments/:id/ship)
+  // ==========================================================================
+  Future<Map<String, dynamic>> shipOrder({
+    required int paymentId,
+    String? trackingNumber,
+  }) async {
+    try {
+      return await ApiService.shipOrder(
+        paymentId,
+        trackingNumber: trackingNumber,
+      );
+    } catch (e) {
+      debugPrint('PaymentController.shipOrder error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
+  // ==========================================================================
+  // 9. ผู้ซื้อกดยืนยันรับบัตร (POST /api/payments/:id/receive)
+  // ==========================================================================
+  Future<Map<String, dynamic>> confirmReceived({
+    required int paymentId,
+  }) async {
+    try {
+      return await ApiService.confirmReceived(paymentId);
+    } catch (e) {
+      debugPrint('PaymentController.confirmReceived error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
   String _cleanErrorMessage(Object error) {
     final msg = error.toString().replaceAll('Exception: ', '').trim();
     if (msg.contains('SocketException') ||

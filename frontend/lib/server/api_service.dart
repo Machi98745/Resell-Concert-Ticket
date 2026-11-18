@@ -388,4 +388,43 @@ static String getImageUrl(String imagePath) {
   static Future<dynamic> cancelPayment(int paymentId) async {
     return post('/payments/$paymentId/cancel', {});
   }
+
+  // POST /api/payments/:id/ship (ผู้ขายกดส่งบัตร)
+  static Future<Map<String, dynamic>> shipOrder(
+    int paymentId, {
+    String? trackingNumber,
+  }) async {
+    final data = await post('/payments/$paymentId/ship', {
+      if (trackingNumber != null && trackingNumber.trim().isNotEmpty)
+        'tracking_number': trackingNumber.trim(),
+    });
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    return {'status': 'shipped', 'payment_id': paymentId};
+  }
+
+  // POST /api/payments/:id/receive (ผู้ซื้อกดรับบัตร)
+  static Future<Map<String, dynamic>> confirmReceived(int paymentId) async {
+    final data = await post('/payments/$paymentId/receive', {});
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    return {'status': 'completed', 'payment_id': paymentId};
+  }
+
+  // PUT /api/auth/change-password (เปลี่ยนรหัสผ่านในหน้า Profile)
+  static Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final data = await put('/auth/change-password', {
+      'current_password': currentPassword,
+      'new_password': newPassword,
+    });
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    return {'message': 'Password updated successfully.'};
+  }
 }

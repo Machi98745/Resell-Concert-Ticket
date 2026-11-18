@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/views/favorite_service.dart';
 import 'package:frontend/server/api_service.dart';
+import 'package:frontend/views/cart.dart';
 import 'package:frontend/views/cart_service.dart';
 import 'package:frontend/views/payment_page.dart';
 import 'package:frontend/controller/payment_controller.dart';
@@ -70,11 +71,28 @@ class _DetailPageState extends State<DetailPage> {
   // LOAD TICKETS FROM BACKEND
   // ==========================================
 
+  List<Map<String, dynamic>> _extractInitialTickets() {
+    final raw = concert['tickets'];
+    if (raw is List) {
+      return raw
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    }
+    return [];
+  }
+
   Future<void> loadTickets() async {
+    final fallbackTickets = _extractInitialTickets();
+    if (fallbackTickets.isNotEmpty) {
+      loadedTickets = fallbackTickets;
+      isLoadingTickets = false;
+    }
+
     if (concertId == null) {
       setState(() {
         isLoadingTickets = false;
-        ticketError = 'Concert ID not found.';
+        ticketError = fallbackTickets.isEmpty ? 'Concert ID not found.' : null;
       });
       return;
     }
@@ -114,7 +132,7 @@ class _DetailPageState extends State<DetailPage> {
 
       setState(() {
         isLoadingTickets = false;
-        ticketError = error.toString();
+        ticketError = loadedTickets.isEmpty ? error.toString() : null;
       });
     }
   }
@@ -145,17 +163,29 @@ class _DetailPageState extends State<DetailPage> {
   }
 
   List<String> getSeats(Map<String, dynamic> ticket) {
-    final seat = ticket['seat']?.toString();
+    final seat = (ticket['seat'] ?? ticket['seat_number'])?.toString();
 
-    if (seat != null && seat.isNotEmpty) {
-      return [seat];
+    if (seat != null && seat.trim().isNotEmpty) {
+      return [seat.trim()];
+    }
+
+    final rawSeats = ticket['seats'];
+    if (rawSeats is List) {
+      return rawSeats
+          .map((s) => s.toString().trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
     }
 
     return [];
   }
 
   String ticketKey(Map<String, dynamic> ticket) {
-    return '${ticket['listing_id']}_${ticket['ticket_id']}';
+    final lid = ticket['listing_id'] ?? ticket['listingId'] ?? '';
+    final tid = ticket['ticket_id'] ?? ticket['ticketId'] ?? '';
+    final zone = ticket['zone'] ?? ticket['zone_name'] ?? '';
+    final seat = ticket['seat'] ?? ticket['seat_number'] ?? (ticket['seats'] is List && (ticket['seats'] as List).isNotEmpty ? (ticket['seats'] as List).first : '');
+    return '${lid}_${tid}_${zone}_$seat';
   }
 
   String? getSelectedSeat(Map<String, dynamic> ticket) {
@@ -253,22 +283,30 @@ class _DetailPageState extends State<DetailPage> {
 
   Map<String, dynamic> createTicketItem(Map<String, dynamic> ticket) {
     final selectedSeat = getSelectedSeat(ticket);
+    final resolvedSeat = selectedSeat ?? ticket['seat'] ?? ticket['seat_number'] ?? 'General';
+    final resolvedZone = ticket['zone'] ?? ticket['zone_name'] ?? 'General';
+    final resolvedListingId = ticket['listing_id'] ?? ticket['listingId'];
+    final resolvedTicketId =
+        ticket['ticket_id'] ?? ticket['ticketId'] ?? resolvedListingId ?? '${resolvedZone}_$resolvedSeat';
 
     return {
       ...concert,
       ...ticket,
+      'id': resolvedTicketId,
       'concertName': eventName,
       'artist': artist,
       'date': eventDate,
       'location': eventLocation,
       'image': eventImage,
-      'seller': ticket['seller'] ?? 'Ticket Pink',
-      'seat': selectedSeat ?? ticket['seat'] ?? 'General',
-      'zone': ticket['zone'] ?? 'General',
-      'price': ticket['price'] ?? 0,
+      'seller': ticket['seller'] ?? ticket['seller_name'] ?? 'Ticket Pink',
+      'seat': resolvedSeat,
+      'zone': resolvedZone,
+      'price': ticket['price'] ?? ticket['resell_price'] ?? 0,
       'condition': ticket['condition'] ?? 'Available',
-      'listingId': ticket['listing_id'],
-      'ticketId': ticket['ticket_id'],
+      'listingId': resolvedListingId,
+      'listing_id': resolvedListingId,
+      'ticketId': resolvedTicketId,
+      'ticket_id': resolvedTicketId,
     };
   }
 
@@ -276,21 +314,121 @@ class _DetailPageState extends State<DetailPage> {
   // VALIDATION
   // ==========================================
 
+  void _showSeatSelectionPopup(Map<String, dynamic> ticket) {
+    final zoneName = (ticket['zone'] ?? ticket['zone_name'] ?? 'General').toString();
+    final seats = getSeats(ticket);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: pink.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.event_seat_rounded,
+                color: pink,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Please Select a Seat',
+                style: TextStyle(
+                  color: darkPink,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 19,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'You have not selected a seat yet. Please tap on a seat number button inside the ticket card before adding to cart or proceeding to payment.',
+              style: TextStyle(
+                color: Colors.black87,
+                fontSize: 14,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: lightPink,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.pink.shade100),
+              ),
+              child: Text(
+                'Zone: $zoneName\nAvailable seat(s): ${seats.join(", ")}',
+                style: const TextStyle(
+                  color: darkPink,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: pink,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () => Navigator.pop(dialogContext),
+              icon: const Icon(Icons.touch_app, size: 18),
+              label: const Text(
+                'OK, Select Seat Now',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   bool validateSeatSelection(Map<String, dynamic> ticket) {
     final seats = getSeats(ticket);
 
     if (seats.isEmpty) return true;
 
     if (getSelectedSeat(ticket) == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          backgroundColor: darkPink,
-          content: Text(
-            'Please select your seat first.',
-            style: TextStyle(color: Colors.white),
+      _showSeatSelectionPopup(ticket);
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            backgroundColor: darkPink,
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+              'Please select your seat first.',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
           ),
-        ),
-      );
+        );
 
       return false;
     }
@@ -327,6 +465,7 @@ class _DetailPageState extends State<DetailPage> {
 
     final cartItem = createTicketItem(ticket);
     final added = CartService.addToCart(cartItem);
+    setState(() {});
 
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -665,6 +804,8 @@ class _DetailPageState extends State<DetailPage> {
   // ==========================================
 
   Widget _buildTopBar() {
+    final cartCount = CartService.items.length;
+
     return Row(
       children: [
         IconButton(
@@ -688,6 +829,50 @@ class _DetailPageState extends State<DetailPage> {
             color: isFavorite ? pink : Colors.white,
             size: 26,
           ),
+        ),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            IconButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CartPage()),
+                ).then((_) {
+                  if (mounted) setState(() {});
+                });
+              },
+              tooltip: 'My Cart',
+              icon: const Icon(
+                Icons.shopping_cart_outlined,
+                color: Colors.white,
+                size: 26,
+              ),
+            ),
+            if (cartCount > 0)
+              Positioned(
+                right: 4,
+                top: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: pink,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$cartCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ],
     );

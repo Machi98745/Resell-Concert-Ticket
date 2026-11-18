@@ -22,6 +22,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  String username = '';
   String name = '';
   String email = '';
   String phone = '';
@@ -58,6 +59,7 @@ class _ProfilePageState extends State<ProfilePage> {
       final imagePath = user['profile_image']?.toString();
 
       setState(() {
+        username = user['username']?.toString() ?? '';
         name = user['full_name']?.toString() ?? '';
         email = user['email']?.toString() ?? '';
         phone = user['phone']?.toString() ?? '';
@@ -177,6 +179,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> editProfile() async {
     if (isLoading || isSaving) return;
 
+    final usernameController = TextEditingController(text: username);
     final nameController = TextEditingController(text: name);
     final emailController = TextEditingController(text: email);
     final phoneController = TextEditingController(text: phone);
@@ -190,14 +193,15 @@ class _ProfilePageState extends State<ProfilePage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             Future<void> saveProfile() async {
+              final newUsername = usernameController.text.trim();
               final newName = nameController.text.trim();
               final newEmail = emailController.text.trim();
               final newPhone = phoneController.text.trim();
 
-              if (newName.isEmpty || newEmail.isEmpty) {
+              if (newUsername.isEmpty || newName.isEmpty || newEmail.isEmpty) {
                 ScaffoldMessenger.of(dialogContext).showSnackBar(
                   const SnackBar(
-                    content: Text('Name and email cannot be empty.'),
+                    content: Text('Username, name, and email cannot be empty.'),
                   ),
                 );
                 return;
@@ -220,6 +224,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
               try {
                 final updatedUser = await ApiService.updateProfile({
+                  'username': newUsername,
                   'full_name': newName,
                   'email': newEmail,
                   'phone': newPhone,
@@ -228,6 +233,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 if (!mounted || !dialogContext.mounted) return;
 
                 setState(() {
+                  username = updatedUser['username']?.toString() ?? newUsername;
                   name = updatedUser['full_name']?.toString() ?? newName;
                   email = updatedUser['email']?.toString() ?? newEmail;
                   phone = updatedUser['phone']?.toString() ?? newPhone;
@@ -305,6 +311,8 @@ class _ProfilePageState extends State<ProfilePage> {
                       ],
                     ),
                     const SizedBox(height: 12),
+                    _editField('Username', usernameController),
+                    const SizedBox(height: 12),
                     _editField('Full Name', nameController),
                     const SizedBox(height: 12),
                     _editField('Email', emailController),
@@ -346,9 +354,169 @@ class _ProfilePageState extends State<ProfilePage> {
       },
     );
 
+    usernameController.dispose();
     nameController.dispose();
     emailController.dispose();
     phoneController.dispose();
+  }
+
+  // CHANGE PASSWORD FROM PROFILE PAGE
+  Future<void> openChangePasswordDialog() async {
+    final currentController = TextEditingController();
+    final newController = TextEditingController();
+    final confirmController = TextEditingController();
+    bool dialogSaving = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text(
+                'Change Password',
+                style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: currentController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'Current Password',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: pink),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: newController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'New Password (min 6 chars)',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: pink),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: confirmController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'Confirm New Password',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: pink),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: dialogSaving
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: pink,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: dialogSaving
+                      ? null
+                      : () async {
+                          final currentPass = currentController.text;
+                          final newPass = newController.text;
+                          final confirmPass = confirmController.text;
+
+                          if (currentPass.isEmpty ||
+                              newPass.length < 6 ||
+                              newPass != confirmPass) {
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Check your password. New password must be at least 6 characters and match.',
+                                ),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() {
+                            dialogSaving = true;
+                          });
+
+                          try {
+                            await ApiService.changePassword(
+                              currentPassword: currentPass,
+                              newPassword: newPass,
+                            );
+
+                            if (!mounted || !dialogContext.mounted) return;
+                            Navigator.pop(dialogContext);
+
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Password changed successfully!'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          } catch (e) {
+                            if (!dialogContext.mounted) return;
+                            setDialogState(() {
+                              dialogSaving = false;
+                            });
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  e.toString().replaceAll('Exception: ', ''),
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                  child: dialogSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Update Password'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    currentController.dispose();
+    newController.dispose();
+    confirmController.dispose();
   }
 
   Widget _editField(String label, TextEditingController controller) {
@@ -606,6 +774,12 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
             const SizedBox(height: 18),
+            _infoRow(
+              Icons.alternate_email,
+              'Username',
+              username.isEmpty ? '-' : username,
+            ),
+            const Divider(height: 25),
             _infoRow(Icons.person_outline, 'Full Name', name),
             const Divider(height: 25),
             _infoRow(Icons.email_outlined, 'Email', email),
@@ -645,6 +819,11 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             _menuItem(Icons.favorite_border, 'My Favorites', openFavorites),
             _menuItem(Icons.sell_outlined, 'My Reselling', openReselling),
+            _menuItem(
+              Icons.lock_outline,
+              'Change Password',
+              openChangePasswordDialog,
+            ),
             _menuItem(Icons.settings_outlined, 'Settings', openSettings),
             _menuItem(Icons.help_outline, 'Help & Support', openHelp),
           ],
@@ -1059,59 +1238,101 @@ class _SettingsPageState extends State<SettingsPage> {
     final currentController = TextEditingController();
     final newController = TextEditingController();
     final confirmController = TextEditingController();
+    bool isUpdating = false;
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text(
-            'Change Password',
-            style: TextStyle(color: darkPink),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _passwordField('Current Password', currentController),
-                const SizedBox(height: 12),
-                _passwordField('New Password', newController),
-                const SizedBox(height: 12),
-                _passwordField('Confirm New Password', confirmController),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: pink,
-                foregroundColor: Colors.white,
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text(
+                'Change Password',
+                style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
               ),
-              onPressed: () {
-                if (currentController.text.isEmpty ||
-                    newController.text.length < 6 ||
-                    newController.text != confirmController.text) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Check your password. New password must be at least 6 characters and match.',
-                      ),
-                    ),
-                  );
-                  return;
-                }
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _passwordField('Current Password', currentController),
+                    const SizedBox(height: 12),
+                    _passwordField('New Password', newController),
+                    const SizedBox(height: 12),
+                    _passwordField('Confirm New Password', confirmController),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isUpdating
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: pink,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: isUpdating
+                      ? null
+                      : () async {
+                          if (currentController.text.isEmpty ||
+                              newController.text.length < 6 ||
+                              newController.text != confirmController.text) {
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Check your password. New password must be at least 6 characters and match.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
 
-                Navigator.pop(dialogContext);
-                showMessage(
-                  'Password change UI completed. Connect to your API to save it.',
-                );
-              },
-              child: const Text('Update'),
-            ),
-          ],
+                          setDialogState(() {
+                            isUpdating = true;
+                          });
+
+                          try {
+                            await ApiService.changePassword(
+                              currentPassword: currentController.text,
+                              newPassword: newController.text,
+                            );
+
+                            if (!mounted || !dialogContext.mounted) return;
+                            Navigator.pop(dialogContext);
+                            showMessage('Password updated successfully!');
+                          } catch (e) {
+                            if (!dialogContext.mounted) return;
+                            setDialogState(() {
+                              isUpdating = false;
+                            });
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  e.toString().replaceAll('Exception: ', ''),
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                  child: isUpdating
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Update'),
+                ),
+              ],
+            );
+          },
         );
       },
     ).then((_) {

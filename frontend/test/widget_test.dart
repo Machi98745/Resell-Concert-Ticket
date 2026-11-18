@@ -202,7 +202,7 @@ void main() {
       expect(find.text('Aurora Live'), findsOneWidget);
       expect(find.text('Neon Night'), findsOneWidget);
       expect(find.text('Total'), findsOneWidget);
-      expect(find.text('฿3500'), findsOneWidget);
+      expect(find.text('฿3500.00'), findsOneWidget);
       expect(find.text('Proceed to Payment'), findsOneWidget);
     });
 

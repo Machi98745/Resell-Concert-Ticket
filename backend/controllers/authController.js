@@ -134,16 +134,27 @@ exports.getMe = async (req, res) => {
 
 // 4. แก้ไขโปรไฟล์ (PUT /api/auth/profile)
 exports.updateProfile = async (req, res) => {
-  const { full_name, email, phone } = req.body;
+  const { username, full_name, email, phone } = req.body;
 
   if (!full_name || !email) {
     return res.status(400).json({ message: 'full_name and email are required.' });
   }
 
+  const trimmedUsername =
+    username !== undefined && String(username).trim() !== ''
+      ? String(username).trim()
+      : null;
+
   try {
     await db.query(
-      'UPDATE users SET full_name = ?, email = ?, phone = ? WHERE user_id = ?',
-      [full_name.trim(), email.trim(), phone ? phone.trim() : null, req.user.user_id]
+      'UPDATE users SET username = COALESCE(?, username), full_name = ?, email = ?, phone = ? WHERE user_id = ?',
+      [
+        trimmedUsername,
+        full_name.trim(),
+        email.trim(),
+        phone ? phone.trim() : null,
+        req.user.user_id,
+      ]
     );
 
     const [updated] = await db.query(
@@ -160,7 +171,7 @@ exports.updateProfile = async (req, res) => {
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({
-        message: 'This email is already in use by another account.',
+        message: 'This username or email is already in use by another account.',
       });
     }
     return res.status(500).json({ message: 'Database Error', error: err.message });
@@ -169,7 +180,10 @@ exports.updateProfile = async (req, res) => {
 
 // 5. เปลี่ยนรหัสผ่าน (PUT /api/auth/change-password)
 exports.changePassword = async (req, res) => {
-  const { current_password, new_password } = req.body;
+  const current_password =
+    req.body.current_password || req.body.old_password || req.body.currentPassword;
+  const new_password =
+    req.body.new_password || req.body.newPassword;
 
   if (!current_password || !new_password) {
     return res.status(400).json({

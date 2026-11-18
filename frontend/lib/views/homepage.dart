@@ -1351,8 +1351,7 @@ class _HomePageState extends State<HomePage> {
                         const SizedBox(width: 7),
                         Expanded(
                           child: Text(
-                            concert['date']?.toString() ??
-                                'Date TBA',
+                            '${concert['date']?.toString() ?? 'Date TBA'}${(concert['time'] != null && concert['time'].toString().trim().isNotEmpty) ? ' • ${concert['time']}' : ''}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -1363,6 +1362,31 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ],
                     ),
+                    if (concert['time'] != null &&
+                        concert['time'].toString().trim().isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.access_time,
+                            size: 15,
+                            color: pink,
+                          ),
+                          const SizedBox(width: 7),
+                          Expanded(
+                            child: Text(
+                              'Time: ${concert['time']}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 7),
                     Row(
                       crossAxisAlignment:

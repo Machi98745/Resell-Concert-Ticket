@@ -10,6 +10,8 @@ router.post('/create', paymentController.createPayment);
 router.post('/checkout', paymentController.createPayment);
 router.post('/:id/confirm', paymentController.confirmPayment);
 router.post('/:id/cancel', paymentController.cancelPayment);
+router.post('/:id/ship', paymentController.shipOrder);
+router.post('/:id/receive', paymentController.confirmReceived);
 
 // ต้องวาง /my-orders ก่อน /:id
 router.get('/my-orders', paymentController.getMyOrders);

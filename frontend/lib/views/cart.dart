@@ -352,7 +352,7 @@ class _CartPageState extends State<CartPage> {
                                     ),
                                     const SizedBox(height: 5),
                                     Text(
-                                      '฿${price.toStringAsFixed(0)}',
+                                      '฿${price.toStringAsFixed(2)}',
                                       style: const TextStyle(
                                         color: pink,
                                         fontWeight: FontWeight.bold,
@@ -412,7 +412,7 @@ class _CartPageState extends State<CartPage> {
                             ),
                           ),
                           Text(
-                            '฿${CartService.totalPrice.toStringAsFixed(0)}',
+                            '฿${CartService.totalPrice.toStringAsFixed(2)}',
                             style: const TextStyle(
                               fontSize: 21,
                               color: pink,

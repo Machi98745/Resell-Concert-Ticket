@@ -22,6 +22,7 @@ class _SellPageState extends State<SellPage> {
 
   bool isLoadingConcerts = false;
   bool isSubmitting = false;
+  bool showValidationErrors = false;
 
   int? createdListingId;
 
@@ -342,6 +343,143 @@ class _SellPageState extends State<SellPage> {
   }
 
   // ==========================================
+  // FIELD-LEVEL ERROR MESSAGES (แสดงใต้กล่องข้อความที่ผิด)
+  // ==========================================
+
+  String? get concertError {
+    if (!showValidationErrors) return null;
+    if (selectedConcert == null) {
+      return '⚠ Please select a concert.';
+    }
+    return null;
+  }
+
+  String? get ticketCodeError {
+    if (!showValidationErrors) return null;
+    if (ticketCode.text.trim().isEmpty) {
+      return '⚠ Please enter your ticket code.';
+    }
+    return null;
+  }
+
+  String? get zoneError {
+    if (!showValidationErrors) return null;
+    if (zone.text.trim().isEmpty) {
+      return '⚠ Please enter the zone name.';
+    }
+    return null;
+  }
+
+  String? get seatError {
+    if (!showValidationErrors) return null;
+    if (seat.text.trim().isEmpty) {
+      return '⚠ Please enter the seat number.';
+    }
+    return null;
+  }
+
+  String? get originalPriceError {
+    final text = originalPrice.text.trim();
+    if (text.isEmpty) {
+      return showValidationErrors ? '⚠ Please enter the original ticket price.' : null;
+    }
+    final val = double.tryParse(text);
+    if (val == null) {
+      return '⚠ Please enter a valid number.';
+    }
+    if (val < 0) {
+      return '⚠ Original price cannot be negative.';
+    }
+    if (val == 0) {
+      return '⚠ Original price must be greater than 0 THB.';
+    }
+    if (val > ResellController.maxResellPrice) {
+      return '⚠ Original price cannot exceed 1,000,000 THB.';
+    }
+    return null;
+  }
+
+  String? get sellingPriceError {
+    final text = price.text.trim();
+    if (text.isEmpty) {
+      return showValidationErrors ? '⚠ Please enter a selling price.' : null;
+    }
+    final val = double.tryParse(text);
+    if (val == null) {
+      return '⚠ Please enter a valid number.';
+    }
+    if (val < 0) {
+      return '⚠ Selling price cannot be negative.';
+    }
+    if (val == 0) {
+      return '⚠ Selling price must be greater than 0 THB.';
+    }
+    if (val > ResellController.maxResellPrice) {
+      return '⚠ Selling price cannot exceed 1,000,000 THB.';
+    }
+    if (isPriceExceedingLimit) {
+      return '⚠ Price cannot exceed 5x of original price (Max: THB ${maxAllowedPrice.toStringAsFixed(0)})';
+    }
+    return null;
+  }
+
+  String? get shippingFeeError {
+    if (delivery != 'Parcel Shipping') return null;
+    final text = shipping.text.trim();
+    if (text.isEmpty) {
+      return showValidationErrors ? '⚠ Please enter a shipping fee.' : null;
+    }
+    final val = double.tryParse(text);
+    if (val == null) {
+      return '⚠ Please enter a valid number.';
+    }
+    if (val < 0) {
+      return '⚠ Shipping fee cannot be negative.';
+    }
+    if (val > ResellController.maxResellPrice) {
+      return '⚠ Shipping fee cannot exceed 1,000,000 THB.';
+    }
+    return null;
+  }
+
+  String? get appNameError {
+    if (!showValidationErrors) return null;
+    if (delivery == 'Digital Transfer' &&
+        channel == 'Other Application' &&
+        appName.text.trim().isEmpty) {
+      return '⚠ Please enter the application name.';
+    }
+    return null;
+  }
+
+  String? get bankError {
+    if (!showValidationErrors) return null;
+    if (bank == null || bank!.trim().isEmpty) {
+      return '⚠ Please select a bank.';
+    }
+    return null;
+  }
+
+  String? get accNameError {
+    if (!showValidationErrors) return null;
+    if (accName.text.trim().isEmpty) {
+      return '⚠ Please enter the account holder name.';
+    }
+    return null;
+  }
+
+  String? get accNumberError {
+    final text = accNumber.text.trim();
+    if (text.isEmpty) {
+      return showValidationErrors ? '⚠ Please enter your bank account number.' : null;
+    }
+    if (!RegExp(r'^\d{9,15}$').hasMatch(text)) {
+      return '⚠ Account number must be 9-15 digits (no negative or special characters).';
+    }
+    return null;
+  }
+
+  // ==========================================
   // VALIDATION VIA RESELL CONTROLLER
   // ==========================================
 
@@ -349,6 +487,22 @@ class _SellPageState extends State<SellPage> {
     final concertId = selectedConcert == null
         ? null
         : int.tryParse(selectedConcert!['concert_id'].toString());
+
+    final origVal = double.tryParse(originalPrice.text.trim());
+    if (origVal != null && origVal < 0) {
+      return 'Original price cannot be negative.';
+    }
+    if (origVal != null && origVal > ResellController.maxResellPrice) {
+      return 'Original price cannot exceed 1,000,000 THB.';
+    }
+
+    final sellVal = double.tryParse(price.text.trim());
+    if (sellVal != null && sellVal < 0) {
+      return 'Selling price cannot be negative.';
+    }
+    if (sellVal != null && sellVal > ResellController.maxResellPrice) {
+      return 'Selling price cannot exceed 1,000,000 THB.';
+    }
 
     final ticketAndPriceError = ResellController.validateResellInput(
       concertId: concertId,
@@ -364,8 +518,15 @@ class _SellPageState extends State<SellPage> {
     }
 
     if (delivery == 'Parcel Shipping') {
-      if (shipping.text.trim().isEmpty || shipNum < 0) {
+      final shipVal = double.tryParse(shipping.text.trim());
+      if (shipping.text.trim().isEmpty || shipVal == null) {
         return 'Please enter a valid shipping fee.';
+      }
+      if (shipVal < 0) {
+        return 'Shipping fee cannot be negative.';
+      }
+      if (shipVal > ResellController.maxResellPrice) {
+        return 'Shipping fee cannot exceed 1,000,000 THB.';
       }
     }
 
@@ -389,6 +550,10 @@ class _SellPageState extends State<SellPage> {
   // ==========================================
 
   void goToReview() {
+    setState(() {
+      showValidationErrors = true;
+    });
+
     final error = check();
 
     if (error != null) {
@@ -508,6 +673,7 @@ class _SellPageState extends State<SellPage> {
       page = 0;
       selectedConcert = null;
       createdListingId = null;
+      showValidationErrors = false;
 
       shipping.text = '50';
 
@@ -535,12 +701,20 @@ class _SellPageState extends State<SellPage> {
       child: TextField(
         controller: controller,
         maxLines: lines,
-        keyboardType: number ? TextInputType.number : TextInputType.text,
+        keyboardType: number
+            ? const TextInputType.numberWithOptions(decimal: true, signed: false)
+            : TextInputType.text,
         onChanged: (_) => setState(() {}),
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
           errorText: errorText,
+          errorMaxLines: 2,
+          errorStyle: const TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
           border: const OutlineInputBorder(),
         ),
       ),
@@ -627,6 +801,12 @@ class _SellPageState extends State<SellPage> {
               labelText: 'Concert',
               prefixIcon: Icon(Icons.search, color: pink),
               suffixIcon: const Icon(Icons.arrow_drop_down),
+              errorText: concertError,
+              errorStyle: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
               border: const OutlineInputBorder(),
             ),
             child: Text(
@@ -668,32 +848,36 @@ class _SellPageState extends State<SellPage> {
           'Ticket Code',
           ticketCode,
           hint: 'e.g. TKT-BS2026-A105',
+          errorText: ticketCodeError,
         ),
 
         field(
           'Zone Name',
           zone,
           hint: 'e.g. VIP A1, Zone S1, Standing B',
+          errorText: zoneError,
         ),
 
         field(
           'Seat Number',
           seat,
           hint: 'e.g. A1-05 or Standing',
+          errorText: seatError,
         ),
 
         field(
           'Original Face-Value Price (THB)',
           originalPrice,
           number: true,
-          hint: 'e.g. 4500',
+          hint: 'e.g. 4500 (Max 1,000,000 THB)',
+          errorText: originalPriceError,
         ),
 
-        if (originalPriceNum > 0)
+        if (originalPriceNum > 0 && originalPriceNum <= ResellController.maxResellPrice)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
-              'Maximum allowed resale price (5x): THB ${maxAllowedPrice.toStringAsFixed(0)}',
+              'Maximum allowed resale price (5x, up to 1,000,000 THB): THB ${(maxAllowedPrice > ResellController.maxResellPrice ? ResellController.maxResellPrice : maxAllowedPrice).toStringAsFixed(0)}',
               style: TextStyle(
                 color: darkPink,
                 fontSize: 12,
@@ -709,11 +893,9 @@ class _SellPageState extends State<SellPage> {
           price,
           number: true,
           hint: originalPriceNum > 0
-              ? 'Enter selling price (Max THB ${maxAllowedPrice.toStringAsFixed(0)})'
-              : 'Enter original price above first',
-          errorText: isPriceExceedingLimit
-              ? 'Price cannot exceed 5x of original price (Max: THB ${maxAllowedPrice.toStringAsFixed(0)})'
-              : null,
+              ? 'Enter selling price (Max THB ${(maxAllowedPrice > ResellController.maxResellPrice ? ResellController.maxResellPrice : maxAllowedPrice).toStringAsFixed(0)})'
+              : 'Enter original price above first (Max 1,000,000 THB)',
+          errorText: sellingPriceError,
         ),
 
         title('4. Ticket Delivery Method'),
@@ -768,7 +950,12 @@ class _SellPageState extends State<SellPage> {
 
           const SizedBox(height: 15),
 
-          field('Shipping Fee (THB)', shipping, number: true),
+          field(
+            'Shipping Fee (THB)',
+            shipping,
+            number: true,
+            errorText: shippingFeeError,
+          ),
         ] else
           Container(
             margin: const EdgeInsets.only(left: 16, bottom: 15),
@@ -805,7 +992,11 @@ class _SellPageState extends State<SellPage> {
                     },
                   ),
                 if (channel == 'Other Application')
-                  field('Application Name', appName),
+                  field(
+                    'Application Name',
+                    appName,
+                    errorText: appNameError,
+                  ),
               ],
             ),
           ),
@@ -816,9 +1007,15 @@ class _SellPageState extends State<SellPage> {
 
         DropdownButtonFormField<String>(
           initialValue: bank,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'Bank Name',
-            border: OutlineInputBorder(),
+            errorText: bankError,
+            errorStyle: const TextStyle(
+              color: Colors.red,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+            border: const OutlineInputBorder(),
           ),
           items: [
             'Bangkok Bank',
@@ -839,9 +1036,18 @@ class _SellPageState extends State<SellPage> {
 
         const SizedBox(height: 15),
 
-        field('Account Holder Name', accName),
+        field(
+          'Account Holder Name',
+          accName,
+          errorText: accNameError,
+        ),
 
-        field('Bank Account Number', accNumber, number: true),
+        field(
+          'Bank Account Number',
+          accNumber,
+          number: true,
+          errorText: accNumberError,
+        ),
 
         const Text(
           'Demo only. Do not enter real bank details.',

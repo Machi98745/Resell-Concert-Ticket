@@ -473,11 +473,11 @@ exports.cancelPayment = async (req, res) => {
   }
 };
 
-// 4. ดึงประวัติคำสั่งซื้อของผู้ใช้
+// 4. ดึงประวัติคำสั่งซื้อของผู้ใช้ (ทั้งรายการที่ซื้อและรายการที่ขายสำเร็จเพื่อกดส่งบัตร)
 // GET /api/payments/my-orders
 
 exports.getMyOrders = async (req, res) => {
-  const buyerId = req.user.user_id;
+  const userId = req.user.user_id;
 
   try {
     // เปลี่ยนรายการ Pending ที่หมดเวลาเป็น Expired
@@ -488,7 +488,7 @@ exports.getMyOrders = async (req, res) => {
        WHERE buyer_id = ?
          AND status = 'pending'
          AND expires_at <= NOW()`,
-      [buyerId]
+      [userId]
     );
 
     const sql = `
@@ -502,11 +502,23 @@ exports.getMyOrders = async (req, res) => {
 
         rl.resell_price,
         rl.ticket_id,
+        rl.seller_id,
+
+        seller.full_name AS seller_name,
+        seller.username AS seller_username,
+        seller.email AS seller_email,
+
+        buyer.full_name AS buyer_name,
+        buyer.username AS buyer_username,
+        buyer.email AS buyer_email,
+
+        CASE WHEN rl.seller_id = ? THEN 1 ELSE 0 END AS is_seller,
+        CASE WHEN p.buyer_id = ? THEN 1 ELSE 0 END AS is_buyer,
 
         t.ticket_id AS actual_ticket_id,
 
         CASE
-          WHEN p.status IN ('completed', 'paid')
+          WHEN p.status IN ('completed', 'paid') AND p.buyer_id = ?
           THEN t.ticket_code
           ELSE CONCAT(LEFT(COALESCE(t.ticket_code, ''), 4), '-****')
         END AS ticket_code,
@@ -527,6 +539,12 @@ exports.getMyOrders = async (req, res) => {
       LEFT JOIN resell_listings rl
         ON p.listing_id = rl.listing_id
 
+      LEFT JOIN users seller
+        ON rl.seller_id = seller.user_id
+
+      LEFT JOIN users buyer
+        ON p.buyer_id = buyer.user_id
+
       LEFT JOIN tickets t
         ON rl.ticket_id = t.ticket_id
 
@@ -534,11 +552,18 @@ exports.getMyOrders = async (req, res) => {
         ON t.concert_id = c.concert_id
 
       WHERE p.buyer_id = ?
+         OR (rl.seller_id = ? AND p.status IN ('completed', 'paid'))
 
       ORDER BY p.payment_id DESC
     `;
 
-    const [orders] = await db.query(sql, [buyerId]);
+    const [orders] = await db.query(sql, [
+      userId,
+      userId,
+      userId,
+      userId,
+      userId,
+    ]);
 
     return res.status(200).json(orders);
 
@@ -609,6 +634,127 @@ exports.getPaymentById = async (req, res) => {
   } catch (err) {
     console.error('Get payment error:', err);
 
+    return res.status(500).json({
+      message: 'Database Error',
+      error: err.message,
+    });
+  }
+};
+
+// 6. ผู้ขายกดส่งบัตร (POST /api/payments/:id/ship)
+exports.shipOrder = async (req, res) => {
+  const paymentId = req.params.id;
+  const userId = req.user.user_id;
+  const rawTracking = req.body?.tracking_number;
+
+  try {
+    const [rows] = await db.query(
+      `SELECT p.*, rl.seller_id
+       FROM payments p
+       LEFT JOIN resell_listings rl ON p.listing_id = rl.listing_id
+       WHERE p.payment_id = ?`,
+      [paymentId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+
+    const order = rows[0];
+
+    if (
+      Number(order.seller_id) !== Number(userId) &&
+      req.user.role !== 'admin'
+    ) {
+      return res.status(403).json({
+        message: 'Forbidden: Only the seller of this ticket can mark it as shipped.',
+      });
+    }
+
+    if (order.status !== 'completed' && order.status !== 'paid') {
+      return res.status(400).json({
+        message: 'Cannot ship an unpaid order.',
+      });
+    }
+
+    const trackingNumber =
+      rawTracking && String(rawTracking).trim() !== ''
+        ? String(rawTracking).trim()
+        : `TP-${paymentId}-${Date.now().toString().slice(-6)}`;
+
+    await db.query(
+      `UPDATE payments
+       SET shipping_status = 'Shipped',
+           tracking_number = ?
+       WHERE payment_id = ?`,
+      [trackingNumber, paymentId]
+    );
+
+    return res.status(200).json({
+      message: 'Ticket marked as shipped successfully.',
+      payment_id: Number(paymentId),
+      shipping_status: 'Shipped',
+      tracking_number: trackingNumber,
+    });
+  } catch (err) {
+    console.error('Ship order error:', err);
+    return res.status(500).json({
+      message: 'Database Error',
+      error: err.message,
+    });
+  }
+};
+
+// 7. ผู้ซื้อกดยืนยันรับบัตร (POST /api/payments/:id/receive)
+exports.confirmReceived = async (req, res) => {
+  const paymentId = req.params.id;
+  const userId = req.user.user_id;
+
+  try {
+    const [rows] = await db.query(
+      `SELECT p.*, rl.seller_id
+       FROM payments p
+       LEFT JOIN resell_listings rl ON p.listing_id = rl.listing_id
+       WHERE p.payment_id = ?`,
+      [paymentId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+
+    const order = rows[0];
+
+    if (
+      Number(order.buyer_id) !== Number(userId) &&
+      req.user.role !== 'admin'
+    ) {
+      return res.status(403).json({
+        message: 'Forbidden: Only the buyer of this ticket can confirm receipt.',
+      });
+    }
+
+    if (order.status !== 'completed' && order.status !== 'paid') {
+      return res.status(400).json({
+        message: 'Cannot confirm receipt of an unpaid order.',
+      });
+    }
+
+    await db.query(
+      `UPDATE payments
+       SET shipping_status = 'Delivered'
+       WHERE payment_id = ?`,
+      [paymentId]
+    );
+
+    return res.status(200).json({
+      message: 'Ticket receipt confirmed! Order completed.',
+      payment_id: Number(paymentId),
+      shipping_status: 'Delivered',
+      status: 'completed',
+    });
+  } catch (err) {
+    console.error('Confirm received error:', err);
     return res.status(500).json({
       message: 'Database Error',
       error: err.message,

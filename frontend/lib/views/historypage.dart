@@ -140,7 +140,18 @@ class _HistoryPageState extends State<HistoryPage>
 
           'totalPrice': row['amount'] ?? 0,
           'paymentStatus': row['status'] ?? '-',
-          'shippingStatus': row['shipping_status'] ?? '-',
+          'shippingStatus': row['shipping_status'] ?? 'preparing',
+
+          'seller_id': row['seller_id'],
+          'seller_name': row['seller_name'] ?? row['seller_username'] ?? '-',
+          'seller_username': row['seller_username'] ?? '-',
+          'seller_email': row['seller_email'] ?? '-',
+          'buyer_id': row['buyer_id'],
+          'buyer_name': row['buyer_name'] ?? row['buyer_username'] ?? '-',
+          'buyer_email': row['buyer_email'] ?? '-',
+          'is_seller': row['is_seller'] == 1 || row['is_seller'] == true,
+          'is_buyer': row['is_buyer'] == 1 || row['is_buyer'] == true,
+          'fromBackend': true,
 
           // Keep the original expires_at from the database.
           'expires_at': row['expires_at'],
@@ -323,6 +334,15 @@ class _HistoryPageState extends State<HistoryPage>
   }
 
   List<Map<String, dynamic>> ordersFor(String status) {
+    if (status == 'To Ship') {
+      return allOrders
+          .where(
+            (o) =>
+                o['status'] == 'To Ship' ||
+                (o['status'] == 'To Receive' && o['fromBackend'] == true),
+          )
+          .toList();
+    }
     return allOrders.where((o) => o['status'] == status).toList();
   }
 
@@ -548,6 +568,11 @@ class _HistoryPageState extends State<HistoryPage>
                 status == 'Completed')
               _buildTrackingInfo(order),
 
+            if (status == 'To Ship' || status == 'To Receive') ...[
+              const SizedBox(height: 12),
+              _buildShipReceiveActions(order),
+            ],
+
             const SizedBox(height: 15),
 
             if (status == 'To Pay')
@@ -771,6 +796,12 @@ class _HistoryPageState extends State<HistoryPage>
   }
 
   Widget _buildTrackingInfo(Map<String, dynamic> order) {
+    final sellerName = order['seller_name']?.toString() ?? '-';
+    final sellerEmail = order['seller_email']?.toString() ?? '-';
+    final buyerName = order['buyer_name']?.toString() ?? '-';
+    final buyerEmail = order['buyer_email']?.toString() ?? '-';
+    final bool isSeller = order['is_seller'] == true || order['is_seller'] == 1;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(13),
@@ -781,13 +812,76 @@ class _HistoryPageState extends State<HistoryPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Delivery & Shipping',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: darkPink,
-            ),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Delivery & Shipping',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: darkPink,
+                  ),
+                ),
+              ),
+              if (order['fromBackend'] == true)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSeller
+                        ? Colors.orange.withOpacity(0.15)
+                        : pink.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    isSeller ? 'Role: Seller (ผู้ขาย)' : 'Role: Buyer (ผู้ซื้อ)',
+                    style: TextStyle(
+                      color: isSeller ? Colors.deepOrange : pink,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
           ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.storefront_outlined, size: 15, color: darkPink),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Seller: $sellerName ($sellerEmail)',
+                  style: const TextStyle(
+                    color: darkPink,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (isSeller && buyerEmail != '-') ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.person_outline, size: 15, color: darkPink),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Buyer: $buyerName ($buyerEmail)',
+                    style: const TextStyle(
+                      color: darkPink,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 6),
           Text(
             'Status: ${order['shippingStatus'] ?? 'Preparing'}',
@@ -796,6 +890,19 @@ class _HistoryPageState extends State<HistoryPage>
               fontWeight: FontWeight.w600,
             ),
           ),
+          if (order['tracking_number'] != null &&
+              order['tracking_number'].toString().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Tracking: ${order['tracking_number']}',
+                style: const TextStyle(
+                  color: darkPink,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           if (order['shipping_info'] != null)
             Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -810,6 +917,125 @@ class _HistoryPageState extends State<HistoryPage>
         ],
       ),
     );
+  }
+
+  Widget _buildShipReceiveActions(Map<String, dynamic> order) {
+    final bool isSeller = order['is_seller'] == true || order['is_seller'] == 1;
+    final bool isBuyer = order['is_buyer'] == null
+        ? !isSeller
+        : (order['is_buyer'] == true || order['is_buyer'] == 1);
+    final String shipStatus =
+        (order['shippingStatus'] ?? order['shipping_status'] ?? '')
+            .toString()
+            .toLowerCase();
+    final bool isShipped = shipStatus.contains('ship') ||
+        shipStatus.contains('transit') ||
+        order['status'] == 'To Receive';
+
+    // 1. Seller can ship the ticket when it hasn't been shipped yet
+    if (!isShipped && isSeller) {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () => _shipOrder(order),
+          icon: const Icon(Icons.local_shipping_outlined, size: 18),
+          label: const Text(
+            'Ship Ticket (กดส่งบัตร)',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 2. Buyer can confirm received once the seller has shipped the ticket
+    if (isShipped && isBuyer) {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () => _receiveOrder(order),
+          icon: const Icon(Icons.check_circle_outline, size: 18),
+          label: const Text(
+            'Confirm Received (กดรับบัตร)',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 3. Status message while waiting for the other party
+    if (!isShipped && isBuyer) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.blue.withOpacity(0.25)),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.hourglass_top_rounded, size: 16, color: Colors.blue),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Waiting for seller to ship the ticket (รอผู้ขายกดส่งบัตร)',
+                style: TextStyle(
+                  color: Colors.blue,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (isShipped && isSeller) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.green.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.green.withOpacity(0.25)),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.local_shipping, size: 16, color: Colors.green),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Ticket shipped! Waiting for buyer to confirm receipt (ส่งบัตรแล้ว รอผู้ซื้อกดรับบัตร)',
+                style: TextStyle(
+                  color: Colors.green,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 
   Widget _infoRow(
@@ -915,6 +1141,68 @@ class _HistoryPageState extends State<HistoryPage>
     }
   }
 
+  Future<void> _shipOrder(Map<String, dynamic> order) async {
+    final paymentId = int.tryParse(
+      order['payment_id']?.toString() ?? '',
+    );
+
+    if (paymentId == null) return;
+
+    try {
+      await _paymentController.shipOrder(paymentId: paymentId);
+      await loadOrders();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'ส่งบัตรเรียบร้อยแล้ว! รอผู้ซื้อกดยืนยันรับบัตร (Ticket shipped!)',
+          ),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _receiveOrder(Map<String, dynamic> order) async {
+    final paymentId = int.tryParse(
+      order['payment_id']?.toString() ?? '',
+    );
+
+    if (paymentId == null) return;
+
+    try {
+      await _paymentController.confirmReceived(paymentId: paymentId);
+      await loadOrders();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'ยืนยันรับบัตรเรียบร้อยแล้ว! คำสั่งซื้อเสร็จสมบูรณ์ (Ticket received!)',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   void _showOrderDetails(Map<String, dynamic> order) {
     showModalBottomSheet(
       context: context,
@@ -972,6 +1260,20 @@ class _HistoryPageState extends State<HistoryPage>
                     Icons.local_shipping,
                     'Shipping status',
                     order['shippingStatus']?.toString() ?? '-',
+                  ),
+                  const SizedBox(height: 12),
+
+                  _infoRow(
+                    Icons.storefront_outlined,
+                    'Seller',
+                    order['seller_name']?.toString() ?? '-',
+                  ),
+                  const SizedBox(height: 12),
+
+                  _infoRow(
+                    Icons.email_outlined,
+                    'Seller Email',
+                    order['seller_email']?.toString() ?? '-',
                   ),
                   const SizedBox(height: 12),
 
