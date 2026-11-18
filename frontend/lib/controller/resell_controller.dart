@@ -1,82 +1,173 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+import 'package:frontend/server/api_service.dart';
 
 class ResellController {
-  static const String baseUrl = 'http://localhost:3000/api';
   static const double maxResellPrice = 1000000;
-  static const Duration _timeout = Duration(seconds: 15);
 
   // ==========================================================================
-  // 1. Business Logic: ตรวจสอบความถูกต้องของราคาฝากขาย (Validation)
+  // 1. Business Logic: ตรวจสอบความถูกต้องของเลขบัตรประชาชนไทย 13 หลัก
+  // ==========================================================================
+  static bool isValidThaiNationalId(String id) {
+    final trimmed = id.trim();
+    if (!RegExp(r'^\d{13}$').hasMatch(trimmed)) return false;
+
+    final digits = trimmed.split('').map(int.parse).toList();
+    int sum = 0;
+    for (int i = 0; i < 12; i++) {
+      sum += digits[i] * (13 - i);
+    }
+    final checkDigit = (11 - (sum % 11)) % 10;
+    return checkDigit == digits[12];
+  }
+
+  static String? validateSellerRegistration({
+    required String fullName,
+    required String nationalId,
+    required bool acceptedTerms,
+  }) {
+    if (fullName.trim().isEmpty) {
+      return 'Please enter your full name';
+    }
+    if (nationalId.trim().length != 13 || !isValidThaiNationalId(nationalId)) {
+      return 'Please enter a valid 13-digit National ID';
+    }
+    if (!acceptedTerms) {
+      return 'Please accept the terms and conditions';
+    }
+    return null;
+  }
+
+  // ==========================================================================
+  // 2. Business Logic: ตรวจสอบข้อมูลบัตรและราคาฝากขาย (ไม่เกิน 5 เท่า)
   // ==========================================================================
   static String? validateResellInput({
-    required int? ticketId,
-    required String priceText,
-    double? originalPrice,
+    required int? concertId,
+    required String ticketCode,
+    required String zoneName,
+    required String seatNumber,
+    required String originalPriceText,
+    required String sellingPriceText,
   }) {
-    if (ticketId == null || ticketId <= 0) {
-      return 'Please select a concert ticket to list for resale';
+    if (concertId == null || concertId <= 0) {
+      return 'Please select a concert';
     }
 
-    final parsedPrice = double.tryParse(priceText.trim());
-    if (parsedPrice == null) {
+    if (ticketCode.trim().isEmpty) {
+      return 'Please enter your ticket code';
+    }
+
+    if (zoneName.trim().isEmpty) {
+      return 'Please enter the zone name';
+    }
+
+    if (seatNumber.trim().isEmpty) {
+      return 'Please enter the seat number';
+    }
+
+    final parsedOriginal = double.tryParse(originalPriceText.trim());
+    if (parsedOriginal == null || parsedOriginal <= 0) {
+      return 'Please enter a valid original ticket price';
+    }
+
+    final parsedSelling = double.tryParse(sellingPriceText.trim());
+    if (parsedSelling == null || parsedSelling <= 0) {
       return 'Please enter a valid selling price';
     }
 
-    if (parsedPrice <= 0) {
-      return 'The selling price must be greater than 0 THB';
-    }
-
-    if (parsedPrice > maxResellPrice) {
+    if (parsedSelling > maxResellPrice) {
       return 'The selling price is too high';
     }
 
-    if (originalPrice != null &&
-        originalPrice > 0 &&
-        parsedPrice > originalPrice * 5) {
-      return 'The selling price exceeds the maximum allowed markup';
+    if (parsedSelling > parsedOriginal * 5) {
+      return 'Selling price cannot exceed 5x the original price (Max: THB ${(parsedOriginal * 5).toStringAsFixed(0)})';
     }
 
     return null;
   }
 
   // ==========================================================================
-  // 2. ดึงรายการบัตรมือสองทั้งหมดที่สถานะเป็น available (GET /api/resell/listings)
+  // 3. ตรวจสอบสถานะการยืนยันตัวตนผู้ขาย
+  // ==========================================================================
+  Future<Map<String, dynamic>> getSellerStatus() async {
+    try {
+      final statusRes = await ApiService.getSellerStatus();
+      final rawStatus = (statusRes['status'] ?? 'not_submitted').toString();
+      final verified = statusRes['is_verified'] == true ||
+          statusRes['is_verified'] == 1 ||
+          rawStatus == 'approved';
+
+      return {
+        ...statusRes,
+        'status': verified ? 'approved' : rawStatus,
+        'is_verified': verified,
+      };
+    } catch (_) {
+      try {
+        final profile = await ApiService.getProfile();
+        final verified =
+            profile['is_verified'] == 1 || profile['is_verified'] == true;
+        return {
+          'status': verified ? 'approved' : 'not_submitted',
+          'is_verified': verified,
+        };
+      } catch (e) {
+        debugPrint('ResellController.getSellerStatus error: $e');
+        return {
+          'status': 'not_submitted',
+          'is_verified': false,
+        };
+      }
+    }
+  }
+
+  // ==========================================================================
+  // 4. ส่งข้อมูลลงทะเบียนยืนยันตัวตนผู้ขาย
+  // ==========================================================================
+  Future<Map<String, dynamic>> registerSeller({
+    required String fullName,
+    required String nationalId,
+    required bool acceptedTerms,
+  }) async {
+    final validationError = validateSellerRegistration(
+      fullName: fullName,
+      nationalId: nationalId,
+      acceptedTerms: acceptedTerms,
+    );
+    if (validationError != null) {
+      throw Exception(validationError);
+    }
+
+    try {
+      return await ApiService.registerSeller({
+        'full_name': fullName.trim(),
+        'national_id': nationalId.trim(),
+      });
+    } catch (e) {
+      debugPrint('ResellController.registerSeller error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
+  // ==========================================================================
+  // 5. ดึงรายชื่อคอนเสิร์ตทั้งหมดในระบบ (GET /api/concerts)
+  // ==========================================================================
+  Future<List<Map<String, dynamic>>> getConcerts() async {
+    try {
+      return await ApiService.getConcerts();
+    } catch (e) {
+      debugPrint('ResellController.getConcerts error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
+  // ==========================================================================
+  // 6. ดึงรายการบัตรมือสองทั้งหมดที่สถานะเป็น available
   // ==========================================================================
   Future<List<Map<String, dynamic>>> getResellListings({
-    int? concertId,
-    String? search,
+    required int concertId,
   }) async {
     try {
-      final queryParams = <String, String>{};
-      if (concertId != null) {
-        queryParams['concert_id'] = concertId.toString();
-      }
-      if (search != null && search.trim().isNotEmpty) {
-        queryParams['search'] = search.trim();
-      }
-
-      final uri = Uri.parse('$baseUrl/resell/listings').replace(
-        queryParameters: queryParams.isEmpty ? null : queryParams,
-      );
-
-      final response = await http
-          .get(
-            uri,
-            headers: {'Content-Type': 'application/json; charset=UTF-8'},
-          )
-          .timeout(_timeout);
-
-      final body = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        final List<dynamic> rawList = body is List ? body : (body['data'] ?? []);
-        return rawList.cast<Map<String, dynamic>>();
-      } else {
-        final msg = body is Map ? body['message'] : null;
-        throw Exception(msg ?? 'Unable to fetch resale listings');
-      }
+      return await ApiService.getResellListings(concertId);
     } catch (e) {
       debugPrint('ResellController.getResellListings error: $e');
       throw Exception(_cleanErrorMessage(e));
@@ -84,63 +175,11 @@ class ResellController {
   }
 
   // ==========================================================================
-  // 3. ดึงรายละเอียดบัตรมือสองรายใบ (GET /api/resell/:id)
+  // 7. ดึงบัตรของผู้ใช้ที่ล็อกอินอยู่
   // ==========================================================================
-  Future<Map<String, dynamic>> getResellListingById(int listingId) async {
+  Future<List<Map<String, dynamic>>> getMyTickets() async {
     try {
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl/resell/$listingId'),
-            headers: {'Content-Type': 'application/json; charset=UTF-8'},
-          )
-          .timeout(_timeout);
-
-      final body = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        return body is Map<String, dynamic> && body.containsKey('data')
-            ? Map<String, dynamic>.from(body['data'])
-            : Map<String, dynamic>.from(body);
-      } else {
-        final msg = body is Map ? body['message'] : null;
-        throw Exception(msg ?? 'Unable to find the resale listing');
-      }
-    } catch (e) {
-      debugPrint('ResellController.getResellListingById error: $e');
-      throw Exception(_cleanErrorMessage(e));
-    }
-  }
-
-  // ==========================================================================
-  // 4. ดึงบัตรของผู้ใช้ที่ล็อกอินอยู่เพื่อแสดงใน Dropdown หน้า Sell (GET /api/user/my-tickets)
-  // ==========================================================================
-  Future<List<Map<String, dynamic>>> getMyTickets(String token) async {
-    if (token.trim().isEmpty) {
-      throw Exception('Please log in to view your tickets');
-    }
-
-    try {
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl/user/my-tickets'),
-            headers: {
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer $token',
-            },
-          )
-          .timeout(_timeout);
-
-      final body = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        final List<dynamic> rawList = body is List ? body : (body['data'] ?? []);
-        return rawList.cast<Map<String, dynamic>>();
-      } else if (response.statusCode == 401 || response.statusCode == 403) {
-        throw Exception('Session expired. Please log in again.');
-      } else {
-        final msg = body is Map ? body['message'] : null;
-        throw Exception(msg ?? 'Unable to fetch your tickets.');
-      }
+      return await ApiService.getMyTickets();
     } catch (e) {
       debugPrint('ResellController.getMyTickets error: $e');
       throw Exception(_cleanErrorMessage(e));
@@ -148,13 +187,15 @@ class ResellController {
   }
 
   // ==========================================================================
-  // 5. ลงประกาศขายบัตรมือสอง (POST /api/resell/create)
+  // 8. ลงประกาศขายบัตรมือสอง (ส่งข้อมูลบัตร + คอนเสิร์ต ไปสร้างลง DB)
   // ==========================================================================
   Future<Map<String, dynamic>> createResellListing({
-    required String token,
-    required int ticketId,
+    required int concertId,
+    required String ticketCode,
+    required String zoneName,
+    required String seatNumber,
+    required double originalPrice,
     required double resellPrice,
-    double? originalPrice,
     String deliveryType = 'Parcel Shipping',
     String? shippingCompany,
     double shippingFee = 0.0,
@@ -164,48 +205,33 @@ class ResellController {
     String? bankAccountNumber,
   }) async {
     final validationError = validateResellInput(
-      ticketId: ticketId,
-      priceText: resellPrice.toString(),
-      originalPrice: originalPrice,
+      concertId: concertId,
+      ticketCode: ticketCode,
+      zoneName: zoneName,
+      seatNumber: seatNumber,
+      originalPriceText: originalPrice.toString(),
+      sellingPriceText: resellPrice.toString(),
     );
     if (validationError != null) {
       throw Exception(validationError);
     }
 
-    if (token.trim().isEmpty) {
-      throw Exception('Please log in before listing a ticket for resale');
-    }
-
     try {
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/resell/create'),
-            headers: {
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode({
-              'ticket_id': ticketId,
-              'resell_price': resellPrice,
-              'delivery_type': deliveryType,
-              'shipping_company': shippingCompany,
-              'shipping_fee': shippingFee,
-              'delivery_note': deliveryNote,
-              'bank_name': bankName,
-              'bank_account_name': bankAccountName,
-              'bank_account_number': bankAccountNumber,
-            }),
-          )
-          .timeout(_timeout);
-
-      final body = jsonDecode(response.body);
-
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        return Map<String, dynamic>.from(body);
-      } else {
-        final msg = body is Map ? body['message'] : null;
-        throw Exception(msg ?? 'Unable to list ticket for resale');
-      }
+      return await ApiService.createResellListing({
+        'concert_id': concertId,
+        'ticket_code': ticketCode.trim(),
+        'zone_name': zoneName.trim(),
+        'seat_number': seatNumber.trim(),
+        'original_price': originalPrice,
+        'resell_price': resellPrice,
+        'delivery_type': deliveryType,
+        'shipping_company': shippingCompany,
+        'shipping_fee': shippingFee,
+        'delivery_note': deliveryNote,
+        'bank_name': bankName,
+        'bank_account_name': bankAccountName,
+        'bank_account_number': bankAccountNumber,
+      });
     } catch (e) {
       debugPrint('ResellController.createResellListing error: $e');
       throw Exception(_cleanErrorMessage(e));
@@ -213,29 +239,11 @@ class ResellController {
   }
 
   // ==========================================================================
-  // 6. ดึงรายการประกาศขายของตัวเอง (GET /api/resell/my-listings)
+  // 9. ดึงรายการประกาศขายของตัวเอง
   // ==========================================================================
-  Future<List<Map<String, dynamic>>> getMyResellListings(String token) async {
+  Future getMyResellListings() async {
     try {
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl/resell/my-listings'),
-            headers: {
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer $token',
-            },
-          )
-          .timeout(_timeout);
-
-      final body = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        final List<dynamic> rawList = body is List ? body : (body['data'] ?? []);
-        return rawList.cast<Map<String, dynamic>>();
-      } else {
-        final msg = body is Map ? body['message'] : null;
-        throw Exception(msg ?? 'Unable to fetch your resale listings');
-      }
+      return await ApiService.getMyResellListings();
     } catch (e) {
       debugPrint('ResellController.getMyResellListings error: $e');
       throw Exception(_cleanErrorMessage(e));
@@ -243,31 +251,14 @@ class ResellController {
   }
 
   // ==========================================================================
-  // 7. ยกเลิกประกาศขายตั๋วมือสอง (PATCH /api/resell/:id/cancel)
+  // 10. ยกเลิกประกาศขายตั๋วมือสอง
   // ==========================================================================
   Future<Map<String, dynamic>> cancelResellListing({
-    required String token,
     required int listingId,
   }) async {
     try {
-      final response = await http
-          .patch(
-            Uri.parse('$baseUrl/resell/$listingId/cancel'),
-            headers: {
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer $token',
-            },
-          )
-          .timeout(_timeout);
-
-      final body = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        return Map<String, dynamic>.from(body);
-      } else {
-        final msg = body is Map ? body['message'] : null;
-        throw Exception(msg ?? 'Unable to cancel resale listing');
-      }
+      final data = await ApiService.patch('/resell/$listingId/cancel', {});
+      return Map<String, dynamic>.from(data);
     } catch (e) {
       debugPrint('ResellController.cancelResellListing error: $e');
       throw Exception(_cleanErrorMessage(e));

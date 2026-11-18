@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '/controller/auth_controller.dart'; 
 
 class Register extends StatefulWidget {
   const Register({super.key});
@@ -16,7 +17,80 @@ class _RegisterState extends State<Register> {
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
+  final AuthController _authController = AuthController();
   String? _errorMessage;
+  bool _isLoading = false;
+
+  Future<void> _handleRegister() async {
+    String username = _usernameController.text.trim();
+    String fullname = _fullnameController.text.trim();
+    String email = _emailController.text.trim();
+    String phone = _phoneController.text.trim();
+    String password = _passwordController.text.trim();
+    String confirmPassword = _confirmPasswordController.text.trim();
+
+    if (username.isEmpty ||
+        fullname.isEmpty ||
+        email.isEmpty ||
+        phone.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
+      setState(() => _errorMessage = 'Please fill in all fields');
+      return;
+    }
+
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      setState(() => _errorMessage = 'Invalid email format');
+      return;
+    }
+
+    if (!RegExp(r'^\d{10}$').hasMatch(phone)) {
+      setState(() => _errorMessage = 'Phone number must be 10 digits');
+      return;
+    }
+
+    if (password.length < 6) {
+      setState(() => _errorMessage = 'Password must be at least 6 characters long');
+      return;
+    }
+
+    if (password != confirmPassword) {
+      setState(() => _errorMessage = 'Passwords do not match');
+      return;
+    }
+
+    setState(() {
+      _errorMessage = null;
+      _isLoading = true;
+    });
+
+    try {
+      await _authController.register(
+        fullName: fullname,
+        username: username,
+        email: email,
+        password: password,
+        phone: phone,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Registration successful! Please log in.'),
+          backgroundColor: Colors.pinkAccent,
+        ),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -275,78 +349,25 @@ class _RegisterState extends State<Register> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              onPressed: () {
-                                String username = _usernameController.text
-                                    .trim();
-                                String fullname = _fullnameController.text
-                                    .trim();
-                                String email = _emailController.text.trim();
-                                String phone = _phoneController.text.trim();
-                                String password = _passwordController.text
-                                    .trim();
-                                String confirmPassword =
-                                    _confirmPasswordController.text.trim();
-
-                                if (username.isEmpty ||
-                                    fullname.isEmpty ||
-                                    email.isEmpty ||
-                                    phone.isEmpty ||
-                                    password.isEmpty ||
-                                    confirmPassword.isEmpty) {
-                                  setState(() {
-                                    _errorMessage =
-                                        'Please fill in all fields';
-                                  });
-                                  return;
-                                }
-
-                                if (!RegExp(
-                                  r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                                ).hasMatch(email)) {
-                                  setState(() {
-                                    _errorMessage = 'Invalid email format';
-                                  });
-                                  return;
-                                }
-
-                                if (!RegExp(r'^\d{10}$').hasMatch(phone)) {
-                                  setState(() {
-                                    _errorMessage =
-                                        'Phone number must be 10 digits';
-                                  });
-                                  return;
-                                }
-
-                                if (password != confirmPassword) {
-                                  setState(() {
-                                    _errorMessage = 'Passwords do not match';
-                                  });
-                                  return;
-                                }
-
-                                setState(() {
-                                  _errorMessage = null;
-                                });
-
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Registration successful'),
-                                    backgroundColor: Colors.pinkAccent,
-                                  ),
-                                );
-
-                                Navigator.pop(context);
-
-                              },
-                              child: const Text(
-                                'Register',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  fontFamily: 'Redaction',
-                                  letterSpacing: 1,
-                                ),
-                              ),
+                              onPressed: _isLoading ? null : _handleRegister,
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      height: 22,
+                                      width: 22,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2.5,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Register',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        fontFamily: 'Redaction',
+                                        letterSpacing: 1,
+                                      ),
+                                    ),
                             ),
                           ),
                         ],

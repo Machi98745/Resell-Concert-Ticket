@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'favorite_service.dart';
-import 'cart_service.dart';
-import 'payment_page.dart';
-import 'historypage.dart';
+import 'package:frontend/views/favorite_service.dart';
+import 'package:frontend/server/api_service.dart';
+import 'package:frontend/views/cart_service.dart';
+import 'package:frontend/views/payment_page.dart';
+import 'package:frontend/controller/payment_controller.dart';
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -22,82 +23,115 @@ class _DetailPageState extends State<DetailPage> {
 
   Map<String, dynamic> get concert => widget.concert;
 
-  List<Map<String, dynamic>> get baseTickets {
-    final rawTickets = concert['tickets'];
-    if (rawTickets is List) {
-      return rawTickets
-          .whereType()
-          .map((item) => Map<String, dynamic>.from(item))
-          .toList();
-    }
-    return [];
-  }
-
-  String get eventName => concert['name']?.toString() ?? 'Concert Event';
-
-  String get artist => concert['artist']?.toString() ?? '';
-
-  String get eventDate => concert['date']?.toString() ?? 'Date to be announced';
-
-  String get eventLocation =>
-      concert['location']?.toString() ?? 'Location to be announced';
-
-  String get eventImage => concert['image']?.toString() ?? '';
-
-  String get eventDescription =>
-      concert['description']?.toString() ??
-      'Enjoy an unforgettable concert experience.';
-
-  bool get isFavorite => FavoriteService.isFavorite(concert);
-
-  bool get isFinished => CartService.isConcertFinished(concert);
-
-  bool get isSoldOut => CartService.isConcertSoldOut(concert);
-
-  String get ticketStatus {
-    if (isFinished) return 'EVENT FINISHED';
-    if (isSoldOut && ticketMaps.isEmpty) return 'SOLD OUT';
-    return 'ON SALE NOW';
-  }
+  bool isLoadingTickets = true;
+  String? ticketError;
+  List<Map<String, dynamic>> loadedTickets = [];
 
   String selectedZone = 'All';
   final Map<String, String> selectedSeats = {};
+
+  @override
+  void initState() {
+    super.initState();
+    loadTickets();
+  }
+
+  // ==========================================
+  // CONCERT INFORMATION
+  // ==========================================
+
+  String get eventName =>
+      (concert['name'] ??
+              concert['title'] ??
+              concert['concert_title'] ??
+              'Concert Event')
+          .toString();
+
+  String get artist => (concert['artist'] ?? '').toString();
+
+  String get eventDate =>
+      (concert['date'] ?? concert['show_datetime'] ?? 'Date to be announced')
+          .toString();
+
+  String get eventLocation =>
+      (concert['location'] ?? concert['venue'] ?? 'Location to be announced')
+          .toString();
+
+  String get eventImage =>
+      (concert['image'] ?? concert['poster_url'] ?? '').toString();
+
+  String get eventDescription =>
+      (concert['description'] ?? 'Enjoy an unforgettable concert experience.')
+          .toString();
+
+  int? get concertId => int.tryParse((concert['concert_id'] ?? '').toString());
+
+  // ==========================================
+  // LOAD TICKETS FROM BACKEND
+  // ==========================================
+
+  Future<void> loadTickets() async {
+    if (concertId == null) {
+      setState(() {
+        isLoadingTickets = false;
+        ticketError = 'Concert ID not found.';
+      });
+      return;
+    }
+
+    try {
+      final result = await ApiService.getResellListings(concertId!);
+
+      if (!mounted) return;
+
+      setState(() {
+        loadedTickets = result.map((item) {
+          return {
+            ...item,
+
+            // Map Backend fields to existing UI fields
+            'name': item['concert_title'],
+            'concertName': item['concert_title'],
+            'date': item['show_datetime'],
+            'location': item['venue'],
+            'image': item['poster_url'],
+            'zone': item['zone_name'] ?? 'General',
+            'seat': item['seat_number'],
+            'price': item['resell_price'],
+            'seller': item['seller_name'] ?? 'Ticket Pink',
+            'condition': item['status'] ?? 'Available',
+            'ticketId': item['ticket_id'],
+            'listingId': item['listing_id'],
+            'status': item['status'],
+          };
+        }).toList();
+
+        isLoadingTickets = false;
+        ticketError = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoadingTickets = false;
+        ticketError = error.toString();
+      });
+    }
+  }
 
   // ==========================================
   // TICKET DATA
   // ==========================================
 
-  List<Map<String, dynamic>> get ticketMaps {
-    final List<Map<String, dynamic>> list = [];
-    for (var item in baseTickets) {
-      list.add(Map<String, dynamic>.from(item));
-    }
+  List get tickets => loadedTickets;
 
-    final resaleListings = CartService.getResaleListingsForConcert(eventName);
-    for (final listing in resaleListings) {
-      list.add({
-        'listingId': listing['listingId'],
-        'zone': listing['zone'] ?? 'General',
-        'seat': listing['seat'] ?? 'General',
-        'price': listing['price'] ?? 0,
-        'seller': listing['accName'] != null && listing['accName'].toString().isNotEmpty
-            ? listing['accName']
-            : 'Resell Seller',
-        'condition': 'Resell Ticket',
-        'delivery': listing['delivery'],
-      });
-    }
-
-    return list;
-  }
+  List<Map<String, dynamic>> get ticketMaps => loadedTickets;
 
   List<String> get availableZones {
     final zones = <String>{};
 
     for (final ticket in ticketMaps) {
-      if (!CartService.isTicketSold(ticket)) {
-        zones.add((ticket['zone'] ?? ticket['seat'] ?? 'General').toString());
-      }
+      zones.add((ticket['zone'] ?? 'General').toString());
     }
 
     return zones.toList();
@@ -105,49 +139,28 @@ class _DetailPageState extends State<DetailPage> {
 
   List<Map<String, dynamic>> get filteredTickets {
     return ticketMaps.where((ticket) {
-      final zone = (ticket['zone'] ?? ticket['seat'] ?? 'General').toString();
-
-      final matchesZone = selectedZone == 'All' || zone == selectedZone;
-
-      return matchesZone;
+      final zone = (ticket['zone'] ?? 'General').toString();
+      return selectedZone == 'All' || zone == selectedZone;
     }).toList();
   }
 
   List<String> getSeats(Map<String, dynamic> ticket) {
-    final rawSeats = ticket['seats'];
+    final seat = ticket['seat']?.toString();
 
-    if (rawSeats is List) {
-      return rawSeats.map((seat) => seat.toString()).toList();
-    }
-
-    final rawSeatNumbers = ticket['seatNumbers'];
-
-    if (rawSeatNumbers is List) {
-      return rawSeatNumbers.map((seat) => seat.toString()).toList();
-    }
-
-    final singleSeat = ticket['seat']?.toString();
-
-    if (singleSeat != null &&
-        singleSeat.isNotEmpty &&
-        singleSeat != (ticket['zone'] ?? '').toString()) {
-      return [singleSeat];
+    if (seat != null && seat.isNotEmpty) {
+      return [seat];
     }
 
     return [];
   }
 
   String ticketKey(Map<String, dynamic> ticket) {
-    return '${ticket['zone']}_${ticket['seller']}_${ticket['price']}_${ticketMaps.indexOf(ticket)}';
+    return '${ticket['listing_id']}_${ticket['ticket_id']}';
   }
 
   String? getSelectedSeat(Map<String, dynamic> ticket) {
-    final key = ticketKey(ticket);
     final seats = getSeats(ticket);
-
-    if (seats.isEmpty) return null;
-
-    final selected = selectedSeats[key];
+    final selected = selectedSeats[ticketKey(ticket)];
 
     if (selected != null && seats.contains(selected)) {
       return selected;
@@ -155,6 +168,12 @@ class _DetailPageState extends State<DetailPage> {
 
     return null;
   }
+
+  // ==========================================
+  // FAVORITE
+  // ==========================================
+
+  bool get isFavorite => FavoriteService.isFavorite(concert);
 
   void toggleFavorite() {
     final wasFavorite = isFavorite;
@@ -180,12 +199,40 @@ class _DetailPageState extends State<DetailPage> {
       );
   }
 
+  // ==========================================
+  // EVENT STATUS
+  // ==========================================
+
+  bool get isFinished => CartService.isConcertFinished(concert);
+
+  bool get isSoldOut => ticketMaps.isEmpty;
+
+  String get ticketStatus {
+    if (isFinished) return 'EVENT FINISHED';
+    if (isSoldOut) return 'SOLD OUT';
+    return 'ON SALE NOW';
+  }
+
+  // ==========================================
+  // PRICE
+  // ==========================================
+
   String formatPrice(dynamic price) {
-    final number = double.tryParse(price.toString()) ?? 0;
+    final number = double.tryParse(price?.toString() ?? '') ?? 0;
     final value = number.toStringAsFixed(0);
 
     return '฿${value.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => ',')}';
   }
+
+  String _ticketPriceText() {
+    if (ticketMaps.isEmpty) return 'Price unavailable';
+
+    return ticketMaps.map((ticket) => formatPrice(ticket['price'])).join(' / ');
+  }
+
+  // ==========================================
+  // SCROLL
+  // ==========================================
 
   void scrollToTickets() {
     final targetContext = ticketSectionKey.currentContext;
@@ -200,6 +247,10 @@ class _DetailPageState extends State<DetailPage> {
     }
   }
 
+  // ==========================================
+  // CREATE CART ITEM
+  // ==========================================
+
   Map<String, dynamic> createTicketItem(Map<String, dynamic> ticket) {
     final selectedSeat = getSelectedSeat(ticket);
 
@@ -212,19 +263,23 @@ class _DetailPageState extends State<DetailPage> {
       'location': eventLocation,
       'image': eventImage,
       'seller': ticket['seller'] ?? 'Ticket Pink',
-      'seat': selectedSeat ?? ticket['seat'] ?? ticket['zone'] ?? 'General',
+      'seat': selectedSeat ?? ticket['seat'] ?? 'General',
       'zone': ticket['zone'] ?? 'General',
       'price': ticket['price'] ?? 0,
       'condition': ticket['condition'] ?? 'Available',
+      'listingId': ticket['listing_id'],
+      'ticketId': ticket['ticket_id'],
     };
   }
+
+  // ==========================================
+  // VALIDATION
+  // ==========================================
 
   bool validateSeatSelection(Map<String, dynamic> ticket) {
     final seats = getSeats(ticket);
 
-    if (seats.isEmpty) {
-      return true;
-    }
+    if (seats.isEmpty) return true;
 
     if (getSelectedSeat(ticket) == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -258,62 +313,8 @@ class _DetailPageState extends State<DetailPage> {
   }
 
   // ==========================================
-  // POP-UP DIALOG (แจ้งเตือนรายการค้างชำระ)
+  // ADD TO CART
   // ==========================================
-
-  void _showPendingOrderDialog() {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Pending Order',
-                style: TextStyle(
-                  color: darkPink,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: const Text(
-          'You already have a pending ticket reservation. Please complete payment or cancel your previous order before reserving new tickets.',
-          style: TextStyle(color: Colors.black87, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: pink,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            onPressed: () {
-              Navigator.pop(dialogContext); // ปิด Dialog
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const HistoryPage()),
-              );
-            },
-            child: const Text('Go to My Orders'),
-          ),
-        ],
-      ),
-    );
-  }
 
   void addToCart(Map<String, dynamic> ticket) {
     if (isFinished || !CartService.canBuy(ticket)) {
@@ -327,9 +328,7 @@ class _DetailPageState extends State<DetailPage> {
     final cartItem = createTicketItem(ticket);
     final added = CartService.addToCart(cartItem);
 
-    final messenger = ScaffoldMessenger.of(context);
-
-    messenger
+    ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
@@ -346,29 +345,82 @@ class _DetailPageState extends State<DetailPage> {
       );
   }
 
-  void buyNow(Map<String, dynamic> ticket) {
-    if (isFinished || !CartService.canBuy(ticket)) {
-      showUnavailableMessage();
-      setState(() {});
-      return;
+  // ==========================================
+  // BUY NOW
+  // ==========================================
+
+ Future<void> buyNow(Map<String, dynamic> ticket) async {
+  if (isFinished || !CartService.canBuy(ticket)) {
+    showUnavailableMessage();
+    setState(() {});
+    return;
+  }
+
+  if (!validateSeatSelection(ticket)) return;
+
+  final checkoutItem = createTicketItem(ticket);
+
+  final listingId = int.tryParse(
+    (checkoutItem['listing_id'] ?? '').toString(),
+  );
+
+  if (listingId == null || listingId <= 0) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Invalid ticket listing ID'),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return;
+  }
+
+  try {
+    final paymentController = PaymentController();
+
+    final result = await paymentController.checkout(
+      listingId: listingId,
+      paymentMethod: 'PromptPay',
+      deliveryMethod: 'Parcel Shipping',
+      shippingInfo: 'Pending payment',
+    );
+
+    final paymentData = result['payment'] is Map
+        ? Map<String, dynamic>.from(result['payment'])
+        : Map<String, dynamic>.from(result);
+
+    final paymentId = paymentData['payment_id'];
+
+    if (paymentId == null) {
+      throw Exception('Payment ID not found');
     }
 
-    // ตรวจสอบว่าผู้ใช้มีรายการค้างชำระอยู่แล้วหรือไม่
-    if (CartService.hasActiveUnpaidOrder()) {
-      _showPendingOrderDialog();
-      return;
-    }
+    checkoutItem['payment_id'] = paymentId;
 
-    if (!validateSeatSelection(ticket)) return;
-
-    final checkoutItem = createTicketItem(ticket);
+    if (!mounted) return;
 
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => PaymentPage(items: [checkoutItem]),
       ),
     );
+  } catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          e.toString().replaceAll('Exception: ', ''),
+        ),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 5),
+      ),
+    );
   }
+}
+
+  // ==========================================
+  // BUILD
+  // ==========================================
 
   @override
   Widget build(BuildContext context) {
@@ -390,6 +442,10 @@ class _DetailPageState extends State<DetailPage> {
       ),
     );
   }
+
+  // ==========================================
+  // MOBILE HEADER
+  // ==========================================
 
   Widget _buildMobileHeader() {
     return Stack(
@@ -476,7 +532,7 @@ class _DetailPageState extends State<DetailPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: isFinished ? null : scrollToTickets,
+                  onPressed: isFinished || isSoldOut ? null : scrollToTickets,
                   icon: const Icon(Icons.keyboard_arrow_down),
                   label: const Text('Choose Tickets'),
                   style: ElevatedButton.styleFrom(
@@ -495,6 +551,10 @@ class _DetailPageState extends State<DetailPage> {
       ],
     );
   }
+
+  // ==========================================
+  // DESKTOP HEADER
+  // ==========================================
 
   Widget _buildDesktopHeader() {
     return Stack(
@@ -540,7 +600,7 @@ class _DetailPageState extends State<DetailPage> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: isFinished
+                            onPressed: isFinished || isSoldOut
                                 ? null
                                 : scrollToTickets,
                             style: ElevatedButton.styleFrom(
@@ -600,6 +660,10 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
+  // ==========================================
+  // TOP BAR
+  // ==========================================
+
   Widget _buildTopBar() {
     return Row(
       children: [
@@ -646,6 +710,10 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
+  // ==========================================
+  // EVENT IMAGE
+  // ==========================================
+
   Widget _buildEventImage() {
     if (eventImage.isEmpty) return _imagePlaceholder();
 
@@ -663,10 +731,14 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
+  // ==========================================
+  // STATUS BADGE
+  // ==========================================
+
   Widget _buildStatusBadge() {
     final badgeColor = isFinished
         ? Colors.grey
-        : isSoldOut && ticketMaps.isEmpty
+        : isSoldOut
         ? Colors.red
         : Colors.green;
 
@@ -688,6 +760,10 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
+  // ==========================================
+  // EVENT INFORMATION
+  // ==========================================
+
   Widget _buildInformationGrid() {
     return Wrap(
       spacing: 25,
@@ -707,18 +783,6 @@ class _DetailPageState extends State<DetailPage> {
         ),
       ],
     );
-  }
-
-  String _ticketPriceText() {
-    final availableTickets = ticketMaps.where((ticket) {
-      return !CartService.isTicketSold(ticket);
-    }).toList();
-
-    if (availableTickets.isEmpty) return 'Price unavailable';
-
-    return availableTickets
-        .map((ticket) => formatPrice(ticket['price']))
-        .join(' / ');
   }
 
   Widget _desktopInfo(IconData icon, String title, String value) {
@@ -749,6 +813,10 @@ class _DetailPageState extends State<DetailPage> {
       ),
     );
   }
+
+  // ==========================================
+  // MAIN CONTENT
+  // ==========================================
 
   Widget _buildMainContent() {
     return LayoutBuilder(
@@ -781,6 +849,10 @@ class _DetailPageState extends State<DetailPage> {
       },
     );
   }
+
+  // ==========================================
+  // MOBILE INFORMATION
+  // ==========================================
 
   Widget _buildMobileInformation() {
     return Column(
@@ -869,6 +941,10 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
+  // ==========================================
+  // SEATING PLAN
+  // ==========================================
+
   Widget _buildSeatingPlan() {
     final zones = availableZones;
 
@@ -922,7 +998,9 @@ class _DetailPageState extends State<DetailPage> {
                 ),
               ),
               const SizedBox(height: 18),
-              if (zones.isEmpty)
+              if (isLoadingTickets)
+                const CircularProgressIndicator(color: pink)
+              else if (zones.isEmpty)
                 const Text(
                   'No available seating zones.',
                   style: TextStyle(color: Colors.grey),
@@ -934,12 +1012,7 @@ class _DetailPageState extends State<DetailPage> {
                   alignment: WrapAlignment.center,
                   children: zones.map((zone) {
                     final zoneTickets = ticketMaps.where((ticket) {
-                      final ticketZone =
-                          (ticket['zone'] ?? ticket['seat'] ?? 'General')
-                              .toString();
-
-                      return ticketZone == zone &&
-                          !CartService.isTicketSold(ticket);
+                      return ticket['zone'] == zone;
                     }).toList();
 
                     return GestureDetector(
@@ -947,7 +1020,6 @@ class _DetailPageState extends State<DetailPage> {
                         setState(() {
                           selectedZone = zone;
                         });
-
                         scrollToTickets();
                       },
                       child: Container(
@@ -1026,6 +1098,10 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
+  // ==========================================
+  // TICKET SECTION
+  // ==========================================
+
   Widget _buildTicketSection() {
     final displayedTickets = filteredTickets;
 
@@ -1047,7 +1123,6 @@ class _DetailPageState extends State<DetailPage> {
           style: TextStyle(color: Colors.grey),
         ),
         const SizedBox(height: 18),
-
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -1058,10 +1133,21 @@ class _DetailPageState extends State<DetailPage> {
           ),
         ),
         const SizedBox(height: 18),
-
-        if (isFinished)
+        if (isLoadingTickets)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(30),
+              child: CircularProgressIndicator(color: pink),
+            ),
+          )
+        else if (ticketError != null)
+          _unavailableMessage(
+            'Unable to load tickets. Please try again.',
+            showRetry: true,
+          )
+        else if (isFinished)
           _unavailableMessage('This concert has already finished.')
-        else if (ticketMaps.isEmpty)
+        else if (tickets.isEmpty)
           _unavailableMessage('No tickets available.')
         else if (displayedTickets.isEmpty)
           _unavailableMessage('No tickets found in this zone.')
@@ -1095,12 +1181,15 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
+  // ==========================================
+  // TICKET CARD
+  // ==========================================
+
   Widget _buildTicketCard(Map<String, dynamic> ticket) {
-    final sold = CartService.isTicketSold(ticket);
+    final sold = ticket['status'] != 'available';
     final seats = getSeats(ticket);
     final selectedSeat = getSelectedSeat(ticket);
-
-    final zone = (ticket['zone'] ?? ticket['seat'] ?? 'General').toString();
+    final zone = (ticket['zone'] ?? 'General').toString();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -1133,17 +1222,15 @@ class _DetailPageState extends State<DetailPage> {
                       'Seller: ${ticket['seller'] ?? 'Ticket Pink'}',
                       style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
-                    if (!sold) ...[
-                      const SizedBox(height: 5),
-                      Text(
-                        (ticket['condition'] ?? 'Available').toString(),
-                        style: const TextStyle(
-                          color: Colors.green,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    const SizedBox(height: 5),
+                    Text(
+                      sold ? 'SOLD OUT' : 'Available',
+                      style: TextStyle(
+                        color: sold ? Colors.red : Colors.green,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),
@@ -1157,7 +1244,6 @@ class _DetailPageState extends State<DetailPage> {
               ),
             ],
           ),
-
           if (!sold && seats.isNotEmpty) ...[
             const SizedBox(height: 18),
             const Text(
@@ -1178,7 +1264,15 @@ class _DetailPageState extends State<DetailPage> {
                 return GestureDetector(
                   onTap: () {
                     setState(() {
-                      selectedSeats[ticketKey(ticket)] = seat;
+                      final key = ticketKey(ticket);
+
+                      if (selectedSeats[key] == seat) {
+                        // กดที่นั่งเดิมซ้ำ = ยกเลิกการเลือก
+                        selectedSeats.remove(key);
+                      } else {
+                        // กดที่นั่งใหม่ = เลือกที่นั่งนั้น
+                        selectedSeats[key] = seat;
+                      }
                     });
                   },
                   child: Container(
@@ -1225,7 +1319,6 @@ class _DetailPageState extends State<DetailPage> {
               style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ],
-
           const SizedBox(height: 15),
           if (sold)
             const Text(
@@ -1274,7 +1367,11 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
-  Widget _unavailableMessage(String message) {
+  // ==========================================
+  // UNAVAILABLE MESSAGE
+  // ==========================================
+
+  Widget _unavailableMessage(String message, {bool showRetry = false}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -1283,13 +1380,41 @@ class _DetailPageState extends State<DetailPage> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.pink.shade100),
       ),
-      child: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: const TextStyle(color: darkPink, fontWeight: FontWeight.bold),
+      child: Column(
+        children: [
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: darkPink,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (showRetry) ...[
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  isLoadingTickets = true;
+                  ticketError = null;
+                });
+                loadTickets();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: pink,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Try Again'),
+            ),
+          ],
+        ],
       ),
     );
   }
+
+  // ==========================================
+  // ACTION BUTTON
+  // ==========================================
 
   Widget _actionButton(
     String label,
@@ -1313,6 +1438,10 @@ class _DetailPageState extends State<DetailPage> {
       ),
     );
   }
+
+  // ==========================================
+  // DESCRIPTION
+  // ==========================================
 
   Widget _buildDescription() {
     return Container(
@@ -1347,6 +1476,10 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
+  // ==========================================
+  // EVENT PREVIEW
+  // ==========================================
+
   Widget _buildVideoSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1373,7 +1506,11 @@ class _DetailPageState extends State<DetailPage> {
                     Positioned.fill(
                       child: Opacity(
                         opacity: 0.35,
-                        child: Image.network(eventImage, fit: BoxFit.cover),
+                        child: Image.network(
+                          eventImage,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        ),
                       ),
                     ),
                   const Icon(
