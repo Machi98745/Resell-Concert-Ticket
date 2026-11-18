@@ -30,7 +30,7 @@ class ConcertModel {
     return results;
   }
 
-  // ดึงคอนเสิร์ตตาม ID
+  // 2. ดึงรายละเอียดคอนเสิร์ตตาม ID
   static async getById(id) {
     const sql = 'SELECT * FROM concerts WHERE concert_id = ?';
     const [results] = await db.query(sql, [id]);

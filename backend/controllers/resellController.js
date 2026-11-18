@@ -457,7 +457,10 @@ exports.getMyResellListings = async (req, res) => {
         rl.status,
         rl.created_at,
         t.ticket_id,
-        t.ticket_code,
+        CASE
+          WHEN rl.status = 'sold' THEN CONCAT(LEFT(t.ticket_code, 4), '-****')
+          ELSE t.ticket_code
+        END AS ticket_code,
         t.zone_name,
         t.seat_number,
         t.original_price,

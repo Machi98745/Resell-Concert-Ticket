@@ -128,6 +128,11 @@ exports.createPayment = async (req, res) => {
       [listing_id]
     );
 
+    const basePrice = Number(listing.resell_price);
+    const commissionFee = Math.round(basePrice * COMMISSION_RATE);
+    const shippingFee = isParcel ? PARCEL_SHIPPING_FEE : 0;
+    const totalAmount = basePrice + commissionFee + shippingFee;
+
     if (activePayments.length > 0) {
       // มีผู้ซื้อคนอื่นกำลังจอง
       if (
@@ -148,9 +153,9 @@ exports.createPayment = async (req, res) => {
         message:
           'Active order already exists. Please complete payment within the remaining time.',
         payment: {
-          ...activePayments[0],
-          receive_method: activePayments[0].delivery_method,
-          receive_details: activePayments[0].shipping_info,
+          ...updatedPending[0],
+          receive_method: updatedPending[0].delivery_method,
+          receive_details: updatedPending[0].shipping_info,
         },
       });
     }
