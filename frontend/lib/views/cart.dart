@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:frontend/controller/payment_controller.dart';
+import 'package:frontend/server/api_service.dart';
 
 import 'cart_service.dart';
 import 'payment_page.dart';
@@ -21,6 +22,14 @@ class _CartPageState extends State<CartPage> {
   final PaymentController _paymentController = PaymentController();
 
   bool isCheckingOut = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ApiService.ensureCurrentUserCart().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   // แจ้งเตือนเมื่อมีรายการค้างชำระ
   void _showPendingOrderDialog() {
@@ -199,6 +208,9 @@ class _CartPageState extends State<CartPage> {
         // ส่ง payment_id ไปยัง PaymentPage
         item['payment_id'] = paymentId;
       }
+
+      // ล้างตะกร้าของ User ปัจจุบันหลังสร้างรายการรอชำระเงินแล้ว
+      CartService.items.clear();
 
       if (!mounted) return;
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '/controller/auth_controller.dart';
 import 'admin_page.dart';
+import 'cart_service.dart';
 import 'homepage.dart';
 import 'register.dart';
 
@@ -443,6 +444,10 @@ class _LoginState extends State<Login> {
       // เก็บ JWT Token และ Role ลง Local Storage
       await _storage.write(key: 'jwt_token', value: token);
       await _storage.write(key: 'user_role', value: user['role']);
+
+      // แยกตะกร้าสินค้า (Cart) ตาม User ที่ล็อกอินเข้ามา
+      final userIdKey = user['user_id'] ?? user['id'] ?? user['username'] ?? username;
+      CartService.setCurrentUser('user_$userIdKey');
 
       if (!mounted) return;
       _showMessage(

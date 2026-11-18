@@ -1078,6 +1078,59 @@ class _MyResellingPageState extends State<MyResellingPage> {
     );
   }
 
+  String _formatDateTime(dynamic raw) {
+    if (raw == null || raw.toString().trim().isEmpty) return '-';
+    final parsed = DateTime.tryParse(raw.toString());
+    if (parsed == null) return raw.toString();
+    final local = parsed.toLocal();
+    final d = local.day.toString().padLeft(2, '0');
+    final m = local.month.toString().padLeft(2, '0');
+    final y = local.year;
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return '$d/$m/$y $hh:$mm';
+  }
+
+  String _formatMoney(dynamic raw) {
+    final val = double.tryParse(raw?.toString() ?? '');
+    if (val == null) return '฿0.00';
+    return '฿${val.toStringAsFixed(2)}';
+  }
+
+  Widget _detailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: pink),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 115,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 12.5,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: darkPink,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // แสดงข้อมูลตั๋วใบนั้นทั้งหมด ยกเว้น Ticket Code
   Widget buildTicketCard(Map<String, dynamic> ticket) {
     final status = getValue(ticket, [
       'status',
@@ -1085,16 +1138,48 @@ class _MyResellingPageState extends State<MyResellingPage> {
     ], fallback: 'Available');
 
     final concert = getValue(ticket, [
+      'concert_title',
       'concert',
       'concert_name',
       'title',
     ], fallback: 'Concert Ticket');
 
-    final zone = getValue(ticket, ['zone', 'zone_name']);
+    final artist = getValue(ticket, ['artist']);
+    final category = getValue(ticket, ['category']);
+    final venue = getValue(ticket, ['venue', 'location']);
+    final showDateTime = _formatDateTime(
+      ticket['show_datetime'] ?? ticket['date'],
+    );
+    final zone = getValue(ticket, ['zone_name', 'zone']);
+    final seat = getValue(ticket, ['seat_number', 'seat']);
 
-    final seat = getValue(ticket, ['seat', 'seat_number']);
+    final originalPrice = _formatMoney(
+      ticket['original_price'] ?? ticket['originalPrice'],
+    );
+    final resellPrice = _formatMoney(
+      ticket['resell_price'] ?? ticket['price'] ?? 0,
+    );
+    final shippingFee = _formatMoney(
+      ticket['shipping_fee'] ?? ticket['shippingFee'] ?? 0,
+    );
 
-    final price = getValue(ticket, ['resell_price', 'price'], fallback: '0');
+    final deliveryType = getValue(ticket, [
+      'delivery_type',
+      'deliveryMethod',
+      'delivery',
+    ]);
+    final shippingCompany = getValue(ticket, [
+      'shipping_company',
+      'shippingChannel',
+      'channel',
+    ]);
+    final deliveryNote = getValue(ticket, [
+      'delivery_note',
+      'note',
+    ]);
+    final createdAt = _formatDateTime(
+      ticket['created_at'] ?? ticket['createdDate'],
+    );
 
     final statusColor = getStatusColor(status);
 
@@ -1109,15 +1194,32 @@ class _MyResellingPageState extends State<MyResellingPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Text(
-                    concert,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: darkPink,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        concert,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: darkPink,
+                        ),
+                      ),
+                      if (artist != '-') ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          artist,
+                          style: const TextStyle(
+                            color: pink,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 Container(
@@ -1130,34 +1232,98 @@ class _MyResellingPageState extends State<MyResellingPage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    status,
+                    status.toUpperCase(),
                     style: TextStyle(
                       color: statusColor,
                       fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                      fontSize: 11.5,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              'Zone: $zone',
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Seat: $seat',
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Resell Price: ฿$price',
-              style: const TextStyle(
-                color: pink,
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
+            const Divider(height: 22),
+
+            // ข้อมูลตั๋วทั้งหมด (ยกเว้น Ticket Code)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: lightPink,
+                borderRadius: BorderRadius.circular(12),
               ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Ticket & Listing Details',
+                    style: TextStyle(
+                      color: darkPink,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (category != '-')
+                    _detailRow(Icons.category_outlined, 'Category', category),
+                  _detailRow(
+                    Icons.calendar_today_outlined,
+                    'Show Date & Time',
+                    showDateTime,
+                  ),
+                  _detailRow(Icons.location_on_outlined, 'Venue', venue),
+                  _detailRow(Icons.grid_view_outlined, 'Zone', zone),
+                  _detailRow(Icons.event_seat_outlined, 'Seat Number', seat),
+                  _detailRow(
+                    Icons.sell_outlined,
+                    'Original Price',
+                    originalPrice,
+                  ),
+                  _detailRow(
+                    Icons.local_shipping_outlined,
+                    'Delivery Type',
+                    deliveryType,
+                  ),
+                  if (shippingCompany != '-')
+                    _detailRow(
+                      Icons.storefront_outlined,
+                      'Channel / Carrier',
+                      shippingCompany,
+                    ),
+                  _detailRow(
+                    Icons.payments_outlined,
+                    'Shipping Fee',
+                    shippingFee,
+                  ),
+                  if (deliveryNote != '-')
+                    _detailRow(Icons.notes_outlined, 'Note', deliveryNote),
+                  if (createdAt != '-')
+                    _detailRow(Icons.access_time, 'Listed On', createdAt),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Resell Price',
+                  style: TextStyle(
+                    color: darkPink,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  resellPrice,
+                  style: const TextStyle(
+                    color: pink,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 17,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

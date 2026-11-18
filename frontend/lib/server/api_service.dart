@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:frontend/views/cart_service.dart';
 
 class ApiService {
   // ==========================================
@@ -20,16 +21,51 @@ class ApiService {
   // ==========================================
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
 
+  /// ดึง user_id จาก JWT Token เพื่อแยกตะกร้าสินค้า (Cart) ของแต่ละ User
+  static void syncCartUserFromToken(String? token) {
+    if (token == null || token.trim().isEmpty) {
+      return;
+    }
+    try {
+      final parts = token.split('.');
+      if (parts.length == 3) {
+        final normalized = base64Url.normalize(parts[1]);
+        final payloadJson = utf8.decode(base64Url.decode(normalized));
+        final payload = jsonDecode(payloadJson);
+        if (payload is Map) {
+          final uid =
+              payload['user_id'] ?? payload['id'] ?? payload['username'];
+          if (uid != null && uid.toString().trim().isNotEmpty) {
+            CartService.setCurrentUser('user_$uid');
+          }
+        }
+      }
+    } catch (_) {
+      // Ignore malformed token in tests
+    }
+  }
+
+  static Future<void> ensureCurrentUserCart() async {
+    try {
+      final token = await _storage.read(key: 'jwt_token');
+      syncCartUserFromToken(token);
+    } catch (_) {}
+  }
+
   static Future<String?> _getToken() async {
-    return await _storage.read(key: 'jwt_token');
+    final token = await _storage.read(key: 'jwt_token');
+    syncCartUserFromToken(token);
+    return token;
   }
 
   static Future<void> saveToken(String token) async {
     await _storage.write(key: 'jwt_token', value: token);
+    syncCartUserFromToken(token);
   }
 
   static Future<void> clearToken() async {
     await _storage.delete(key: 'jwt_token');
+    CartService.logoutUser();
   }
 
   // ==========================================

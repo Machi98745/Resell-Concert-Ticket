@@ -3,11 +3,42 @@ import 'dart:math';
 
 class CartService {
   // ==========================================
-  // CART & RESALE DATA
+  // CART & RESALE DATA (แยกตะกร้าและประวัติตาม User แต่ละคน ห้ามเชื่อมกัน)
   // ==========================================
 
-  static final List<Map<String, dynamic>> items = [];
-  static final List<Map<String, dynamic>> history = [];
+  static String _currentUserKey = 'guest';
+
+  static final Map<String, List<Map<String, dynamic>>> _cartsByUser = {
+    'guest': <Map<String, dynamic>>[],
+  };
+
+  static final Map<String, List<Map<String, dynamic>>> _historyByUser = {
+    'guest': <Map<String, dynamic>>[],
+  };
+
+  static String get currentUserKey => _currentUserKey;
+
+  /// ตั้งค่า User ปัจจุบันเพื่อให้ตะกร้าสินค้าแยกตามบัญชีผู้ใช้แต่ละคน
+  static void setCurrentUser(dynamic userIdentifier) {
+    final raw = userIdentifier?.toString().trim() ?? '';
+    final key = raw.isEmpty ? 'guest' : raw;
+    _currentUserKey = key;
+    _cartsByUser.putIfAbsent(key, () => <Map<String, dynamic>>[]);
+    _historyByUser.putIfAbsent(key, () => <Map<String, dynamic>>[]);
+  }
+
+  /// ล้าง Session ตะกร้าเมื่อ Log Out (ข้อมูลของ User เดิมยังคงเก็บแยกไว้ใน key ของ User นั้น)
+  static void logoutUser() {
+    _currentUserKey = 'guest';
+    _cartsByUser['guest'] = <Map<String, dynamic>>[];
+    _historyByUser['guest'] = <Map<String, dynamic>>[];
+  }
+
+  static List<Map<String, dynamic>> get items =>
+      _cartsByUser.putIfAbsent(_currentUserKey, () => <Map<String, dynamic>>[]);
+
+  static List<Map<String, dynamic>> get history =>
+      _historyByUser.putIfAbsent(_currentUserKey, () => <Map<String, dynamic>>[]);
 
   // รายการตั๋วที่ผู้ใช้งานนำมาประกาศขาย
   static final List<Map<String, dynamic>> resaleListings = [];

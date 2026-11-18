@@ -34,6 +34,9 @@ class _DetailPageState extends State<DetailPage> {
   @override
   void initState() {
     super.initState();
+    ApiService.ensureCurrentUserCart().then((_) {
+      if (mounted) setState(() {});
+    });
     loadTickets();
   }
 
@@ -1375,6 +1378,15 @@ class _DetailPageState extends State<DetailPage> {
     final seats = getSeats(ticket);
     final selectedSeat = getSelectedSeat(ticket);
     final zone = (ticket['zone'] ?? 'General').toString();
+    final originalPrice = ticket['original_price'] ?? ticket['originalPrice'];
+    final deliveryType =
+        (ticket['delivery_type'] ?? ticket['deliveryMethod'] ?? '').toString();
+    final shippingCompany =
+        (ticket['shipping_company'] ?? ticket['shippingChannel'] ?? '')
+            .toString();
+    final shippingFee = ticket['shipping_fee'] ?? ticket['shippingFee'];
+    final deliveryNote =
+        (ticket['delivery_note'] ?? ticket['note'] ?? '').toString();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -1407,6 +1419,48 @@ class _DetailPageState extends State<DetailPage> {
                       'Seller: ${ticket['seller'] ?? 'Ticket Pink'}',
                       style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
+                    if (originalPrice != null &&
+                        originalPrice.toString().isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        'Original Price: ${formatPrice(originalPrice)}',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                    if (deliveryType.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        'Delivery: $deliveryType${shippingCompany.isNotEmpty ? ' ($shippingCompany)' : ''}',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                    if (shippingFee != null &&
+                        shippingFee.toString().isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        'Shipping Fee: ${formatPrice(shippingFee)}',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                    if (deliveryNote.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        'Note: $deliveryNote',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 5),
                     Text(
                       sold ? 'SOLD OUT' : 'Available',

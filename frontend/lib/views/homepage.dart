@@ -65,6 +65,9 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    ApiService.ensureCurrentUserCart().then((_) {
+      if (mounted) setState(() {});
+    });
     loadConcerts();
     checkSellerStatus();
     startBannerAutoSlide();
