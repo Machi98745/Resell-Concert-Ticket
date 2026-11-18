@@ -15,11 +15,8 @@ dependencies:
   google_fonts: ^8.2.1
   image_picker: ^1.2.4
   http: ^1.6.0
-<<<<<<< HEAD
   shared_preferences: ^2.5.6
-=======
   flutter_secure_storage: ^11.2.0
->>>>>>> 3689c499ff4496f49939f69fab3695743a9a8ef8
 
 dev_dependencies:
   flutter_test:

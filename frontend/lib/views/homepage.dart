@@ -68,24 +68,35 @@ class _HomePageState extends State<HomePage> {
   }
 
   // ==========================================
-// RESOLVE POSTER FROM LOCAL ASSETS
-// ==========================================
+  // RESOLVE POSTER FROM DATABASE / UPLOADS
+  // ==========================================
 
-String _resolvePosterUrl(dynamic rawUrl, int concertId) {
-  switch (concertId) {
-    case 1:
-      return 'assets/images/body.jpeg';
+  String _resolvePosterUrl(dynamic rawUrl) {
+    final raw = rawUrl?.toString().trim() ?? '';
 
-    case 2:
-      return 'assets/images/threemandown.jpg';
+    if (raw.isEmpty) {
+      return '';
+    }
 
-    case 3:
-      return 'assets/images/jeff.png';
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+      return raw;
+    }
 
-    default:
-      return 'assets/images/concert.jpg';
+    if (raw.startsWith('/')) {
+      return 'http://localhost:3000$raw';
+    }
+
+    if (raw.startsWith('uploads/')) {
+      return 'http://localhost:3000/$raw';
+    }
+
+    if (raw.startsWith('assets/')) {
+      return raw;
+    }
+
+    return 'http://localhost:3000/uploads/posters/$raw';
   }
-}
+
   // ==========================================
   // LOAD CONCERTS & RESELL LISTINGS
   // ==========================================
@@ -140,7 +151,7 @@ String _resolvePosterUrl(dynamic rawUrl, int concertId) {
               : '',
           'location': concert['venue'] ?? 'Venue TBA',
           'category': concert['category'] ?? 'Other',
-          'image': _resolvePosterUrl(concert['poster_url'], concertId),
+          'image': _resolvePosterUrl(concert['poster_url']),
           'description': concert['description'] ?? '',
           'tickets': tickets.map((ticket) {
             return {

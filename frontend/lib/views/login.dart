@@ -446,7 +446,7 @@ class _LoginState extends State<Login> {
 
       if (!mounted) return;
       _showMessage(
-        'Login successful! Welcome ${user['full_name']}',
+        'Login successful! Welcome ${user['username'] ?? username}',
         Colors.green,
       );
 
