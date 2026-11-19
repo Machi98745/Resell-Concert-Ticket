@@ -253,6 +253,33 @@ class ApiService {
       return Map<String, dynamic>.from(item);
     }).toList();
   }
+
+  // HTTP DELETE
+  static Future<dynamic> delete(String endpoint) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: await _authHeaders(),
+    );
+
+    return _handleResponse(response);
+  }
+
+  // PUT /api/resell/:id (ผู้ขายแก้ไขประกาศขาย)
+  static Future<Map<String, dynamic>> updateResellListing(
+    int listingId,
+    Map<String, dynamic> body,
+  ) async {
+    final data = await put('/resell/$listingId', body);
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return {'listing_id': listingId};
+  }
+
+  // DELETE /api/resell/:id (ผู้ขายลบประกาศขาย)
+  static Future<Map<String, dynamic>> deleteResellListing(int listingId) async {
+    final data = await delete('/resell/$listingId');
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return {'listing_id': listingId};
+  }
   // ==========================================
   // RESELL LISTING API
   // ==========================================

@@ -438,6 +438,229 @@ exports.cancelResellListing = async (req, res) => {
 };
 
 
+// 4.1 Update a resale listing (ผู้ขายแก้ไขประกาศขายของตัวเอง)
+exports.updateResellListing = async (req, res) => {
+  const listingId = Number(req.params.id);
+  const userId = Number(req.user.user_id);
+  let conn;
+
+  try {
+    if (!Number.isInteger(listingId) || listingId <= 0) {
+      return res.status(400).json({ message: 'Invalid listing ID.' });
+    }
+
+    conn = await db.getConnection();
+    await conn.beginTransaction();
+
+    const [rows] = await conn.query(
+      `SELECT rl.listing_id, rl.seller_id, rl.status, rl.ticket_id,
+              rl.resell_price, rl.delivery_type, rl.shipping_company,
+              rl.shipping_fee, rl.delivery_note,
+              t.original_price, t.zone_name, t.seat_number
+       FROM resell_listings rl
+       JOIN tickets t ON rl.ticket_id = t.ticket_id
+       WHERE rl.listing_id = ?
+       FOR UPDATE`,
+      [listingId]
+    );
+
+    if (rows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ message: 'Listing not found.' });
+    }
+
+    const listing = rows[0];
+
+    if (Number(listing.seller_id) !== userId) {
+      await conn.rollback();
+      return res.status(403).json({ message: 'You can only edit your own listings.' });
+    }
+
+    if (listing.status !== 'available') {
+      await conn.rollback();
+      return res.status(400).json({
+        message: 'Only listings that are still available can be edited.'
+      });
+    }
+
+    // ห้ามแก้ไขระหว่างมีผู้ซื้อกำลังชำระเงิน
+    const [pending] = await conn.query(
+      `SELECT payment_id FROM payments
+       WHERE listing_id = ? AND status = 'pending'`,
+      [listingId]
+    );
+    if (pending.length > 0) {
+      await conn.rollback();
+      return res.status(409).json({
+        message: 'A buyer is currently paying for this ticket. Please try again later.'
+      });
+    }
+
+    const body = req.body || {};
+
+    const resellPrice =
+      body.resell_price !== undefined ? Number(body.resell_price) : Number(listing.resell_price);
+    const shippingFee =
+      body.shipping_fee !== undefined ? Number(body.shipping_fee) : Number(listing.shipping_fee || 0);
+    const originalPrice =
+      body.original_price !== undefined ? Number(body.original_price) : Number(listing.original_price);
+
+    const deliveryType =
+      body.delivery_type !== undefined ? String(body.delivery_type).trim() : listing.delivery_type;
+    const shippingCompany =
+      body.shipping_company !== undefined
+        ? (String(body.shipping_company).trim() || null)
+        : listing.shipping_company;
+    const deliveryNote =
+      body.delivery_note !== undefined
+        ? (String(body.delivery_note).trim() || null)
+        : listing.delivery_note;
+    const zoneName =
+      body.zone_name !== undefined ? String(body.zone_name).trim() : listing.zone_name;
+    const seatNumber =
+      body.seat_number !== undefined ? String(body.seat_number).trim() : listing.seat_number;
+
+    if (!Number.isFinite(resellPrice) || resellPrice <= 0) {
+      await conn.rollback();
+      return res.status(400).json({ message: 'Selling price must be greater than 0.' });
+    }
+    if (resellPrice > 1000000) {
+      await conn.rollback();
+      return res.status(400).json({ message: 'Selling price cannot exceed 1,000,000 THB.' });
+    }
+    if (!Number.isFinite(originalPrice) || originalPrice <= 0 || originalPrice > 1000000) {
+      await conn.rollback();
+      return res.status(400).json({ message: 'Original price must be between 1 and 1,000,000 THB.' });
+    }
+    if (resellPrice > originalPrice * 5) {
+      await conn.rollback();
+      return res.status(400).json({
+        message: 'The selling price cannot exceed 5 times the original price.'
+      });
+    }
+    if (!Number.isFinite(shippingFee) || shippingFee < 0 || shippingFee > 1000000) {
+      await conn.rollback();
+      return res.status(400).json({ message: 'Invalid shipping fee.' });
+    }
+    if (!zoneName || !seatNumber) {
+      await conn.rollback();
+      return res.status(400).json({ message: 'Zone and seat number are required.' });
+    }
+    if (!deliveryType) {
+      await conn.rollback();
+      return res.status(400).json({ message: 'Delivery type is required.' });
+    }
+
+    await conn.query(
+      `UPDATE resell_listings
+       SET resell_price = ?, delivery_type = ?, shipping_company = ?,
+           shipping_fee = ?, delivery_note = ?
+       WHERE listing_id = ?`,
+      [resellPrice, deliveryType, shippingCompany, shippingFee, deliveryNote, listingId]
+    );
+
+    await conn.query(
+      `UPDATE tickets
+       SET zone_name = ?, seat_number = ?, original_price = ?
+       WHERE ticket_id = ?`,
+      [zoneName, seatNumber, originalPrice, listing.ticket_id]
+    );
+
+    await conn.commit();
+
+    return res.status(200).json({
+      message: 'Listing updated successfully.',
+      listing_id: listingId
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    console.error('Update resale listing error:', error.message);
+    return res.status(500).json({ message: 'Unable to update the resale listing.' });
+  } finally {
+    if (conn) conn.release();
+  }
+};
+
+
+// 4.2 Delete a resale listing (ผู้ขายลบประกาศขายของตัวเอง)
+exports.deleteResellListing = async (req, res) => {
+  const listingId = Number(req.params.id);
+  const userId = Number(req.user.user_id);
+  let conn;
+
+  try {
+    conn = await db.getConnection();
+    await conn.beginTransaction();
+
+    const [rows] = await conn.query(
+      `SELECT listing_id, seller_id, status
+       FROM resell_listings
+       WHERE listing_id = ?
+       FOR UPDATE`,
+      [listingId]
+    );
+
+    if (rows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ message: 'Listing not found.' });
+    }
+
+    if (Number(rows[0].seller_id) !== userId && req.user.role !== 'admin') {
+      await conn.rollback();
+      return res.status(403).json({ message: 'You can only delete your own listings.' });
+    }
+
+    if (rows[0].status === 'sold') {
+      await conn.rollback();
+      return res.status(400).json({
+        message: 'This ticket has already been sold and cannot be deleted.'
+      });
+    }
+
+    const [pending] = await conn.query(
+      `SELECT payment_id FROM payments
+       WHERE listing_id = ? AND status = 'pending'`,
+      [listingId]
+    );
+    if (pending.length > 0) {
+      await conn.rollback();
+      return res.status(409).json({
+        message: 'A buyer is currently paying for this ticket. Please try again later.'
+      });
+    }
+
+    const [history] = await conn.query(
+      'SELECT COUNT(*) AS total FROM payments WHERE listing_id = ?',
+      [listingId]
+    );
+
+    if (Number(history[0].total) === 0) {
+      // ไม่มีประวัติการชำระเงิน -> ลบออกจากฐานข้อมูลได้เลย
+      await conn.query('DELETE FROM resell_listings WHERE listing_id = ?', [listingId]);
+    } else {
+      // มีประวัติการชำระเงิน (เช่น เคยถูกยกเลิก/หมดเวลา) -> Soft delete เพื่อรักษา Foreign Key
+      await conn.query(
+        `UPDATE resell_listings SET status = 'cancelled' WHERE listing_id = ?`,
+        [listingId]
+      );
+    }
+
+    await conn.commit();
+
+    return res.status(200).json({
+      message: 'Listing deleted successfully.',
+      listing_id: listingId
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    console.error('Delete resale listing error:', error.message);
+    return res.status(500).json({ message: 'Unable to delete the resale listing.' });
+  } finally {
+    if (conn) conn.release();
+  }
+};
+
+
 // 5. Get resale listings created by the logged-in user (แสดงข้อมูลตั๋วทั้งหมด ยกเว้น ticket_code)
 exports.getMyResellListings = async (req, res) => {
   try {
@@ -471,6 +694,7 @@ exports.getMyResellListings = async (req, res) => {
       JOIN tickets t ON rl.ticket_id = t.ticket_id
       JOIN concerts c ON t.concert_id = c.concert_id
       WHERE rl.seller_id = ?
+        AND rl.status <> 'cancelled'
       ORDER BY rl.created_at DESC
     `;
 

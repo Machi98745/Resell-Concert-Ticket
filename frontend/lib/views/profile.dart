@@ -5,6 +5,7 @@ import 'historypage.dart';
 import 'favorite.dart';
 import 'login.dart';
 import 'package:frontend/server/api_service.dart';
+import 'package:frontend/controller/resell_controller.dart';
 
 const Color pink = Color(0xFFE85D9E);
 const Color lightPink = Color(0xFFFFF5F8);
@@ -1325,10 +1326,390 @@ class _MyResellingPageState extends State<MyResellingPage> {
                 ),
               ],
             ),
+
+            // ปุ่มแก้ไข / ลบ ประกาศขาย (เฉพาะสถานะ available)
+            if (status.toLowerCase() == 'available') ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => deleteListing(ticket),
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      label: const Text('Delete'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => editListing(ticket),
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text('Edit'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: pink,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ] else if (status.toLowerCase() == 'sold') ...[
+              const SizedBox(height: 10),
+              const Text(
+                'This ticket has been sold and can no longer be edited or deleted.',
+                style: TextStyle(color: Colors.grey, fontSize: 11.5),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  // ==========================================
+  // EDIT / DELETE LISTING (ผู้ขายแก้ไข / ลบประกาศ)
+  // ==========================================
+
+  final ResellController _resellController = ResellController();
+
+  int? _listingIdOf(Map<String, dynamic> ticket) {
+    return int.tryParse(
+      (ticket['listing_id'] ?? ticket['listingId'] ?? '').toString(),
+    );
+  }
+
+  String _plainNumber(dynamic raw) {
+    final val = double.tryParse(raw?.toString() ?? '');
+    if (val == null) return '';
+    return val == val.roundToDouble()
+        ? val.toStringAsFixed(0)
+        : val.toStringAsFixed(2);
+  }
+
+  Future<void> deleteListing(Map<String, dynamic> ticket) async {
+    final listingId = _listingIdOf(ticket);
+    if (listingId == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red),
+            SizedBox(width: 8),
+            Text(
+              'Delete Listing',
+              style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to delete the listing for '
+          '"${getValue(ticket, ['concert_title', 'concert', 'title'], fallback: 'this ticket')}"? '
+          'Buyers will no longer see this ticket.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _resellController.deleteResellListing(listingId: listingId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Listing deleted successfully.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      await loadMyListings();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> editListing(Map<String, dynamic> ticket) async {
+    final listingId = _listingIdOf(ticket);
+    if (listingId == null) return;
+
+    final zoneController = TextEditingController(
+      text: getValue(ticket, ['zone_name', 'zone'], fallback: ''),
+    );
+    final seatController = TextEditingController(
+      text: getValue(ticket, ['seat_number', 'seat'], fallback: ''),
+    );
+    final originalController = TextEditingController(
+      text: _plainNumber(ticket['original_price']),
+    );
+    final priceController = TextEditingController(
+      text: _plainNumber(ticket['resell_price'] ?? ticket['price']),
+    );
+    final feeController = TextEditingController(
+      text: _plainNumber(ticket['shipping_fee'] ?? 0),
+    );
+    final companyController = TextEditingController(
+      text: getValue(ticket, ['shipping_company'], fallback: ''),
+    );
+    final noteController = TextEditingController(
+      text: getValue(ticket, ['delivery_note'], fallback: ''),
+    );
+
+    const deliveryOptions = ['Parcel Shipping', 'Digital Transfer'];
+    final currentDelivery = getValue(ticket, ['delivery_type'], fallback: '');
+    String delivery = deliveryOptions.contains(currentDelivery)
+        ? currentDelivery
+        : 'Parcel Shipping';
+
+    String? errorText;
+    bool saving = false;
+
+    InputDecoration deco(String label, {String? prefix}) => InputDecoration(
+          labelText: label,
+          prefixText: prefix,
+          isDense: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: pink),
+          ),
+        );
+
+    final updated = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> save() async {
+              final error = ResellController.validateEditListing(
+                zoneName: zoneController.text,
+                seatNumber: seatController.text,
+                originalPriceText: originalController.text,
+                sellingPriceText: priceController.text,
+                shippingFeeText:
+                    delivery == 'Parcel Shipping' ? feeController.text : '0',
+              );
+              if (error != null) {
+                setDialogState(() => errorText = error);
+                return;
+              }
+
+              setDialogState(() {
+                errorText = null;
+                saving = true;
+              });
+
+              try {
+                await _resellController.updateResellListing(
+                  listingId: listingId,
+                  data: {
+                    'zone_name': zoneController.text.trim(),
+                    'seat_number': seatController.text.trim(),
+                    'original_price':
+                        double.parse(originalController.text.trim()),
+                    'resell_price': double.parse(priceController.text.trim()),
+                    'delivery_type': delivery,
+                    'shipping_company': delivery == 'Parcel Shipping'
+                        ? companyController.text.trim()
+                        : '',
+                    'shipping_fee': delivery == 'Parcel Shipping'
+                        ? (double.tryParse(feeController.text.trim()) ?? 0)
+                        : 0,
+                    'delivery_note': noteController.text.trim(),
+                  },
+                );
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext, true);
+                }
+              } catch (e) {
+                setDialogState(() {
+                  saving = false;
+                  errorText = e.toString().replaceAll('Exception: ', '');
+                });
+              }
+            }
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              title: const Text(
+                'Edit Listing',
+                style: TextStyle(color: darkPink, fontWeight: FontWeight.bold),
+              ),
+              content: SizedBox(
+                width: 380,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: zoneController,
+                        decoration: deco('Zone'),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: seatController,
+                        decoration: deco('Seat Number'),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: originalController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: deco('Original Price', prefix: '฿ '),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: priceController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: deco('Selling Price', prefix: '฿ '),
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        value: delivery,
+                        decoration: deco('Delivery Type'),
+                        items: deliveryOptions
+                            .map(
+                              (d) => DropdownMenuItem(value: d, child: Text(d)),
+                            )
+                            .toList(),
+                        onChanged: saving
+                            ? null
+                            : (v) => setDialogState(
+                                  () => delivery = v ?? delivery,
+                                ),
+                      ),
+                      if (delivery == 'Parcel Shipping') ...[
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: companyController,
+                          decoration: deco('Shipping Company'),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: feeController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: deco('Shipping Fee', prefix: '฿ '),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: noteController,
+                        maxLines: 2,
+                        decoration: deco('Note (optional)'),
+                      ),
+                      if (errorText != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Colors.red.withOpacity(0.4),
+                            ),
+                          ),
+                          child: Text(
+                            '⚠ $errorText',
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed:
+                      saving ? null : () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: pink,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: saving ? null : save,
+                  child: saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Save Changes'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    zoneController.dispose();
+    seatController.dispose();
+    originalController.dispose();
+    priceController.dispose();
+    feeController.dispose();
+    companyController.dispose();
+    noteController.dispose();
+
+    if (updated == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Listing updated successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      await loadMyListings();
+    }
   }
 
   @override

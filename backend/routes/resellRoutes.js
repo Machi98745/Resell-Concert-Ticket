@@ -13,6 +13,8 @@ const requiredHandlers = [
   'getResellListingById',
   'createResellListing',
   'cancelResellListing',
+  'updateResellListing',
+  'deleteResellListing',
 ];
 
 for (const handler of requiredHandlers) {
@@ -50,5 +52,9 @@ router.post('/', verifyToken, resellController.createResellListing);
 
 // ยกเลิกประกาศขายตั๋วมือสอง (/api/resell/:id/cancel)
 router.patch('/:id/cancel', verifyToken, resellController.cancelResellListing);
+
+// Seller edits / deletes own listing (/api/resell/:id)
+router.put('/:id', verifyToken, resellController.updateResellListing);
+router.delete('/:id', verifyToken, resellController.deleteResellListing);
 
 module.exports = router;

@@ -322,6 +322,75 @@ class ResellController {
     }
   }
 
+  // ==========================================================================
+  // 11. Business Logic: ตรวจสอบข้อมูลก่อนแก้ไขประกาศขาย
+  // ==========================================================================
+  static String? validateEditListing({
+    required String zoneName,
+    required String seatNumber,
+    required String originalPriceText,
+    required String sellingPriceText,
+    required String shippingFeeText,
+  }) {
+    if (zoneName.trim().isEmpty) return 'Please enter the zone name.';
+    if (seatNumber.trim().isEmpty) return 'Please enter the seat number.';
+
+    final original = double.tryParse(originalPriceText.trim());
+    if (original == null) return 'Please enter a valid original price.';
+    if (original <= 0) return 'Original price must be greater than 0 THB.';
+    if (original > maxResellPrice) {
+      return 'Original price cannot exceed 1,000,000 THB.';
+    }
+
+    final selling = double.tryParse(sellingPriceText.trim());
+    if (selling == null) return 'Please enter a valid selling price.';
+    if (selling <= 0) return 'Selling price must be greater than 0 THB.';
+    if (selling > maxResellPrice) {
+      return 'Selling price cannot exceed 1,000,000 THB.';
+    }
+    if (selling > original * 5) {
+      return 'Selling price cannot exceed 5x of original price.';
+    }
+
+    final fee = shippingFeeText.trim().isEmpty
+        ? 0
+        : double.tryParse(shippingFeeText.trim());
+    if (fee == null) return 'Please enter a valid shipping fee.';
+    if (fee < 0) return 'Shipping fee cannot be negative.';
+    if (fee > maxResellPrice) return 'Shipping fee cannot exceed 1,000,000 THB.';
+
+    return null;
+  }
+
+  // ==========================================================================
+  // 12. แก้ไขประกาศขาย (PUT /api/resell/:id)
+  // ==========================================================================
+  Future<Map<String, dynamic>> updateResellListing({
+    required int listingId,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      return await ApiService.updateResellListing(listingId, data);
+    } catch (e) {
+      debugPrint('ResellController.updateResellListing error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
+  // ==========================================================================
+  // 13. ลบประกาศขาย (DELETE /api/resell/:id)
+  // ==========================================================================
+  Future<Map<String, dynamic>> deleteResellListing({
+    required int listingId,
+  }) async {
+    try {
+      return await ApiService.deleteResellListing(listingId);
+    } catch (e) {
+      debugPrint('ResellController.deleteResellListing error: $e');
+      throw Exception(_cleanErrorMessage(e));
+    }
+  }
+
   String _cleanErrorMessage(Object error) {
     final msg = error.toString().replaceAll('Exception: ', '').trim();
     if (msg.contains('SocketException') ||
