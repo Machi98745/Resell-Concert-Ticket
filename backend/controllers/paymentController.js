@@ -146,10 +146,11 @@ exports.createPayment = async (req, res) => {
         });
       }
 
-      // ผู้ซื้อคนเดิมกดซ้ำ ให้อัปเดตข้อมูลวิธีจัดส่ง/ชำระเงินในออเดอร์เดิม
+      // ผู้ซื้อคนเดิมกดซื้อซ้ำหลังจากเคยมีรายการค้างอยู่
+      // รีเซ็ตเวลานับถอยหลังใหม่เต็ม 15 นาที เพื่อไม่ให้นับเวลาต่อจากเดิม
       await conn.query(
         `UPDATE payments
-         SET amount = ?, commission_fee = ?, shipping_fee = ?, payment_method = ?, delivery_method = ?, shipping_info = ?
+         SET amount = ?, commission_fee = ?, shipping_fee = ?, payment_method = ?, delivery_method = ?, shipping_info = ?, expires_at = DATE_ADD(NOW(), INTERVAL ? MINUTE)
          WHERE payment_id = ?`,
         [
           totalAmount,
@@ -158,6 +159,7 @@ exports.createPayment = async (req, res) => {
           paymentMethod,
           rawDeliveryMethod,
           String(shippingInfo).trim(),
+          PAYMENT_HOLD_MINUTES,
           activePayments[0].payment_id,
         ]
       );

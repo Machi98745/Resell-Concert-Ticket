@@ -69,26 +69,57 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   void _initOrderAndTimer() {
+    // 1. ดึงเวลานับถอยหลังจาก Backend payment record (ถ้ามี)
+    int? backendRemaining;
+    for (final item in widget.items) {
+      final expiresAt = item['expires_at']?.toString();
+      if (expiresAt != null && expiresAt.isNotEmpty) {
+        final sec = PaymentController.getRemainingSeconds(expiresAt);
+        if (sec > 0) {
+          backendRemaining = sec;
+          break;
+        }
+      }
+    }
+
+    // 2. ถ้าเป็นออเดอร์ใหม่ หรือไม่มี active order ให้รีเซ็ตเวลาใหม่เต็ม 15 นาที
     final unpaidOrders = CartService.getOrdersByStatus('To Pay');
 
     if (unpaidOrders.isNotEmpty) {
       currentOrder = unpaidOrders.first;
     } else if (widget.items.isNotEmpty) {
       currentOrder = CartService.createOrderFromItems(widget.items);
+    } else {
+      currentOrder = null;
+    }
+
+    if (backendRemaining != null && backendRemaining > 0) {
+      remainingSeconds = backendRemaining;
+      if (currentOrder != null) {
+        currentOrder!['paymentDeadline'] =
+            DateTime.now().add(Duration(seconds: backendRemaining));
+      }
+    } else if (currentOrder != null) {
+      // รีเซ็ตเวลากลับมาเต็มโควต้าหากสร้างใหม่
+      final deadline = currentOrder!['paymentDeadline'];
+      if (deadline is! DateTime || deadline.isBefore(DateTime.now())) {
+        currentOrder!['paymentDeadline'] =
+            DateTime.now().add(CartService.paymentLimit);
+      }
+      remainingSeconds = CartService.remainingPaymentTime(currentOrder!).inSeconds;
+    } else {
+      remainingSeconds = CartService.paymentLimit.inSeconds;
     }
 
     _updateTime();
+    timer?.cancel();
     timer = Timer.periodic(const Duration(seconds: 1), (t) {
       _updateTime();
     });
   }
 
   void _updateTime() {
-    if (currentOrder == null) return;
-
-    final duration = CartService.remainingPaymentTime(currentOrder!);
-
-    if (duration <= Duration.zero || currentOrder!['status'] == 'Cancelled') {
+    if (remainingSeconds <= 0) {
       timer?.cancel();
       if (mounted) {
         setState(() {
@@ -96,13 +127,110 @@ class _PaymentPageState extends State<PaymentPage> {
           remainingSeconds = 0;
         });
       }
-    } else {
+      return;
+    }
+
+    if (currentOrder != null && currentOrder!['status'] == 'Cancelled') {
+      timer?.cancel();
       if (mounted) {
         setState(() {
-          remainingSeconds = duration.inSeconds;
+          expired = true;
+          remainingSeconds = 0;
         });
       }
+      return;
     }
+
+    if (mounted) {
+      setState(() {
+        remainingSeconds--;
+        if (remainingSeconds <= 0) {
+          expired = true;
+          remainingSeconds = 0;
+          timer?.cancel();
+        }
+      });
+    }
+  }
+
+  // ==========================================================================
+  // CANCEL ORDER (ยกเลิกคำสั่งซื้อจากหน้า Payment)
+  // ==========================================================================
+  Future<void> _cancelPaymentOrder() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red),
+            SizedBox(width: 8),
+            Text(
+              'Cancel Order',
+              style: TextStyle(
+                color: Color(0xFF54283D),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to cancel this order? '
+          'The reserved ticket will be released immediately.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Back', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Cancel Order'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    timer?.cancel();
+
+    // 1. ยกเลิกใน CartService (in-memory)
+    if (currentOrder != null) {
+      CartService.cancelOrder(currentOrder!);
+    }
+    for (final order in CartService.getOrdersByStatus('To Pay')) {
+      CartService.cancelOrder(order);
+    }
+
+    // 2. ยกเลิกใน Backend ผ่าน API (ถ้ามี payment_id)
+    try {
+      for (final item in widget.items) {
+        final pid = int.tryParse((item['payment_id'] ?? '').toString());
+        if (pid != null && pid > 0) {
+          await _paymentController.cancelPayment(paymentId: pid);
+        }
+      }
+    } catch (e) {
+      debugPrint('Cancel payment on backend error: $e');
+    }
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Order cancelled successfully. Ticket has been released.'),
+        backgroundColor: Colors.redAccent,
+      ),
+    );
+
+    Navigator.pop(context);
   }
 
   @override
@@ -252,6 +380,19 @@ class _PaymentPageState extends State<PaymentPage> {
         title: const Text('Payment'),
         backgroundColor: pinkAccent,
         foregroundColor: Colors.white,
+        actions: [
+          if (!expired && !success)
+            TextButton(
+              onPressed: isProcessing ? null : _cancelPaymentOrder,
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+        ],
       ),
       body: expired
           ? Center(
@@ -762,6 +903,26 @@ class _PaymentPageState extends State<PaymentPage> {
                                         ),
                                       )
                                     : const Text('Pay Now'),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 44,
+                              child: OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.red,
+                                  side: const BorderSide(color: Colors.red),
+                                ),
+                                onPressed: isProcessing
+                                    ? null
+                                    : _cancelPaymentOrder,
+                                child: const Text(
+                                  'Cancel Order',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
                             ),
                           ],
